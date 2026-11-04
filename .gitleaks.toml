@@ -1,0 +1,7 @@
+# gitleaks config: the default rule set, nothing allowlisted.
+# Test fixtures never hold real-looking secrets; the CI canary builds its fake
+# token at runtime in a temp dir outside the repo.
+title = "wanheda"
+
+[extend]
+useDefault = true

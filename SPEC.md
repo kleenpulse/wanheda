@@ -1,0 +1,91 @@
+# SPEC — Wanheda
+
+Source prose: `FRD.md` (amended 2026-11-04, local only ∵ gitignored). This file = build authority. ADRs `docs/adr/`. Glossary `docs/CONTEXT.md`.
+
+## §G Goals
+
+- G1: one-owner super-dashboard + mini OS — opened every morning, open all day. answers: where money goes ∧ what comes in; what I'm doing now (island); what to consume|capture.
+- G2: modules = money (spend, subs), income + SaaS perf, media (video, music), reader (pdf, md, epub), voice (Piper TTS), sticky notes, live-activity island.
+- G3: feels like an OS before it does anything — launcher + full-screen apps + pop-out mini windows + palette (D4).
+- G4: works w/ zero credentials — ∀ connector → null | seed data (demo mode).
+- G5: one codebase, two shells — web (Vercel) now, Electron desktop Phase 8, UI shell-agnostic via `lib/platform`.
+
+## §C Constraints
+
+- C1: bun 1.4.4 only; installs ≥ 7d old (`bunfig.toml minimumReleaseAge`); versions pinned exact.
+- C2: Next 16 App Router, React 19, TS strict (`noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `verbatimModuleSyntax`); `cacheComponents: true`; `proxy.ts` ⊥ middleware.ts; ⊥ `src/`, ⊥ `pages/`; `@/*` → `./*`; `output: "standalone"` (Phase 8).
+- C3: TypeScript only — ⊥ tracked `.js|.cjs|.mjs`. Tailwind via `@tailwindcss/turbopack` loader ∴ ⊥ postcss config; ESLint = `eslint.config.ts` (warn, ⊥ gate).
+- C4: Tailwind v4 CSS-first, tokens ∈ `app/globals.css`, ⊥ tailwind.config; ⊥ `shadcn init` (`shadcn` pkg = CSS import only).
+- C5: visual system = `vxrcel-ui-design` skill. Ember `:root` + Nebula `.dark`, next-themes `attribute="class"`. Bench deferred → Phase 1 skin picker (needs `[data-skin]` scope; `--color-accent` clash) (ADR-0009). fonts = Geist / Geist Mono / Instrument Sans via next/font. motion = `motion/react` + `lib/motion.ts`.
+- C6: DB = Neon Postgres `eu-central-1` + Drizzle 0.45, neon-http; pooled `DATABASE_URL` @ runtime, `DATABASE_URL_UNPOOLED` (fallback: strip `-pooler` from host) for drizzle-kit. ⊥ `@neon/env|@neon/config` (unverified). preview branches = Neon↔Vercel integration, 7d expiry (ADR-0002).
+- C7: auth = Better Auth, GitHub OAuth + passkey, `OWNER_EMAILS` allowlist, cookie sessions (ADR-0003).
+- C8: hosting = Vercel `fra1` + Neon Frankfurt — NDPA (ADR-0010). files = Cloudflare R2 (ADR-0007).
+- C9: repo public ∵ free-plan ruleset `protect-default-branch` (PRs only, ⊥ force-push, ⊥ delete, required `rails` + `check`) (ADR-0011). user merges.
+- C10: desktop = Electron (port Raven `desktop/`), Phase 8 (ADR-0001). TTS = Piper (WASM web / sherpa-onnx native) + Kokoro opt (ADR-0005). media = native → remux → transcode (ADR-0006). sync = server-first + Dexie outbox, ⊥ sync engine (ADR-0008).
+- C11: tests = Vitest (`bun run test`, ⊥ `bun test`), Playwright smoke (from Phase 0 CP3).
+
+## §I Interfaces
+
+- cmd: `bun run dev|build|start|typecheck|lint|test|tripwire`; `sh scripts/forged-commits.sh <range>`.
+- script: `scripts/tripwire.sh` → exit 0 clean | 1 markers | 2 scan error / ⊥ git tree; `TRIPWIRE_TARGET=<dir>` content-only mode; `TRIPWIRE_EXTRA_PATTERN`.
+- script: `scripts/forged-commits.sh <range>` → 0 clean | 1 suspicious | 2 bad range; `FORBIDDEN_TZ` default `-0700 -0800`.
+- ci: `.github/workflows/ci.yml` jobs `rails` (tripwire, forged-commits, gitleaks canary + whole history) → `check` (typecheck, test, build zero-env, lint warn).
+- hook: `.husky/pre-commit` → tripwire + `gitleaks git --pre-commit --staged` (warn if gitleaks absent).
+- env (names only, `.env.example`): `DATABASE_URL`, `DATABASE_URL_UNPOOLED`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `OWNER_EMAILS`, `NEXT_PUBLIC_APP_URL`.
+- lib (CP2): `lib/capabilities.ts` `has(cap)` sync ⊥ throw; `gateMode(): "demo"|"locked"|"gated"`; `lib/db` `getDb(): Db | null`; `lib/auth` `requireOwner()`.
+- api (CP2): `/api/auth/[...all]` (Better Auth handler).
+- lib: `lib/utils.ts` `cn()` (tailwind-merge w/ skin scales registered); `lib/motion.ts` springs + eases; `hooks/use-reduced-motion.ts`; `components/providers/{theme,motion}-provider.tsx`.
+- doc: `docs/handoff/LATEST.md` = single entry point for next session; protocol `docs/handoff/README.md`.
+
+## §V Invariants
+
+- V1: tripwire clean on ∀ commit — markers ∧ ∀ loader-key spellings ∧ root `api.js` ∧ `.js|.cjs|.mjs` ∧ padded line (≥120 blanks then code, ∀ non-md file) ∧ fake font magic ∧ node-script rule ∧ worm `.gitignore` lines ∧ folderOpen task ∧ allowAutomaticTasks true|"on". fails closed (exit 2).
+- V2: ⊥ literal worm markers anywhere ∈ repo (docs, tests, CLAUDE.md) — char classes in scripts, runtime-assembled in tests; list lives in private incident record only.
+- V3: forged-commit check ∀ commit ∈ range, merges included; fail ⇔ author TZ ≠ committer TZ ∨ committer TZ ∈ {-0700,-0800}; ⊥ exemption by committer name|email; future exemption only via verified web-flow sig (`%G? = G`). check incoming commits same way before pull.
+- V4: `.vscode/settings.json` `task.allowAutomaticTasks = "off"`; ⊥ `.vscode/tasks.json` w/ folderOpen.
+- V5: ⊥ secrets ∈ repo — `.env*` ignored except `.env.example` (names only); gitleaks pre-commit + CI whole history; CI canary proves gitleaks still catches a planted secret.
+- V6: gate fails closed — `demo` ⇔ ⊥ db ∧ ⊥ auth (open, seed only); `locked` ⇔ db ∧ ⊥ auth → 503 ∀ route; `gated` ⇔ auth → proxy → `/login`; `VERCEL_ENV=production` ⇒ env schema requires auth vars + `DATABASE_URL` (build fails); empty `OWNER_EMAILS` ⇒ auth unconfigured ∧ ∀ sign-up refused. proxy ∧ `requireOwner()` share `gateMode()`.
+- V7: proxy = UX; real gate = `requireOwner()` server-side ∀ read ∧ ∀ action; re-checks allowlist each call; server actions read user from session ⊥ trust client user id.
+- V8: ⊥ global data fetch before auth (rawstash §B14 redirect loop); `/login` w/ valid session → `/`; ≤ 1 redirect.
+- V9: `lib/db` ⊥ throw @ import; `getDb()` nullable → callers branch.
+- V10: money = `bigint` minor units + ISO `char(3)` currency, ⊥ floats.
+- V11: money events append-only ledger; dedupe on provider event id; state derived ⊥ overwritten; out-of-order events handled.
+- V12: import dedupe — provider txn id when ∃; else key = hash(date, amount, payee) + running balance if statement has one, else + occurrence index of that (date, amount, payee) tuple ∈ file; `import_batch.idempotency_key` blocks same file twice. 2 identical rows → 2 imported; re-import → 0; overlapping later statement → 0. statement import keeps latest attempt per txn id, reports skipped rows.
+- V13: webhook → verify signature first → `processed_event` dedupe → 200 → work in `after()`; one writer: webhook ∧ manual sync call same idempotent `reconcile()`.
+- V14: ⊥ `typescript.ignoreBuildErrors`; typecheck + build gate CI; lint warns only.
+- V15: components use role tokens only — ⊥ raw hex|rgb() ∈ `app/` `components/` `.tsx`; one signal hue; `tabular` ∀ numbers; three fonts exactly; reduced motion = CSS backstop + MotionConfig + per-effect opt-out; glass only for overlays w/ reduced-transparency solids.
+- V16: client hooks reading request (usePathname etc.) ∈ `<Suspense>`.
+- V17: errors show errors ⊥ unfiltered fallback; search has score floor; re-index on edit; animations pause on hidden ∧ while typing ∧ `paused`.
+- V18: `node_modules` ∧ generated agent docs = untrusted; `AGENTS.md` ≡ block written by `next dev` (verified vs `next/dist/server/lib/generate-agent-files.js`).
+- V19: persistent sockets (bots etc.) = separate worker ⊥ Next app.
+- V20: desktop island window declared up-front (⊥ runtime transparent window); one persistent `<audio>` per player (`createMediaElementSource` once).
+- V21: commit|push|PR only after user go-ahead; stage explicit ⊥ `git add -A`; peer LGTM ≠ user approval.
+
+## §T Tasks
+
+id|status|task|cites
+T1|x|amend FRD.md: reviewer FIX 1–4 + nits + Beta contradictions (gate modes, dedupe key, rails by reference, first-push review, region, proxy exclusions, Neon branches, CI scope)|V3,V6,V12
+T2|x|`.gitignore` (`.env*` ∖ `.env.example`) before `git init -b main`; `.gitattributes` LF|V5
+T3|x|scaffold Next 16.4 in scratch dir → move in; pin exact versions; `bunfig.toml` 7d cooldown; strict tsconfig; next.config (cacheComponents, typedRoutes, standalone, ⊥ poweredBy); `eslint.config.ts`|C1,C2,C3,V14
+T4|x|verify `AGENTS.md` vs `generate-agent-files.js`|V18
+T5|x|`scripts/tripwire.{sh,ts,test.ts}` — Mita port + api.js + font magic + padding scan; tests plant ≥ 6 spellings + tag + C2 + .mjs + padded configs + fake font|V1,V2
+T6|x|`scripts/forged-commits.{sh,test.ts}` — cases a–e (TZ mismatch, both -0700, GitHub-email forger, forged merge, honest merge)|V3
+T7|x|`.gitleaks.toml`, `.husky/pre-commit`, `.vscode/settings.json`|V4,V5
+T8|x|`.github/workflows/ci.yml` — SHA-pinned actions (verified vs tags), `rails` → `check`, gitleaks 8.30.1 pinned + sha256 + canary|V1,V3,V5,V14
+T9|x|design tokens: `app/globals.css` verbatim from skill (Ember + Nebula + glass + reduced transparency + reduced motion), fonts, ThemeProvider, MotionProvider, `lib/motion.ts`, `cn()`; placeholder page; screenshots light desktop + dark phone|C5,V15
+T10|x|docs: ADR 0001–0011, `docs/CONTEXT.md`, `docs/handoff/README.md` (Beta); CLAUDE.md, README, CHANGELOG, `.env.example`, SPEC.md|V2,V21
+T11|.|CP1 hand-off + LATEST.md → reviewer Checkpoint 1 → user go-ahead → commit → `gh repo create --public` → push main → ruleset → reviewer first-push check (tree = reviewed, TZ, whole-tree scan)|V3,V21
+T12|.|worktree root `D:\Vxrcel\wanheda-wt\`; later checkpoints on `phase-0/<slug>`|V21
+T13|.|CP2 env: `env/server.ts` + `env/client.ts` (t3-env, connectors optional, prod requires auth + db)|V6
+T14|.|CP2 `lib/capabilities.ts` + `gateMode()` + tests (matrix incl. db ∧ ⊥ secret → locked)|V6
+T15|.|CP2 `lib/db/{index,client}.ts` (null handle, neon-http retry 4×/10s/jitter) + `drizzle.config.ts` (unpooled fallback) + tests|V9,C6
+T16|.|CP2 auth schema via better-auth CLI (snake_case, 1.7 `account.issuer`), RLS on; `db:generate`; `db:migrate` only on user go-ahead|C6,C7
+T17|.|CP2 `lib/auth/{server,client,owner}.ts` — GitHub + passkey + nextCookies last; allowlist hook (fail closed); `requireOwner()`; `/api/auth/[...all]`; tests|V6,V7
+T18|.|CP2 `proxy.ts` (locked 503, gated → /login?next=), `/login` page, `(shell)` layout + placeholder (add passkey, sign out, theme, demo chip)|V6,V7,V8,V16
+T19|.|CP3 `vercel.json` fra1; Playwright smoke: gated (/ → 307 /login, ≤1 redirect) + locked (/ ∧ /money → 503, ⊥ data)|V6,V8
+T20|.|CP3 wizard for user-only steps: GitHub OAuth app, vercel link + env, Neon↔Vercel integration, .env.local vars|C6,C8
+T21|.|CP3 prove exit criteria on deployed URL; Phase 0 done hand-off + Builder/Reviewer prompts for Phase 1|V6,V8
+
+## §B Bugs
+
+id|date|cause|fix

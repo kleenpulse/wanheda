@@ -1,0 +1,10 @@
+sh scripts/tripwire.sh || exit 1
+
+if command -v gitleaks >/dev/null 2>&1; then
+  gitleaks git --pre-commit --staged --redact --no-banner || exit 1
+else
+  echo "" >&2
+  echo "!!! gitleaks is not installed: staged files were NOT scanned for secrets." >&2
+  echo "!!! CI will still block the push. Install it: winget install Gitleaks.Gitleaks" >&2
+  echo "" >&2
+fi

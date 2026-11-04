@@ -1,0 +1,38 @@
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+
+# env — real values never enter the repo; .env.example lists names only
+.env*
+!.env.example
+
+# next.js
+/.next/
+/out/
+next-env.d.ts
+
+# build
+/build
+/dist
+*.tsbuildinfo
+
+# tests
+/coverage
+/playwright-report/
+/test-results/
+/blob-report/
+/playwright/.cache/
+
+# vercel
+.vercel
+
+# misc
+.DS_Store
+*.pem
+npm-debug.log*
+bun-debug.log*
+
+# generated videos (/brag)
+/brag-output*/
+FRD.md
