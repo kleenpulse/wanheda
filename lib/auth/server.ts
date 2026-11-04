@@ -25,6 +25,11 @@ function createAuth(db: Db, settings: AuthSettings) {
         clientSecret: settings.githubClientSecret,
       },
     },
+    // GitHub access tokens are stored encrypted with the auth secret, so a
+    // database copy, backup or dump never holds a usable token. Rotating
+    // BETTER_AUTH_SECRET makes stored tokens unreadable; Wanheda does not use
+    // them after sign-in, so that only costs a fresh GitHub sign-in.
+    account: { encryptOAuthTokens: true },
     databaseHooks: {
       user: {
         create: {

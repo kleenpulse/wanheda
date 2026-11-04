@@ -29,7 +29,7 @@ Reason: Frankfurt is the nearest major region to Lagos with a strong privacy pos
 ### In 6 months
 
 - Server round trips from Lagos go to Frankfurt. That is slower than a local region would be, but fine for one user.
-- Preview branches from the Neon ↔ Vercel integration are created in the same Neon project and region.
+- Previews have no database (ADR-0002, amended in Phase 0 CP3), so no data leaves the production Neon project through a preview.
 
 ### In 2 years
 

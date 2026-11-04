@@ -495,6 +495,25 @@ html[data-transparency="reduce"]:not(.dark) {
 	--glass-sheen: transparent;
 }
 
+/* Skin switch: circular reveal from the toggle (components/theme-toggle.tsx).
+   Both snapshots hold still; the new one is clipped open on top of the old. */
+::view-transition-old(root),
+::view-transition-new(root) {
+	animation: none;
+	mix-blend-mode: normal;
+}
+::view-transition-new(root) {
+	animation: skin-reveal 640ms var(--ease-out-quint);
+}
+@keyframes skin-reveal {
+	from {
+		clip-path: circle(0 at var(--reveal-x, 50%) var(--reveal-y, 50%));
+	}
+	to {
+		clip-path: circle(var(--reveal-r, 150vmax) at var(--reveal-x, 50%) var(--reveal-y, 50%));
+	}
+}
+
 /* Reduced motion, layer 1: CSS backstop (motion.md) */
 @media (prefers-reduced-motion: reduce) {
 	*, *::before, *::after {
@@ -504,6 +523,12 @@ html[data-transparency="reduce"]:not(.dark) {
 		transition-delay: 0ms !important;
 		scroll-behavior: auto !important;
 	}
+	/* `*` does not match view-transition pseudo-elements. */
+	::view-transition-group(*),
+	::view-transition-old(*),
+	::view-transition-new(*) {
+		animation: none !important;
+	}
 }
 /* Same clamp, chosen in-app instead of by the OS. */
 html[data-motion="reduce"] :is(*, *::before, *::after) {
@@ -512,4 +537,9 @@ html[data-motion="reduce"] :is(*, *::before, *::after) {
 	transition-duration: 1ms !important;
 	transition-delay: 0ms !important;
 	scroll-behavior: auto !important;
+}
+html[data-motion="reduce"]::view-transition-group(*),
+html[data-motion="reduce"]::view-transition-old(*),
+html[data-motion="reduce"]::view-transition-new(*) {
+	animation: none !important;
 }

@@ -35,6 +35,13 @@ One function, `gateMode()`, decides access. Both `proxy.ts` and the server-side 
 - When `VERCEL_ENV` is `production`, the env schema makes the auth variables and `DATABASE_URL` **required**. A misconfigured production build fails instead of deploying.
 - An empty `OWNER_EMAILS` counts as "auth not configured".
 
+### Deploy environments (Phase 0 CP3)
+
+- **Two GitHub OAuth apps**, because an OAuth app has exactly one callback URL: "Wanheda (local)" for `http://localhost:3000` and "Wanheda" for the production URL. Each has its own client secret, and production and local use different `BETTER_AUTH_SECRET`s.
+- **Previews get no database and no auth variables**, so they run demo mode on seed data. They hold no real data and no secret, even when a pushed branch changes the gate code (ADR-0002). Preview hosts change per deploy and can't match an OAuth callback anyway.
+- **OAuth tokens are stored encrypted** (`account.encryptOAuthTokens: true`, keyed by `BETTER_AUTH_SECRET`), so a database copy, backup or dump never holds a usable GitHub token. Rotating the secret makes stored tokens unreadable, which only costs a fresh GitHub sign-in.
+- Passkeys bind to the hostname of `BETTER_AUTH_URL`. Moving production to another domain means registering passkeys again.
+
 ## Consequences
 
 ### In 6 months

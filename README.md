@@ -13,12 +13,23 @@ bun run dev
 
 With no environment variables it runs in demo mode. `.env.example` lists the variable names.
 
+## Deploy setup
+
+The owner-only steps (GitHub OAuth apps, Vercel project and Production variables, local `.env.local`) are a guided script:
+
+```sh
+bash scripts/setup-deploy.sh
+```
+
+Production deploys from `main` through Vercel's Git integration. Previews get no database and no sign-in, so they run demo mode on seed data (ADR-0002).
+
 ## Checks
 
 ```sh
 bun run typecheck
 bun run test
 bun run build
+bun run test:e2e   # after a build: gate-mode smoke test
 bun run tripwire
 ```
 
