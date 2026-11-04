@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Search } from "lucide-react";
 import { AccountMenu } from "@/components/shell/account-menu";
+import { usePalette } from "@/components/shell/palette-store";
 import { activeInk, idleInk } from "@/components/shell/styles";
 import { MODULES, SYSTEM_PAGES, isActive } from "@/lib/modules";
 import { cn } from "@/lib/utils";
@@ -13,6 +15,7 @@ const item =
 /** Below md the rail becomes Raven's floating glass tab bar (FR-SHELL-9). */
 export function MobileTabBar() {
   const pathname = usePathname();
+  const openPalette = usePalette((s) => s.setOpen);
 
   return (
     <nav
@@ -33,6 +36,16 @@ export function MobileTabBar() {
           </Link>
         );
       })}
+      <button
+        type="button"
+        onClick={() => {
+          openPalette(true);
+        }}
+        className={cn(item, "text-signal-ink dark:text-signal")}
+      >
+        <Search strokeWidth={1.75} aria-hidden />
+        <span className="sr-only">Search or start a timer</span>
+      </button>
       <AccountMenu side="top" />
     </nav>
   );

@@ -111,6 +111,11 @@
 	--text-micro: 0.6875rem;
 	--text-micro--line-height: 1.2;
 
+	/* The dynamic island is a hardware cutout: black in both skins on purpose
+	   (a sanctioned always-dark surface, like a code block). */
+	--color-island: #000000;
+	--color-island-foreground: #ffffff;
+
 	--ease-out-quint: cubic-bezier(0.23, 1, 0.32, 1);
 
 	--animate-rise-in: rise-in 320ms var(--ease-out-quint) backwards;
