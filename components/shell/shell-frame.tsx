@@ -86,11 +86,15 @@ export function ShellFrame({
       <PrefsProvider initial={prefs.initial} source={prefs.source}>
       <NotificationsProvider initial={notices.initial} source={notices.source}>
       <div
-        className="relative flex min-h-svh w-full [--rail-w:0px] md:[--rail-w:var(--rail-w-md)]"
+        // shrink-0: body is a flex column and min-h-svh replaces min-height:auto,
+        // so without it the frame shrinks to the viewport and the sticky rail
+        // scrolls away on any page taller than the screen.
+        className="relative flex min-h-svh w-full shrink-0 [--rail-w:0px] md:[--rail-w:var(--rail-w-md)]"
         style={{ ["--rail-w-md" as string]: `${railW}px` }}
       >
         <NavRail expanded={expanded} onToggle={toggle} className="hidden md:flex" />
-        <main className="relative min-w-0 flex-1 pb-[88px] md:pb-0">{children}</main>
+        {/* No bottom padding here: PageFrame clears the floating dock and tab bar inside the sheet. */}
+        <main className="relative min-w-0 flex-1">{children}</main>
         <MobileTabBar />
         <WindowLayer />
         <Dock />

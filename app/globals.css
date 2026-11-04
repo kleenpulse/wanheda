@@ -714,23 +714,17 @@ html[data-transparency="reduce"].dark[data-skin="bench"] {
 	--sidebar: #0e1012;
 }
 
-/* Home wallpapers (prefs). Tokens only, so they follow the skin and the accent. */
-.wallpaper-glow {
-	background: radial-gradient(1100px 520px at 50% -12%, color-mix(in oklab, var(--signal) 22%, transparent), transparent 72%);
+/* Home wallpapers (prefs): live scenes in components/prefs/wallpapers, drawn
+   in the skin's tokens. This frames them: a slow fade in, and a fade out at
+   the bottom so the scene dissolves into the sheet instead of ending on a line. */
+.wallpaper-fade {
+	mask-image: linear-gradient(to bottom, #000 45%, transparent);
+	animation: wallpaper-in 900ms var(--ease-out-quint) both;
 }
-.wallpaper-orbs {
-	background:
-		radial-gradient(520px 420px at 12% 18%, color-mix(in oklab, var(--orb-1) 20%, transparent), transparent 70%),
-		radial-gradient(560px 460px at 88% 22%, color-mix(in oklab, var(--orb-2) 14%, transparent), transparent 70%),
-		radial-gradient(620px 520px at 70% 92%, color-mix(in oklab, var(--orb-3) 16%, transparent), transparent 72%),
-		radial-gradient(480px 400px at 22% 86%, color-mix(in oklab, var(--orb-4) 14%, transparent), transparent 70%);
-}
-.wallpaper-grid {
-	background:
-		linear-gradient(to bottom, transparent, var(--sheet) 85%),
-		linear-gradient(to right, color-mix(in oklab, var(--foreground) 6%, transparent) 1px, transparent 1px),
-		linear-gradient(to bottom, color-mix(in oklab, var(--foreground) 6%, transparent) 1px, transparent 1px);
-	background-size: 100% 100%, 48px 48px, 48px 48px;
+@keyframes wallpaper-in {
+	from {
+		opacity: 0;
+	}
 }
 
 /* Skin switch: circular reveal from the toggle (components/theme-toggle.tsx).

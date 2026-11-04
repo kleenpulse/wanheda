@@ -22,5 +22,13 @@ All notable user-visible changes. Shipped in-app as "What's New" (FR-SHELL-10).
 - The dock: Home and the timer at the bottom of the screen on desktop, swelling under the pointer, with a dot on whatever is running, and the search pill at its end.
 - Mini windows: open the timer window from the dock or the palette ("timers window"). Drag it by its title bar, resize it from the corner (or the grip: arrows move, Shift+arrows resize, Escape closes); it snaps to an edge when dropped near one, and keeps its place on this device.
 - Timers: starting a length that is already running brings that timer forward instead of starting a twin (a finished one starts over). Settings → Timers can allow repeats instead; repeats are numbered ("25 min timer 2").
-- Settings → Appearance: pick a skin (Ember & Nebula, or Motion Garden's graphite Bench), any accent colour (presets or a free colour picker; its lightness is adjusted per theme so text stays readable), and a Home wallpaper (Glow, Orbs or Grid). They follow you to other devices, and load without a flash.
+- Settings → Appearance: pick a skin (Ember & Nebula, or Motion Garden's graphite Bench), any accent colour (presets or a free colour picker; its lightness is adjusted per theme so text stays readable), and a live Home wallpaper (Aurora, Contour, Stars or Dots) drawn in the skin and accent, which reacts to the pointer and holds still under reduced motion. They follow you to other devices, and load without a flash.
 - Notification centre: the bell on the rail (or "Open notifications" in the palette) lists past alerts with read and unread, a filter and Mark all read. Finished timers raise an alert, once even with two tabs open.
+- Settings in a new layout: sections on the left (Appearance, Timers, Keyboard, Account), cards on the right, and a list you tap into on phones. Appearance opens with a preview in your skin and accent, and the theme is now System, Ember or Nebula. Keyboard lists every shortcut.
+- The palette reaches every command: edit the board (from any page), skin, accent, wallpaper and repeat timers (type "skin", "accent" and so on), mark all notifications read, and sign out.
+
+### Fixed
+
+- The last card on a page no longer sits under the dock or the phone tab bar.
+- The rail stays put on pages taller than the screen instead of scrolling away.
+- Coming back to Home no longer leaves the board in edit mode.

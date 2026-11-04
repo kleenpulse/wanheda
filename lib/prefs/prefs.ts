@@ -12,7 +12,7 @@ import { TIMER_MODES, type TimerMode } from "@/lib/activity/timer";
 export const SKINS = ["default", "bench"] as const;
 export type Skin = (typeof SKINS)[number];
 
-export const WALLPAPERS = ["none", "glow", "orbs", "grid"] as const;
+export const WALLPAPERS = ["none", "aurora", "contour", "stars", "dots"] as const;
 export type Wallpaper = (typeof WALLPAPERS)[number];
 
 export interface Prefs {
@@ -38,9 +38,17 @@ export const ACCENT_PRESETS: readonly { name: string; hex: string }[] = [
 export const PICKER_FALLBACK = "#e8603c";
 
 export const SKIN_LABELS: Record<Skin, string> = { default: "Ember & Nebula", bench: "Bench" };
-export const WALLPAPER_LABELS: Record<Wallpaper, string> = { none: "None", glow: "Glow", orbs: "Orbs", grid: "Grid" };
+export const WALLPAPER_LABELS: Record<Wallpaper, string> = {
+  none: "None",
+  aurora: "Aurora",
+  contour: "Contour",
+  stars: "Stars",
+  dots: "Dots",
+};
 
-export const DEFAULT_PREFS: Prefs ={ skin: "default", accent: null, wallpaper: "none", timerMode: "single" };
+export const TIMER_MODE_LABELS: Record<TimerMode, string> = { single: "One per length", multiple: "Allow repeats" };
+
+export const DEFAULT_PREFS: Prefs = { skin: "default", accent: null, wallpaper: "none", timerMode: "single" };
 
 const HEX = /^#[0-9a-f]{6}$/;
 

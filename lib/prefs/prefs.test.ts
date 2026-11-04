@@ -15,7 +15,7 @@ import {
   type Prefs,
 } from "./prefs";
 
-const CUSTOM: Prefs = { skin: "bench", accent: "#12ab9f", wallpaper: "orbs", timerMode: "multiple" };
+const CUSTOM: Prefs = { skin: "bench", accent: "#12ab9f", wallpaper: "contour", timerMode: "multiple" };
 
 /** The generated <head> script as a function of `document`: what the browser runs inline. */
 // eslint-disable-next-line @typescript-eslint/no-implied-eval -- evaluates our own generated script against a stub
