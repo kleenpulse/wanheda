@@ -1,8 +1,12 @@
 "use client";
 
 import * as React from "react";
-import { Pipette } from "lucide-react";
+import { CloudSun, Pipette, Sunrise, Timer } from "lucide-react";
+import { useTheme } from "next-themes";
 import { usePrefs, type PrefsSaveState, type PrefsSource } from "@/components/prefs/prefs-provider";
+import { SettingRow, SettingsCard } from "@/components/settings/setting-row";
+import { TimerModeSetting } from "@/components/settings/timer-mode";
+import { revealTheme, type ThemeChoice } from "@/components/theme-toggle";
 import { Segmented } from "@/components/ui/segmented";
 import { ACCENT_PRESETS, PICKER_FALLBACK, SKINS, SKIN_LABELS, WALLPAPERS, WALLPAPER_LABELS, parseAccent } from "@/lib/prefs/prefs";
 import { cn } from "@/lib/utils";
@@ -10,108 +14,228 @@ import { cn } from "@/lib/utils";
 const SKIN_OPTIONS = SKINS.map((value) => ({ value, label: SKIN_LABELS[value] }));
 const WALLPAPER_OPTIONS = WALLPAPERS.map((value) => ({ value, label: WALLPAPER_LABELS[value] }));
 
-function Row({ title, body, children }: { title: string; body: string; children: React.ReactNode }) {
+const subscribeNone = () => () => {};
+/** False on the server and in the hydration pass, true after: for values only the client knows. */
+function useHydrated() {
+  return React.useSyncExternalStore(
+    subscribeNone,
+    () => true,
+    () => false,
+  );
+}
+
+/** Sample rows that wear the current skin and accent, so a change shows before you leave the page. */
+const PREVIEW = [
+  { icon: Timer, title: "Timer done", body: "Focus, 25 min. Rang on time.", time: "09:41", unread: true },
+  { icon: CloudSun, title: "Weather", body: "Light rain after 4 pm.", time: "08:02", unread: false },
+  { icon: Sunrise, title: "Today", body: "Two timers ran, one still going.", time: "Mon", unread: false },
+] as const;
+
+function Preview() {
   return (
-    <div className="flex flex-col gap-3 p-5 @lg:flex-row @lg:items-center @lg:justify-between">
-      <div className="min-w-0">
-        <p className="text-sm font-medium text-foreground">{title}</p>
-        <p className="text-[13px] text-pretty text-ink-2">{body}</p>
-      </div>
-      <div className="shrink-0">{children}</div>
+    <SettingsCard title="Preview">
+      <ul aria-label="Preview of the current look" className="flex flex-col gap-1.5 px-3 pt-1 pb-3">
+        {PREVIEW.map((row, i) => {
+          const selected = i === 0;
+          const Icon = row.icon;
+          return (
+            <li
+              key={row.title}
+              className={cn(
+                "flex items-center gap-3 rounded-[18px] px-3 py-2.5 ring-1",
+                selected ? "bg-signal-soft ring-signal/40" : "bg-card-nested ring-border dark:ring-glass-border",
+              )}
+            >
+              <span
+                className={cn(
+                  "grid size-9 shrink-0 place-items-center rounded-full ring-1 ring-border dark:ring-glass-border",
+                  selected ? "bg-background/40 text-signal-ink" : "bg-sheet text-ink-2",
+                )}
+              >
+                <Icon aria-hidden className="size-4" strokeWidth={1.75} />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="flex items-center gap-2">
+                  {row.unread ? <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-signal" /> : null}
+                  {row.unread ? <span className="sr-only">Unread: </span> : null}
+                  <span className={cn("truncate text-[13.5px]", row.unread ? "font-semibold text-foreground" : "font-medium text-foreground")}>
+                    {row.title}
+                  </span>
+                </span>
+                <span className="block truncate text-[12.5px] text-ink-2">{row.body}</span>
+              </span>
+              <span className="shrink-0 self-start pt-0.5 font-mono text-[11.5px] tabular text-ink-3">{row.time}</span>
+            </li>
+          );
+        })}
+      </ul>
+    </SettingsCard>
+  );
+}
+
+/** Light, dark or the system's, with the circular reveal grown from the press. */
+function ThemeControl() {
+  const { theme, setTheme } = useTheme();
+  const { prefs } = usePrefs();
+  const hydrated = useHydrated();
+  const press = React.useRef<{ x: number; y: number } | undefined>(undefined);
+  const bench = prefs.skin === "bench";
+  const options: { value: ThemeChoice; label: string }[] = [
+    { value: "system", label: "System" },
+    { value: "light", label: bench ? "Light" : "Ember" },
+    { value: "dark", label: bench ? "Dark" : "Nebula" },
+  ];
+  const current = (theme ?? "system") as ThemeChoice;
+
+  return (
+    <div
+      onPointerDown={(e) => {
+        press.current = { x: e.clientX, y: e.clientY };
+      }}
+    >
+      <Segmented
+        label="Theme"
+        value={hydrated ? current : null}
+        options={options}
+        onChange={(choice) => {
+          revealTheme(choice, setTheme, press.current);
+          press.current = undefined;
+        }}
+      />
     </div>
   );
 }
 
-/** Skin, accent colour and home wallpaper (FR-SHELL-7). */
-export function AppearancePrefs() {
+function AccentControl() {
   const { prefs, update } = usePrefs();
   const custom = prefs.accent !== null && !ACCENT_PRESETS.some((p) => p.hex === prefs.accent);
   const swatchClass =
     "relative grid size-8 place-items-center rounded-full ring-1 ring-border outline-none transition-transform hover:scale-105 focus-visible:ring-2 focus-visible:ring-ring dark:ring-glass-border motion-reduce:hover:scale-100";
 
   return (
-    <>
-      <Row title="Skin" body="Ember by day and Nebula by night, or Motion Garden's graphite Bench.">
-        <Segmented
-          label="Skin"
-          value={prefs.skin}
-          options={SKIN_OPTIONS}
-          onChange={(skin) => {
-            update({ skin });
-          }}
-        />
-      </Row>
-
-      <div className="mx-5 h-px bg-border dark:bg-glass-border" />
-
-      <Row title="Accent" body="Any colour. Its lightness is adjusted per theme so text in it stays readable.">
-        <div role="group" aria-label="Accent colour" className="flex flex-wrap items-center gap-2">
+    <div role="group" aria-label="Accent colour" className="flex flex-wrap items-center gap-2">
+      <button
+        type="button"
+        aria-pressed={prefs.accent === null}
+        onClick={() => {
+          update({ accent: null });
+        }}
+        className={cn(
+          "inline-flex h-8 items-center gap-1.5 rounded-pill px-3 text-[12px] font-medium ring-1 ring-border outline-none focus-visible:ring-2 focus-visible:ring-ring dark:ring-glass-border",
+          prefs.accent === null ? "bg-inverse text-inverse-foreground dark:bg-signal-soft dark:text-signal" : "text-ink-2 hover:text-foreground",
+        )}
+      >
+        Skin&rsquo;s own
+      </button>
+      {ACCENT_PRESETS.map((p) => {
+        const on = prefs.accent === p.hex;
+        return (
           <button
+            key={p.hex}
             type="button"
-            aria-pressed={prefs.accent === null}
+            aria-label={p.name}
+            aria-pressed={on}
+            title={p.name}
             onClick={() => {
-              update({ accent: null });
+              update({ accent: p.hex });
             }}
-            className={cn(
-              "inline-flex h-8 items-center gap-1.5 rounded-pill px-3 text-[12px] font-medium ring-1 ring-border outline-none focus-visible:ring-2 focus-visible:ring-ring dark:ring-glass-border",
-              prefs.accent === null ? "bg-inverse text-inverse-foreground" : "text-ink-2 hover:text-foreground",
-            )}
-          >
-            Skin&rsquo;s own
-          </button>
-          {ACCENT_PRESETS.map((p) => {
-            const on = prefs.accent === p.hex;
-            return (
-              <button
-                key={p.hex}
-                type="button"
-                aria-label={p.name}
-                aria-pressed={on}
-                title={p.name}
-                onClick={() => {
-                  update({ accent: p.hex });
-                }}
-                className={cn(swatchClass, on && "ring-2 ring-foreground ring-offset-2 ring-offset-background dark:ring-foreground")}
-                style={{ backgroundColor: p.hex }}
-              />
-            );
-          })}
-          <label
-            className={cn(
-              swatchClass,
-              "cursor-pointer bg-card-nested text-ink-2 hover:text-foreground",
-              custom && "text-signal-ink ring-2 ring-foreground ring-offset-2 ring-offset-background dark:ring-foreground",
-            )}
-            title={custom ? `Custom colour ${prefs.accent ?? ""}` : "Any colour"}
-          >
-            <span className="sr-only">{custom ? `Pick any colour, custom colour ${prefs.accent ?? ""} in use` : "Pick any colour"}</span>
-            <Pipette aria-hidden className="size-4" />
-            <input
-              type="color"
-              value={prefs.accent ?? PICKER_FALLBACK}
-              onChange={(e) => {
-                const accent = parseAccent(e.target.value);
-                if (accent) update({ accent });
-              }}
-              className="absolute inset-0 size-full cursor-pointer opacity-0"
-            />
-          </label>
-        </div>
-      </Row>
-
-      <div className="mx-5 h-px bg-border dark:bg-glass-border" />
-
-      <Row title="Home wallpaper" body="Behind the board on Home. It follows the skin and the accent.">
-        <Segmented
-          label="Home wallpaper"
-          value={prefs.wallpaper}
-          options={WALLPAPER_OPTIONS}
-          onChange={(wallpaper) => {
-            update({ wallpaper });
+            className={cn(swatchClass, on && "ring-2 ring-foreground ring-offset-2 ring-offset-background dark:ring-foreground")}
+            style={{ backgroundColor: p.hex }}
+          />
+        );
+      })}
+      <label
+        className={cn(
+          swatchClass,
+          "cursor-pointer bg-card-nested text-ink-2 hover:text-foreground",
+          custom && "text-signal-ink ring-2 ring-foreground ring-offset-2 ring-offset-background dark:ring-foreground",
+        )}
+        title={custom ? `Custom colour ${prefs.accent ?? ""}` : "Any colour"}
+      >
+        <span className="sr-only">{custom ? `Pick any colour, custom colour ${prefs.accent ?? ""} in use` : "Pick any colour"}</span>
+        <Pipette aria-hidden className="size-4" />
+        <input
+          type="color"
+          value={prefs.accent ?? PICKER_FALLBACK}
+          onChange={(e) => {
+            const accent = parseAccent(e.target.value);
+            if (accent) update({ accent });
           }}
+          className="absolute inset-0 size-full cursor-pointer opacity-0"
         />
-      </Row>
-    </>
+      </label>
+    </div>
+  );
+}
+
+/** Settings → Appearance (FR-SHELL-7): a preview, then theme, skin, accent and wallpaper. */
+export function AppearanceSection() {
+  const { prefs, update } = usePrefs();
+  const bench = prefs.skin === "bench";
+
+  return (
+    <div className="flex flex-col gap-4">
+      <Preview />
+
+      <SettingsCard title="Colors">
+        <SettingRow
+          label="Theme"
+          description={
+            bench
+              ? "Bench in light or dark graphite. System matches your device."
+              : "Ember is light and warm. Nebula is dark teal. System matches your device."
+          }
+          layout="wide"
+        >
+          {() => <ThemeControl />}
+        </SettingRow>
+        <SettingRow label="Skin" description="Ember by day and Nebula by night, or Motion Garden's graphite Bench." layout="wide">
+          {() => (
+            <Segmented
+              label="Skin"
+              value={prefs.skin}
+              options={SKIN_OPTIONS}
+              onChange={(skin) => {
+                update({ skin });
+              }}
+            />
+          )}
+        </SettingRow>
+        <SettingRow label="Accent" description="Any colour. Its lightness is adjusted per theme so text in it stays readable." layout="stack">
+          {() => <AccentControl />}
+        </SettingRow>
+      </SettingsCard>
+
+      <SettingsCard title="Home">
+        <SettingRow label="Wallpaper" description="Behind the board on Home. It follows the skin and the accent." layout="wide">
+          {() => (
+            <Segmented
+              label="Home wallpaper"
+              value={prefs.wallpaper}
+              options={WALLPAPER_OPTIONS}
+              onChange={(wallpaper) => {
+                update({ wallpaper });
+              }}
+            />
+          )}
+        </SettingRow>
+      </SettingsCard>
+    </div>
+  );
+}
+
+/** Settings → Timers. */
+export function TimersSection() {
+  return (
+    <SettingsCard title="Repeats">
+      <SettingRow
+        label="Starting a length that's already running"
+        description="One per length brings the running timer forward. Allow repeats starts another, numbered."
+        layout="wide"
+      >
+        {() => <TimerModeSetting />}
+      </SettingRow>
+    </SettingsCard>
   );
 }
 

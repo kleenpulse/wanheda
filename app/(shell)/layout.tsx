@@ -58,7 +58,7 @@ async function OwnerShell({ children }: { children: React.ReactNode }) {
 function ShellFallback() {
   return (
     <div
-      className="relative flex min-h-svh w-full [--rail-w:0px] md:[--rail-w:84px] md:[html[data-rail=open]_&]:[--rail-w:232px]"
+      className="relative flex min-h-svh w-full shrink-0 [--rail-w:0px] md:[--rail-w:84px] md:[html[data-rail=open]_&]:[--rail-w:232px]"
       aria-busy
     >
       <div

@@ -19,7 +19,8 @@ export function Segmented<T extends string>({
   className,
 }: {
   label: string;
-  value: T;
+  /** null: nothing pressed yet (a value only the client knows, before hydration). */
+  value: T | null;
   options: readonly { value: T; label: string }[];
   onChange: (value: T) => void;
   disabled?: boolean;

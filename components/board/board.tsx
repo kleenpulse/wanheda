@@ -4,7 +4,9 @@ import * as React from "react";
 import { Check, GripVertical, LayoutGrid, Pencil, Plus, X } from "lucide-react";
 import { ResponsiveGridLayout, useContainerWidth, type Layout, type LayoutItem } from "react-grid-layout";
 import { getBreakpointFromWidth } from "react-grid-layout/core";
+import { usePathname, useSearchParams } from "next/navigation";
 import { saveBoard } from "@/actions/board";
+import { EDIT_PARAM } from "@/lib/board/edit";
 import { EmptyState } from "@/components/shell/page-frame";
 import { buttonClass } from "@/components/ui/button";
 import { Menu, MenuContent, MenuItem, MenuTrigger } from "@/components/ui/menu";
@@ -117,7 +119,15 @@ export function Board({
 }) {
   const persist = source === "owner";
   const [layouts, setLayouts] = React.useState(initial);
-  const [editing, setEditing] = React.useState(false);
+  // Edit mode lives in the URL (`?edit=1`), not in state: Next keeps a route
+  // you leave alive (hidden, state intact), so local state would still be
+  // editing when you come back. A plain link to Home carries no flag, and the
+  // palette's "Edit the board" opens /?edit=1 from anywhere.
+  const editing = useSearchParams().get(EDIT_PARAM) === "1";
+  const pathname = usePathname();
+  const setEditing = (on: boolean) => {
+    window.history.replaceState(null, "", on ? `${pathname}?${EDIT_PARAM}=1` : pathname);
+  };
   const [announcement, setAnnouncement] = React.useState("");
   const { width, containerRef, mounted } = useContainerWidth({ measureBeforeMount: true, debounceTimeout: 50 });
   const bp = getBreakpointFromWidth(BREAKPOINTS, width) as Breakpoint;
@@ -202,7 +212,7 @@ export function Board({
               aria-pressed={editing}
               className={buttonClass(editing ? "inverse" : "surface", "pill-sm")}
               onClick={() => {
-                setEditing((v) => !v);
+                setEditing(!editing);
               }}
             >
               {editing ? <Check aria-hidden /> : <Pencil aria-hidden />}

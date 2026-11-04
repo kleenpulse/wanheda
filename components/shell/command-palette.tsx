@@ -3,36 +3,50 @@
 import * as React from "react";
 import { Command } from "cmdk";
 import { motion } from "motion/react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import {
   AppWindow,
   Bell,
+  CheckCheck,
+  LogOut,
   Monitor,
   Moon,
+  Paintbrush,
+  Palette,
   PanelLeft,
   Pause,
+  Pencil,
   Play,
+  Repeat,
   Search,
   Sun,
   Timer as TimerIcon,
+  Wallpaper,
   X,
   type LucideIcon,
 } from "lucide-react";
+import { signOutOk } from "@/components/auth/account-actions";
 import { useNotifications } from "@/components/notifications/notifications-provider";
+import { usePrefs } from "@/components/prefs/prefs-provider";
+import { useAccount } from "@/components/shell/account";
 import { usePalette } from "@/components/shell/palette-store";
 import { centerOf, revealTheme, type ThemeChoice } from "@/components/theme-toggle";
 import { Kbd } from "@/components/ui/kbd";
 import { TAB_SPRING } from "@/lib/motion";
 import { useActivity } from "@/lib/activity/store";
 import { MINUTE, formatDuration, isDone, isRunning, parseTimerQuery } from "@/lib/activity/timer";
+import { BOARD_EDIT_HREF } from "@/lib/board/edit";
 import { MODULES, SYSTEM_PAGES, WINDOWS } from "@/lib/modules";
+import { ACCENT_PRESETS, SKINS, SKIN_LABELS, TIMER_MODE_LABELS, WALLPAPERS, WALLPAPER_LABELS } from "@/lib/prefs/prefs";
+import { TIMER_MODES } from "@/lib/activity/timer";
 import { cn } from "@/lib/utils";
 import { useWindows } from "@/lib/windows/store";
 
 /*
   The command palette (FR-SHELL-3): apps from the module registry, timers on
-  the activity bus, mini windows, theme and shell commands. Typing a duration ("25",
+  the activity bus, mini windows, the board, every appearance pref, theme and
+  shell commands. Typing a duration ("25",
   "10 min", "1h30") offers to start that timer. Ctrl/⌘K toggles it anywhere;
   `/` opens it when you're not typing.
 */
@@ -112,6 +126,10 @@ function PaletteBody({
   const openWindows = useWindows((s) => s.open);
   const { openWindow, closeWindow } = useWindows.getState();
   const notifications = useNotifications();
+  const { prefs, update } = usePrefs();
+  const account = useAccount();
+  const pathname = usePathname();
+  const [signOutState, setSignOutState] = React.useState<"idle" | "pending" | "failed">("idle");
   // The body mounts per open, so "done" is judged as of opening.
   const [openedAt] = React.useState(Date.now);
   const typedTimer = parseTimerQuery(query);
@@ -215,6 +233,32 @@ function PaletteBody({
               notifications.setOpen(true);
             })}
           />
+          {notifications.unread > 0 && (
+            <Item
+              value="notifications-read-all"
+              keywords={["notifications", "alerts", "mark all read", "clear", "unread"]}
+              icon={CheckCheck}
+              title="Mark all notifications read"
+              onSelect={run(() => {
+                notifications.markRead("all");
+              })}
+            />
+          )}
+        </Command.Group>
+
+        <Command.Group heading="Board">
+          <Item
+            value="board-edit"
+            keywords={["board", "home", "edit", "arrange", "widgets", "add widget", "layout"]}
+            icon={Pencil}
+            title="Edit the board"
+            hint="Arrange and add widgets"
+            onSelect={run(() => {
+              // Already home: flip the flag in place, no server round trip.
+              if (pathname === "/") window.history.replaceState(null, "", BOARD_EDIT_HREF);
+              else router.push(BOARD_EDIT_HREF);
+            })}
+          />
         </Command.Group>
 
         <Command.Group heading="Windows">
@@ -235,10 +279,108 @@ function PaletteBody({
             );
           })}
         </Command.Group>
+
+        {/* The prefs would bury the apps, so they wait for a word ("skin", "accent", "wallpaper"); a typed duration fuzzy-matches them too. */}
+        {query.trim() !== "" && typedTimer === null && (
+        <Command.Group heading="Settings">
+          {SKINS.map((skin) => (
+            <Item
+              key={skin}
+              value={`skin-${skin}`}
+              keywords={["skin", "appearance", "look", SKIN_LABELS[skin]]}
+              icon={Paintbrush}
+              title={`Skin: ${SKIN_LABELS[skin]}`}
+              {...inUse(prefs.skin === skin)}
+              onSelect={run(() => {
+                update({ skin });
+              })}
+            />
+          ))}
+          <Item
+            value="accent-skin"
+            keywords={["accent", "colour", "color", "signal", "default"]}
+            icon={Palette}
+            title="Accent: the skin's own"
+            {...inUse(prefs.accent === null)}
+            onSelect={run(() => {
+              update({ accent: null });
+            })}
+          />
+          {ACCENT_PRESETS.map((p) => (
+            <Item
+              key={p.hex}
+              value={`accent-${p.hex}`}
+              keywords={["accent", "colour", "color", "signal", p.name]}
+              icon={Palette}
+              title={`Accent: ${p.name}`}
+              {...inUse(prefs.accent === p.hex)}
+              onSelect={run(() => {
+                update({ accent: p.hex });
+              })}
+            />
+          ))}
+          {WALLPAPERS.map((wallpaper) => (
+            <Item
+              key={wallpaper}
+              value={`wallpaper-${wallpaper}`}
+              keywords={["wallpaper", "background", "home", WALLPAPER_LABELS[wallpaper]]}
+              icon={Wallpaper}
+              title={`Wallpaper: ${WALLPAPER_LABELS[wallpaper]}`}
+              {...inUse(prefs.wallpaper === wallpaper)}
+              onSelect={run(() => {
+                update({ wallpaper });
+              })}
+            />
+          ))}
+          {TIMER_MODES.map((timerMode) => (
+            <Item
+              key={timerMode}
+              value={`timer-mode-${timerMode}`}
+              keywords={["timer", "repeat", "mode", TIMER_MODE_LABELS[timerMode]]}
+              icon={Repeat}
+              title={`Repeat timers: ${TIMER_MODE_LABELS[timerMode]}`}
+              {...inUse(prefs.timerMode === timerMode)}
+              onSelect={run(() => {
+                update({ timerMode });
+              })}
+            />
+          ))}
+        </Command.Group>
+        )}
+
+        {account.kind === "owner" && (
+          <Command.Group heading="Account">
+            {/* Stays open until it works, so a failure has somewhere to show. */}
+            <Item
+              value="account-sign-out"
+              keywords={["sign out", "log out", "logout", "account", "lock"]}
+              icon={LogOut}
+              title={{ idle: "Sign out", pending: "Signing out", failed: "Sign-out failed, try again" }[signOutState]}
+              onSelect={() => {
+                if (signOutState === "pending") return;
+                setSignOutState("pending");
+                void signOutOk().then((ok) => {
+                  if (!ok) {
+                    setSignOutState("failed");
+                    return;
+                  }
+                  close();
+                  router.replace("/login");
+                  router.refresh();
+                });
+              }}
+            />
+          </Command.Group>
+        )}
       </Command.List>
       <PaletteFooter railExpanded={railExpanded} onToggleRail={onToggleRail} />
     </>
   );
+}
+
+/** The hint that marks the pref already in use. */
+function inUse(on: boolean): { hint?: string } {
+  return on ? { hint: "In use" } : {};
 }
 
 /*

@@ -15,6 +15,14 @@ import { cn } from "@/lib/utils";
 /** Page width cap, net of the rail: Raven's calc(1900px - rail). Skeletons share it. */
 export const PAGE_COLUMN = "mx-auto w-full max-w-[calc(1900px-var(--rail-w))] px-5 md:px-8";
 
+/**
+ * Room under a page's last card for the bar floating over the bottom edge:
+ * the dock (bottom-5 + h-14) on wide screens, the tab bar (bottom-3 + h-16)
+ * on phones. Both reach 76px up; 2rem more keeps the last card clear of the
+ * bar's shadow. Inside the sheet, so its surface runs on under the bar.
+ */
+export const FLOATING_BAR_CLEARANCE = "pb-[calc(76px+2rem)]";
+
 export function PageFrame({
   title,
   subtitle,
@@ -55,7 +63,7 @@ export function PageFrame({
             {backdrop}
           </div>
         ) : null}
-        <div className={cn(PAGE_COLUMN, "@container flex flex-col gap-4 py-6 md:py-8", sheetClassName)}>{children}</div>
+        <div className={cn(PAGE_COLUMN, "@container flex flex-col gap-4 pt-6 md:pt-8", FLOATING_BAR_CLEARANCE, sheetClassName)}>{children}</div>
       </div>
     </div>
   );

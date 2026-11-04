@@ -2,12 +2,10 @@
 
 import { usePrefs } from "@/components/prefs/prefs-provider";
 import { Segmented } from "@/components/ui/segmented";
-import type { TimerMode } from "@/lib/activity/timer";
+import { TIMER_MODES } from "@/lib/activity/timer";
+import { TIMER_MODE_LABELS } from "@/lib/prefs/prefs";
 
-const OPTIONS: readonly { value: TimerMode; label: string }[] = [
-  { value: "single", label: "One per length" },
-  { value: "multiple", label: "Allow repeats" },
-];
+const OPTIONS = TIMER_MODES.map((value) => ({ value, label: TIMER_MODE_LABELS[value] }));
 
 /** What starting a length that's already running does. Saved with the owner's prefs. */
 export function TimerModeSetting() {

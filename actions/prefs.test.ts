@@ -8,7 +8,7 @@ vi.mock("@/lib/prefs/store", () => ({ savePrefs: savePrefsStore }));
 const { savePrefs } = await import("./prefs");
 
 const owner = { kind: "owner", user: { id: "user-1", email: "o@example.test", name: "O" } };
-const GOOD = { skin: "bench", accent: "#a855f7", wallpaper: "glow", timerMode: "single" };
+const GOOD = { skin: "bench", accent: "#a855f7", wallpaper: "aurora", timerMode: "single" };
 
 beforeEach(() => {
   requireOwner.mockReset();

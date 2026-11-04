@@ -127,9 +127,10 @@ function NoticeList({ notices, onOpen }: { notices: Notice[]; onOpen: (n: Notice
               <span className="flex shrink-0 flex-col items-end gap-1.5 pt-0.5">
                 <span className="tabular text-[11.5px] text-ink-3">{now === null ? "" : relativeTime(n.createdAt, now)}</span>
                 <span
-                  aria-label={unread ? "Unread" : undefined}
+                  aria-hidden
                   className={cn("size-2 rounded-full", unread ? "bg-signal" : "bg-transparent")}
                 />
+                {unread ? <span className="sr-only">Unread</span> : null}
               </span>
             </button>
           </li>
