@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono, Instrument_Sans, Poppins } from "next/font/google";
 import { MotionProvider } from "@/components/providers/motion-provider";
 import { ThemeProvider } from "@/components/providers/theme-provider";
+import { railBootScript } from "@/lib/shell/rail";
 import "./globals.css";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
@@ -32,6 +33,10 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} ${instrumentSans.variable} ${poppins.variable} h-full antialiased`}
     >
+      <head>
+        {/* Before first paint: the shell fallback's rail width (lib/shell/rail.ts). */}
+        <script dangerouslySetInnerHTML={{ __html: railBootScript() }} />
+      </head>
       <body className="min-h-full flex flex-col font-sans">
         <ThemeProvider>
           <MotionProvider>{children}</MotionProvider>

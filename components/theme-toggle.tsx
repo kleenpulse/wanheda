@@ -55,8 +55,9 @@ export function centerOf(el: Element) {
 }
 
 // The icon swaps through the `.dark` class in CSS, so the first render needs
-// no mounted check and cannot mismatch on hydration.
-export function ThemeToggle() {
+// no mounted check and cannot mismatch on hydration. `className` replaces the
+// default button look (the nav rail draws it as one of its circles).
+export function ThemeToggle({ className }: { className?: string }) {
   const { resolvedTheme, setTheme } = useTheme();
 
   function toggle(event: React.MouseEvent<HTMLButtonElement>) {
@@ -68,7 +69,7 @@ export function ThemeToggle() {
       type="button"
       aria-label="Toggle light and dark theme"
       onClick={toggle}
-      className={buttonClass("surface", "circle-sm")}
+      className={className ?? buttonClass("surface", "circle-sm")}
     >
       <Sun aria-hidden className="dark:hidden" />
       <Moon aria-hidden className="hidden dark:block" />

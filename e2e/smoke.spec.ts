@@ -69,6 +69,39 @@ test.describe("demo: zero env", { tag: "@demo" }, () => {
     expect(await res.text()).toContain("Demo mode");
   });
 
+  // FR-SHELL-1: the server reads the rail cookie, so the first paint already
+  // has the right width (no collapsed-then-expanded flash).
+  test("the server paints the rail at the width its cookie says", async ({ request }) => {
+    const collapsed = await (await hop(request, "/")).text();
+    expect(collapsed).toContain('data-expanded="false"');
+    expect(collapsed).toContain('aria-label="Expand sidebar"');
+
+    const open = await (await hop(request, "/", { cookie: "wanheda-rail=open" })).text();
+    expect(open).toContain('data-expanded="true"');
+    expect(open).toContain('aria-label="Collapse sidebar"');
+  });
+
+  // The part the browser can paint before the owner check resolves: everything
+  // before the first hidden streamed segment. It must already hold the boot
+  // script and the fallback's rail band, or a hard load shifts the page.
+  test("the static shell already has a rail at the cookie's width", async ({ request }) => {
+    const html = await (await hop(request, "/", { cookie: "wanheda-rail=open" })).text();
+    const cut = html.indexOf('hidden id="S:');
+    expect(cut).toBeGreaterThan(0);
+    const staticShell = html.slice(0, cut);
+    expect(staticShell).toContain("wanheda-rail=open(?:;|$)");
+    expect(staticShell).toContain("data-rail-skeleton");
+    expect(staticShell).toContain("[html[data-rail=open]_&amp;]:w-[232px]");
+  });
+
+  test("/settings is a shell page", async ({ request }) => {
+    const res = await hop(request, "/settings");
+    expect(res.status()).toBe(200);
+    const html = await res.text();
+    expect(html).toContain('aria-label="Primary"');
+    expect(html).toContain("Demo mode");
+  });
+
   test("/login offers the way in instead of a sign-in form", async ({ request }) => {
     const res = await hop(request, "/login");
     expect(res.status()).toBe(200);

@@ -6,21 +6,40 @@ import { useState } from "react";
 import { buttonClass } from "@/components/ui/button";
 import { authClient } from "@/lib/auth/client";
 
+/** Ends the session. False on an error response or a network failure, so callers can recover. */
+export async function signOutOk(): Promise<boolean> {
+  try {
+    const result = await authClient.signOut();
+    return !result.error;
+  } catch {
+    return false;
+  }
+}
+
 export function SignOutButton() {
   const router = useRouter();
-  const [pending, setPending] = useState(false);
+  const [state, setState] = useState<"idle" | "pending" | "failed">("idle");
 
   async function signOut() {
-    setPending(true);
-    await authClient.signOut();
-    router.replace("/login");
-    router.refresh();
+    setState("pending");
+    if (await signOutOk()) {
+      router.replace("/login");
+      router.refresh();
+    } else {
+      setState("failed");
+    }
   }
 
   return (
-    <button type="button" onClick={() => void signOut()} disabled={pending} className={buttonClass("surface", "pill-sm")}>
+    <button
+      type="button"
+      onClick={() => void signOut()}
+      disabled={state === "pending"}
+      aria-live="polite"
+      className={buttonClass("surface", "pill-sm")}
+    >
       <LogOut aria-hidden />
-      {pending ? "Signing out" : "Sign out"}
+      {{ idle: "Sign out", pending: "Signing out", failed: "Sign-out failed, try again" }[state]}
     </button>
   );
 }

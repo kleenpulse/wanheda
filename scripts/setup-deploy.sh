@@ -309,7 +309,7 @@ warn_first_deploy() {
   local out
   out=$(vercel ls "$PROJECT_NAME" --prod --cwd "$MAIN_ROOT" 2>/dev/null) || out=""
   if grep -qE '^https://' <<<"$out"; then
-    printf '  %s✓%s A production deployment exists, so branch pushes become previews\n' "$GREEN" "$RESET"
+    printf '  %s✓%s A production deployment exists, so branch pushes cannot reach Production\n' "$GREEN" "$RESET"
     return
   fi
   warn "No production deployment yet. The FIRST deployment goes to Production with"
@@ -389,7 +389,8 @@ pause "Press Enter to continue"
 # ── 4 ─────────────────────────────────────────────────────────────────────
 stage "Vercel project — link and connect the repo" 3
 say "This creates the Vercel project '$PROJECT_NAME' and links it to this repo."
-note "Nothing deploys yet. The first push to GitHub will, and it goes to Production."
+note "Nothing deploys yet. The first push to main will, and it goes to Production."
+note "Pushes to other branches deploy nothing (vercel.json git.deploymentEnabled)."
 say "Answer the prompts like this:"
 step "Set up the directory?            yes"
 step "Which scope?                     your personal account"
