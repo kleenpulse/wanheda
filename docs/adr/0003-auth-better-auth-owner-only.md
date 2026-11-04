@@ -41,6 +41,7 @@ One function, `gateMode()`, decides access. Both `proxy.ts` and the server-side 
 - **Previews get no database and no auth variables**, so they run demo mode on seed data. They hold no real data and no secret, even when a pushed branch changes the gate code (ADR-0002). Preview hosts change per deploy and can't match an OAuth callback anyway.
 - **OAuth tokens are stored encrypted** (`account.encryptOAuthTokens: true`, keyed by `BETTER_AUTH_SECRET`), so a database copy, backup or dump never holds a usable GitHub token. Rotating the secret makes stored tokens unreadable, which only costs a fresh GitHub sign-in.
 - Passkeys bind to the hostname of `BETTER_AUTH_URL`. Moving production to another domain means registering passkeys again.
+- **A new Vercel project's first deployment is always Production**, whatever its branch (Vercel's rule). Wanheda's first one was the PR #2 branch build, which ran with the production variables on the production domain for about 7 minutes before the merge (SPEC §B1; the code was the reviewed tree). For any new project, the first push must be `main`, and `scripts/setup-deploy.sh` checks that the production branch is `main`.
 
 ## Consequences
 
