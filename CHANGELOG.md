@@ -16,6 +16,9 @@ All notable user-visible changes. Shipped in-app as "What's New" (FR-SHELL-10).
 - Sign-in tokens from GitHub are stored encrypted.
 - The shell: a nav rail that widens from 84 px to 232 px to show labels (press `[` to toggle), and it remembers its width without a flash on load. On phones it becomes a floating tab bar.
 - An account menu on the rail with settings and sign out, and a Settings page for the theme and passkeys.
-- Command palette (Ctrl/⌘K, `/`, the floating pill, or the search button on phones): open apps, switch theme, toggle the sidebar, and start timers. Type a length like `25`, `90s` or `1h30` to start one.
+- Command palette (Ctrl/⌘K, `/`, the search pill, or the search button on phones): open apps, switch theme, toggle the sidebar, and start timers. Type a length like `25`, `90s` or `1h30` to start one.
 - The dynamic island: running timers live in a black pill at the top of the screen. Tap it for pause, +5 min and cancel; arrow keys switch between timers. Timers keep running across pages, reloads and other tabs.
 - The home board: clock, weather, today and a quick note, arranged on a grid. Press Edit board to drag, resize (corner, or Shift+arrows on the grip), add and remove widgets; the layout is saved per screen size. Set `WEATHER_LATITUDE`, `WEATHER_LONGITUDE` and `WEATHER_PLACE` for live weather from Open-Meteo.
+- The dock: Home and the timer at the bottom of the screen on desktop, swelling under the pointer, with a dot on whatever is running, and the search pill at its end.
+- Mini windows: open the timer window from the dock or the palette ("timers window"). Drag it by its title bar, resize it from the corner (or the grip: arrows move, Shift+arrows resize, Escape closes); it snaps to an edge when dropped near one, and keeps its place on this device.
+- Timers: starting a length that is already running brings that timer forward instead of starting a twin (a finished one starts over). Settings → Timers can allow repeats instead; repeats are numbered ("25 min timer 2").

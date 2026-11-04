@@ -6,6 +6,7 @@ import { motion } from "motion/react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import {
+  AppWindow,
   Monitor,
   Moon,
   PanelLeft,
@@ -23,12 +24,13 @@ import { Kbd } from "@/components/ui/kbd";
 import { TAB_SPRING } from "@/lib/motion";
 import { useActivity } from "@/lib/activity/store";
 import { MINUTE, formatDuration, isDone, isRunning, parseTimerQuery } from "@/lib/activity/timer";
-import { MODULES, SYSTEM_PAGES } from "@/lib/modules";
+import { MODULES, SYSTEM_PAGES, WINDOWS } from "@/lib/modules";
 import { cn } from "@/lib/utils";
+import { useWindows } from "@/lib/windows/store";
 
 /*
   The command palette (FR-SHELL-3): apps from the module registry, timers on
-  the activity bus, theme and shell commands. Typing a duration ("25",
+  the activity bus, mini windows, theme and shell commands. Typing a duration ("25",
   "10 min", "1h30") offers to start that timer. Ctrl/⌘K toggles it anywhere;
   `/` opens it when you're not typing.
 */
@@ -105,6 +107,8 @@ function PaletteBody({
   const [query, setQuery] = React.useState("");
   const timers = useActivity((s) => s.timers);
   const { startTimer, toggleTimer, cancelTimer } = useActivity.getState();
+  const openWindows = useWindows((s) => s.open);
+  const { openWindow, closeWindow } = useWindows.getState();
   // The body mounts per open, so "done" is judged as of opening.
   const [openedAt] = React.useState(Date.now);
   const typedTimer = parseTimerQuery(query);
@@ -197,6 +201,24 @@ function PaletteBody({
           ))}
         </Command.Group>
 
+        <Command.Group heading="Windows">
+          {WINDOWS.map((w) => {
+            const isOpen = openWindows.includes(w.id);
+            return (
+              <Item
+                key={w.id}
+                value={`window-${w.id}`}
+                keywords={["window", "mini", "float", "pop out", w.title]}
+                icon={isOpen ? X : AppWindow}
+                title={`${isOpen ? "Close" : "Open"} the ${w.title.toLowerCase()} window`}
+                onSelect={run(() => {
+                  if (isOpen) closeWindow(w.id);
+                  else openWindow(w.id);
+                })}
+              />
+            );
+          })}
+        </Command.Group>
       </Command.List>
       <PaletteFooter railExpanded={railExpanded} onToggleRail={onToggleRail} />
     </>

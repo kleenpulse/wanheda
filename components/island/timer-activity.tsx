@@ -3,37 +3,13 @@
 import type * as React from "react";
 import { Pause, Play, Plus, Timer as TimerIcon, X } from "lucide-react";
 import { useIsland, type IslandActivity } from "@/components/island/live-activity";
+import { ProgressRing as Ring } from "@/components/ui/progress-ring";
 import { useActivity } from "@/lib/activity/store";
 import { formatClock, isDone, isRunning, progress, remainingMs, type Timer } from "@/lib/activity/timer";
 import { cn } from "@/lib/utils";
 
 // The timer's three island views. Each reads the timer from the bus and the
 // clock from the island, so the pill and the card can never disagree.
-
-function Ring({ value, children }: { value: number; children?: React.ReactNode }) {
-  const r = 9;
-  const c = 2 * Math.PI * r;
-  return (
-    <span className="relative grid size-[22px] shrink-0 place-items-center text-signal">
-      <svg viewBox="0 0 24 24" className="absolute inset-0 -rotate-90" aria-hidden>
-        <circle cx={12} cy={12} r={r} fill="none" stroke="currentColor" strokeOpacity={0.25} strokeWidth={3} />
-        <circle
-          cx={12}
-          cy={12}
-          r={r}
-          fill="none"
-          stroke="currentColor"
-          strokeWidth={3}
-          strokeLinecap="round"
-          strokeDasharray={c}
-          strokeDashoffset={c * (1 - Math.min(1, Math.max(0, value)))}
-          className="transition-[stroke-dashoffset] duration-100 ease-linear"
-        />
-      </svg>
-      {children}
-    </span>
-  );
-}
 
 function RoundButton({
   label,

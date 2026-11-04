@@ -12,7 +12,10 @@ const AUTH_ENV = {
   OWNER_EMAILS: "owner@example.test",
 };
 
-describe("getAuth", () => {
+// The first test pays the cold import of Better Auth, Drizzle and the plugins.
+// With the whole suite running in parallel that took over Vitest's 5 s default
+// (the intermittent failure noted in the Phase 1 board hand-off).
+describe("getAuth", { timeout: 30_000 }, () => {
   afterEach(() => {
     vi.unstubAllEnvs();
     vi.resetModules();

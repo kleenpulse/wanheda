@@ -433,6 +433,15 @@
 	backdrop-filter: blur(20px) saturate(125%);
 }
 
+/* Mini windows: the glass fill with a much heavier blur, because they hold
+   controls and text over whatever page is under them. Same tokens, so
+   reduced transparency turns them solid like every other glass. */
+@utility glass-window {
+	background: var(--glass);
+	border: 1px solid var(--glass-border);
+	backdrop-filter: blur(48px) saturate(140%);
+}
+
 /* Lighter glass for cards floating over a busy visual. */
 @utility glass-thin {
 	background: var(--glass-thin);
