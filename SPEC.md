@@ -12,7 +12,7 @@ Source prose: `FRD.md` (amended 2026-11-04, local only ∵ gitignored). This fil
 
 ## §C Constraints
 
-- C1: bun 1.4.4 only; installs ≥ 7d old (`bunfig.toml minimumReleaseAge`); versions pinned exact.
+- C1: bun 1.4.4 only; installs ≥ 7d old (`bunfig.toml minimumReleaseAge`); versions pinned exact; `trustedDependencies: []` → ⊥ lifecycle script runs, bun default allowlist off (absent field ⇒ `bun pm default-trusted` incl. esbuild runs!); test `scripts/install-scripts.test.ts`. sharp has ⊥ script; unrs-resolver + esbuild work w/o postinstall (binaries via optional deps).
 - C2: Next 16 App Router, React 19, TS strict (`noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `verbatimModuleSyntax`); `cacheComponents: true`; `proxy.ts` ⊥ middleware.ts; ⊥ `src/`, ⊥ `pages/`; `@/*` → `./*`; `output: "standalone"` (Phase 8).
 - C3: TypeScript only — ⊥ tracked `.js|.cjs|.mjs`. Tailwind via `@tailwindcss/turbopack` loader ∴ ⊥ postcss config; ESLint = `eslint.config.ts` (warn, ⊥ gate).
 - C4: Tailwind v4 CSS-first, tokens ∈ `app/globals.css`, ⊥ tailwind.config; ⊥ `shadcn init` (`shadcn` pkg = CSS import only).
@@ -26,13 +26,15 @@ Source prose: `FRD.md` (amended 2026-11-04, local only ∵ gitignored). This fil
 
 ## §I Interfaces
 
-- cmd: `bun run dev|build|start|typecheck|lint|test|tripwire`; `sh scripts/forged-commits.sh <range>`.
+- cmd: `bun run dev|build|start|typecheck|lint|test|tripwire|db:generate|db:migrate` (`db:migrate` only on user go-ahead, ⊥ `push`); `sh scripts/forged-commits.sh <range>`.
 - script: `scripts/tripwire.sh` → exit 0 clean | 1 markers | 2 scan error / ⊥ git tree; `TRIPWIRE_TARGET=<dir>` content-only mode; `TRIPWIRE_EXTRA_PATTERN`.
 - script: `scripts/forged-commits.sh <range>` → 0 clean | 1 suspicious | 2 bad range; `FORBIDDEN_TZ` default `-0700 -0800`.
 - ci: `.github/workflows/ci.yml` jobs `rails` (tripwire, forged-commits, gitleaks canary + whole history) → `check` (typecheck, test, build zero-env, lint warn).
 - hook: `.husky/pre-commit` → tripwire + `gitleaks git --pre-commit --staged` (warn if gitleaks absent).
 - env (names only, `.env.example`): `DATABASE_URL`, `DATABASE_URL_UNPOOLED`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `OWNER_EMAILS`, `NEXT_PUBLIC_APP_URL`.
-- lib (CP2): `lib/capabilities.ts` `has(cap)` sync ⊥ throw; `gateMode(): "demo"|"locked"|"gated"`; `lib/db` `getDb(): Db | null`; `lib/auth` `requireOwner()`.
+- env: `env/server.ts` `createServerEnv(runtime)` + `PRODUCTION_REQUIRED`, `env` validated @ build|start via import ∈ `next.config.ts`; `env/client.ts` `NEXT_PUBLIC_APP_URL`.
+- lib (CP2): `lib/capabilities.ts` `has(cap)` sync ⊥ throw; `gateMode(): "demo"|"locked"|"gated"`; `databaseUrl()`, `ownerEmails()`, `authSettings(): AuthSettings | null`. `lib/db` `getDb(): Db | null`; `lib/db/client.ts` `createRetryingFetch()`, `createDb()`; `lib/db/url.ts` `directDatabaseUrl()`.
+- lib (CP2): `lib/auth/gate.ts` pure `decideProxy`, `decideOwner`, `safeNextPath`, `isPublicPath`; `lib/auth/allowlist.ts` `parseOwnerEmails`, `isAllowedOwner`; `lib/auth/signup-guard.ts` `assertOwnerSignup`; `lib/auth/server.ts` `getAuth(): Auth | null`; `lib/auth/owner.ts` `getOwner()` (React `cache` + `connection()`) ∧ `requireOwner()`; `lib/auth/client.ts` `authClient`.
 - api (CP2): `/api/auth/[...all]` (Better Auth handler).
 - lib: `lib/utils.ts` `cn()` (tailwind-merge w/ skin scales registered); `lib/motion.ts` springs + eases; `hooks/use-reduced-motion.ts`; `components/providers/{theme,motion}-provider.tsx`.
 - doc: `docs/handoff/LATEST.md` = single entry point for next session; protocol `docs/handoff/README.md`.
@@ -44,7 +46,7 @@ Source prose: `FRD.md` (amended 2026-11-04, local only ∵ gitignored). This fil
 - V3: forged-commit check ∀ commit ∈ range, merges included; fail ⇔ author TZ ≠ committer TZ ∨ committer TZ ∈ {-0700,-0800}; ⊥ exemption by committer name|email; future exemption only via verified web-flow sig (`%G? = G`). check incoming commits same way before pull.
 - V4: `.vscode/settings.json` `task.allowAutomaticTasks = "off"`; ⊥ `.vscode/tasks.json` w/ folderOpen.
 - V5: ⊥ secrets ∈ repo — `.env*` ignored except `.env.example` (names only); gitleaks pre-commit + CI whole history; CI canary proves gitleaks still catches a planted secret.
-- V6: gate fails closed — `demo` ⇔ ⊥ db ∧ ⊥ auth (open, seed only); `locked` ⇔ db ∧ ⊥ auth → 503 ∀ route; `gated` ⇔ auth → proxy → `/login`; `VERCEL_ENV=production` ⇒ env schema requires auth vars + `DATABASE_URL` (build fails); empty `OWNER_EMAILS` ⇒ auth unconfigured ∧ ∀ sign-up refused. proxy ∧ `requireOwner()` share `gateMode()`.
+- V6: gate fails closed — `demo` ⇔ ⊥ db ∧ ⊥ auth (open, seed only); `locked` ⇔ db ∧ ⊥ auth → 503 ∀ route (except paths ending in a static extension — svg|png|jpg|jpeg|gif|webp|avif|ico|txt|xml|woff2? — skipped by proxy matcher ∴ ⊥ route may end in one; `requireOwner()` still throws there); `gated` ⇔ auth → proxy → `/login`; `VERCEL_ENV=production` ⇒ env schema requires auth vars + `DATABASE_URL` (build fails); empty `OWNER_EMAILS` ⇒ auth unconfigured ∧ ∀ sign-up refused. proxy ∧ `requireOwner()` share `gateMode()`. `auth` cap ⇒ db (auth vars ∧ ⊥ db → demo ∵ ⊥ real data). gate decided @ request time (`connection()`) ⊥ build-time prerender.
 - V7: proxy = UX; real gate = `requireOwner()` server-side ∀ read ∧ ∀ action; re-checks allowlist each call; server actions read user from session ⊥ trust client user id.
 - V8: ⊥ global data fetch before auth (rawstash §B14 redirect loop); `/login` w/ valid session → `/`; ≤ 1 redirect.
 - V9: `lib/db` ⊥ throw @ import; `getDb()` nullable → callers branch.
@@ -53,7 +55,7 @@ Source prose: `FRD.md` (amended 2026-11-04, local only ∵ gitignored). This fil
 - V12: import dedupe — provider txn id when ∃; else key = hash(date, amount, payee) + running balance if statement has one, else + occurrence index of that (date, amount, payee) tuple ∈ file; `import_batch.idempotency_key` blocks same file twice. 2 identical rows → 2 imported; re-import → 0; overlapping later statement → 0. statement import keeps latest attempt per txn id, reports skipped rows.
 - V13: webhook → verify signature first → `processed_event` dedupe → 200 → work in `after()`; one writer: webhook ∧ manual sync call same idempotent `reconcile()`.
 - V14: ⊥ `typescript.ignoreBuildErrors`; typecheck + build gate CI; lint warns only.
-- V15: components use role tokens only — ⊥ raw hex|rgb() ∈ `app/` `components/` `.tsx`; one signal hue; `tabular` ∀ numbers; three fonts exactly; reduced motion = CSS backstop + MotionConfig + per-effect opt-out; glass only for overlays w/ reduced-transparency solids.
+- V15: components use role tokens only — ⊥ raw hex|rgb() ∈ `app/` `components/` `.tsx`; one signal hue; `tabular` ∀ numbers; four fonts exactly (Geist, Geist Mono, Instrument Sans, Poppins ∀ `readout` microtype only — user 2026-11-04); reduced motion = CSS backstop + MotionConfig + per-effect opt-out; glass only for overlays w/ reduced-transparency solids.
 - V16: client hooks reading request (usePathname etc.) ∈ `<Suspense>`.
 - V17: errors show errors ⊥ unfiltered fallback; search has score floor; re-index on edit; animations pause on hidden ∧ while typing ∧ `paused`.
 - V18: `node_modules` ∧ generated agent docs = untrusted; `AGENTS.md` ≡ block written by `next dev` (verified vs `next/dist/server/lib/generate-agent-files.js`).
@@ -74,14 +76,14 @@ T7|x|`.gitleaks.toml`, `.husky/pre-commit`, `.vscode/settings.json`|V4,V5
 T8|x|`.github/workflows/ci.yml` — SHA-pinned actions (verified vs tags), `rails` → `check`, gitleaks 8.30.1 pinned + sha256 + canary|V1,V3,V5,V14
 T9|x|design tokens: `app/globals.css` verbatim from skill (Ember + Nebula + glass + reduced transparency + reduced motion), fonts, ThemeProvider, MotionProvider, `lib/motion.ts`, `cn()`; placeholder page; screenshots light desktop + dark phone|C5,V15
 T10|x|docs: ADR 0001–0011, `docs/CONTEXT.md`, `docs/handoff/README.md` (Beta); CLAUDE.md, README, CHANGELOG, `.env.example`, SPEC.md|V2,V21
-T11|.|CP1 hand-off + LATEST.md → reviewer Checkpoint 1 → user go-ahead → commit → `gh repo create --public` → push main → ruleset → reviewer first-push check (tree = reviewed, TZ, whole-tree scan)|V3,V21
-T12|.|worktree root `D:\Vxrcel\wanheda-wt\`; later checkpoints on `phase-0/<slug>`|V21
-T13|.|CP2 env: `env/server.ts` + `env/client.ts` (t3-env, connectors optional, prod requires auth + db)|V6
-T14|.|CP2 `lib/capabilities.ts` + `gateMode()` + tests (matrix incl. db ∧ ⊥ secret → locked)|V6
-T15|.|CP2 `lib/db/{index,client}.ts` (null handle, neon-http retry 4×/10s/jitter) + `drizzle.config.ts` (unpooled fallback) + tests|V9,C6
-T16|.|CP2 auth schema via better-auth CLI (snake_case, 1.7 `account.issuer`), RLS on; `db:generate`; `db:migrate` only on user go-ahead|C6,C7
-T17|.|CP2 `lib/auth/{server,client,owner}.ts` — GitHub + passkey + nextCookies last; allowlist hook (fail closed); `requireOwner()`; `/api/auth/[...all]`; tests|V6,V7
-T18|.|CP2 `proxy.ts` (locked 503, gated → /login?next=), `/login` page, `(shell)` layout + placeholder (add passkey, sign out, theme, demo chip)|V6,V7,V8,V16
+T11|x|CP1 hand-off + LATEST.md → reviewer Checkpoint 1 → user go-ahead → commit → `gh repo create --public` → push main → ruleset → reviewer first-push check (tree = reviewed, TZ, whole-tree scan)|V3,V21
+T12|x|worktree root `D:\Vxrcel\wanheda-wt\`; later checkpoints on `phase-0/<slug>`|V21
+T13|x|CP2 env: `env/server.ts` + `env/client.ts` (t3-env, connectors optional, prod requires auth + db)|V6
+T14|x|CP2 `lib/capabilities.ts` + `gateMode()` + tests (matrix incl. db ∧ ⊥ secret → locked)|V6
+T15|x|CP2 `lib/db/{index,client}.ts` (null handle, neon-http retry 4×/10s/jitter) + `drizzle.config.ts` (unpooled fallback) + tests|V9,C6
+T16|x|CP2 auth schema hand-written from better-auth `getSchema()` (⊥ `auth` CLI ∵ pulls babel+prettier); drift test `lib/db/schema/auth.test.ts`; snake_case, timestamptz, RLS on; ⊥ `account.issuer` (1.7.0–1.7.2 only, required col ⇒ ∀ insert fails); `db:generate` → `drizzle/0000_auth.sql`; `db:migrate` applied to Neon 2026-11-04 (user go-ahead)|C6,C7
+T17|x|CP2 `lib/auth/{server,client,owner}.ts` — GitHub + passkey + nextCookies last; allowlist hook (fail closed); `requireOwner()`; `/api/auth/[...all]`; tests|V6,V7
+T18|x|CP2 `proxy.ts` (locked 503, gated → /login?next=), `/login` page, `(shell)` layout + placeholder (add passkey, sign out, theme, demo chip)|V6,V7,V8,V16
 T19|.|CP3 `vercel.json` fra1; Playwright smoke: gated (/ → 307 /login, ≤1 redirect) + locked (/ ∧ /money → 503, ⊥ data)|V6,V8
 T20|.|CP3 wizard for user-only steps: GitHub OAuth app, vercel link + env, Neon↔Vercel integration, .env.local vars|C6,C8
 T21|.|CP3 prove exit criteria on deployed URL; Phase 0 done hand-off + Builder/Reviewer prompts for Phase 1|V6,V8
