@@ -12,7 +12,6 @@ import {
   resume,
   sameLength,
   type Timer,
-  TIMER_MODES,
   type TimerMode,
 } from "./timer";
 
@@ -30,9 +29,8 @@ interface ActivityState {
   lastStarted: string | null;
   /** When it was started, so starting the same timer again still brings it forward. */
   lastStartedAt: number;
-  /** One timer per length (default) or repeats allowed. Kept with the timers, on this device. */
+  /** One timer per length (default) or repeats allowed. Owned by the prefs (PrefsProvider sets it). */
   timerMode: TimerMode;
-  setTimerMode: (mode: TimerMode) => void;
   /**
    * Starts a timer and returns its id. In `single` mode a length already on
    * the bus is brought forward instead (and started over if it has finished).
@@ -54,9 +52,6 @@ export const useActivity = create<ActivityState>()(
       lastStarted: null,
       lastStartedAt: 0,
       timerMode: "single",
-      setTimerMode(mode) {
-        set({ timerMode: mode });
-      },
       startTimer(ms, label) {
         const now = Date.now();
         const { timers, timerMode } = get();
@@ -90,12 +85,10 @@ export const useActivity = create<ActivityState>()(
       name: ACTIVITY_STORAGE_KEY,
       version: 1,
       storage: createJSONStorage(() => localStorage),
-      partialize: (s) => ({ timers: s.timers, timerMode: s.timerMode }),
-      // A stored mode that isn't one we know falls back to the default.
+      partialize: (s) => ({ timers: s.timers }),
       merge: (persisted, current) => {
         const p = (persisted ?? {}) as Partial<ActivityState>;
-        const mode = TIMER_MODES.includes(p.timerMode as TimerMode) ? (p.timerMode as TimerMode) : current.timerMode;
-        return { ...current, timers: Array.isArray(p.timers) ? p.timers : current.timers, timerMode: mode };
+        return { ...current, timers: Array.isArray(p.timers) ? p.timers : current.timers };
       },
       // Rehydrated by ActivitySync after mount: the server renders no
       // activities, so the first client render must not either.

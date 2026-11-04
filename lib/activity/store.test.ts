@@ -45,8 +45,8 @@ describe("startTimer", () => {
   });
 
   it("allows numbered repeats when the owner chooses it", () => {
-    const { setTimerMode, startTimer } = useActivity.getState();
-    setTimerMode("multiple");
+    useActivity.setState({ timerMode: "multiple" });
+    const { startTimer } = useActivity.getState();
     const a = startTimer(25 * MINUTE);
     const b = startTimer(25 * MINUTE);
     expect(a).not.toBe(b);

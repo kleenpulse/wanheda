@@ -335,6 +335,178 @@
 	color-scheme: dark;
 }
 
+/*
+ * Bench (Motion Garden: graphite + amethyst), opt-in from Settings
+ * (FR-SHELL-7, ADR-0009). Scoped by html[data-skin="bench"] and mapped onto
+ * Wanheda's own roles, so components never learn it exists and Bench's rival
+ * --color-accent never enters. Fonts stay the house four (SPEC V15).
+ */
+:root[data-skin="bench"] {
+	--radius-card-size: 20px;
+	--radius-frame-size: 30px;
+
+	--band: #f9f9fb;
+	--sheet: #ffffff;
+	--card-nested: #f4f3f6;
+	--ink-2: #545b64;
+	--ink-3: #878e97;
+
+	--signal: #a855f7;
+	--signal-ink: #7e22ce;
+	--signal-soft: #f1e6fe;
+	--signal-2: #16191d;
+	--inverse: #16191d;
+	--inverse-foreground: #ffffff;
+	--glass: rgb(255 255 255 / 0.86);
+	--glass-thin: rgb(255 255 255 / 0.55);
+	--glass-border: rgb(22 25 29 / 0.08);
+	--glass-frost: rgb(255 255 255 / 0.5);
+	--glass-sheen: rgb(255 255 255 / 0.75);
+	--glass-edge: rgb(255 255 255 / 0.95);
+	--glass-tint: rgb(168 85 247 / 0.14);
+	--glow: rgb(168 85 247 / 0.3);
+	--critical: #dc2626;
+	--orb-1: #a855f7;
+	--orb-2: #22d3ee;
+	--orb-3: #f754f1;
+	--orb-4: #939aa2;
+	--em-scroll: #c3c9cf;
+
+	--shadow-card-value: none;
+	--shadow-lift-value: 0 14px 34px -16px rgb(22 25 29 / 0.22);
+	--shadow-glow-value: 0 0 0 1px rgb(168 85 247 / 0.28), 0 10px 30px -10px rgb(168 85 247 / 0.45);
+
+	--background: #f9f9fb;
+	--foreground: #16191d;
+	--card: #ffffff;
+	--card-foreground: #16191d;
+	--popover: #ffffff;
+	--popover-foreground: #16191d;
+	--primary: #7e22ce;
+	--primary-foreground: #ffffff;
+	--secondary: #eceaef;
+	--secondary-foreground: #16191d;
+	--muted: #f1f0f3;
+	--muted-foreground: #545b64;
+	--accent: #eceaef;
+	--accent-foreground: #16191d;
+	--destructive: #dc2626;
+	--border: #dde2e7;
+	--input: #dde2e7;
+	--ring: #7e22ce;
+	--chart-1: #a855f7;
+	--sidebar: #f9f9fb;
+	--sidebar-foreground: #16191d;
+	--sidebar-primary: #16191d;
+	--sidebar-primary-foreground: #ffffff;
+	--sidebar-accent: #ffffff;
+	--sidebar-accent-foreground: #16191d;
+	--sidebar-border: #dde2e7;
+	--sidebar-ring: #7e22ce;
+}
+
+.dark[data-skin="bench"] {
+	--band: #0e1012;
+	--sheet: #101215;
+	--card-nested: #191d21;
+	--ink-2: #bcc2c8;
+	--ink-3: #6c737c;
+
+	--signal: #a855f7;
+	--signal-ink: #b87df9;
+	--signal-soft: rgb(168 85 247 / 0.14);
+	--signal-2: #22d3ee;
+	--inverse: #e2e6e9;
+	--inverse-foreground: #0a0b0c;
+	--glass: rgb(16 18 21 / 0.82);
+	--glass-thin: rgb(16 18 21 / 0.55);
+	--glass-border: rgb(226 230 233 / 0.09);
+	--glass-frost: rgb(16 18 21 / 0.5);
+	--glass-sheen: rgb(226 230 233 / 0.06);
+	--glass-edge: rgb(226 230 233 / 0.12);
+	--glass-tint: rgb(168 85 247 / 0.14);
+	--glow: rgb(168 85 247 / 0.3);
+	--critical: #f87171;
+	--orb-1: #a855f7;
+	--orb-2: #22d3ee;
+	--orb-3: #f754f1;
+	--orb-4: #6c737c;
+	--em-scroll: #464d56;
+
+	--shadow-card-value: none;
+	--shadow-lift-value: 0 22px 44px -22px rgb(0 0 0 / 0.8);
+	--shadow-glow-value: 0 0 0 1px rgb(168 85 247 / 0.45), 0 0 30px -8px rgb(168 85 247 / 0.45);
+
+	--background: #0a0b0c;
+	--foreground: #e2e6e9;
+	--card: #131619;
+	--card-foreground: #e2e6e9;
+	--popover: #101215;
+	--popover-foreground: #e2e6e9;
+	--primary: #a855f7;
+	--primary-foreground: #0a0b0c;
+	--secondary: #191d21;
+	--secondary-foreground: #e2e6e9;
+	--muted: #131619;
+	--muted-foreground: #bcc2c8;
+	--accent: #191d21;
+	--accent-foreground: #e2e6e9;
+	--destructive: #f87171;
+	--border: #2a2f36;
+	--input: #2a2f36;
+	--ring: #a855f7;
+	--chart-1: #a855f7;
+	--sidebar: #0e1012;
+	--sidebar-foreground: #e2e6e9;
+	--sidebar-primary: #a855f7;
+	--sidebar-primary-foreground: #0a0b0c;
+	--sidebar-accent: #191d21;
+	--sidebar-accent-foreground: #e2e6e9;
+	--sidebar-border: #20242a;
+	--sidebar-ring: #a855f7;
+}
+
+/*
+ * The owner's accent (FR-SHELL-7, user 2026-11-04: a free colour). The picked
+ * colour (--accent-user, six hex digits, set on <html>) becomes the one signal
+ * hue in every skin. Its hue is kept; lightness (and in light mode chroma) is
+ * clamped per theme so marks stay visible and signal text stays readable
+ * whatever is picked. Measured over all 64 sRGB corner colours: light-mode
+ * marks >= 3:1 on Ember paper (a lightness cap alone is not enough: vivid
+ * greens and cyans clip out of gamut and brighten), signal text >= 4.5:1.
+ * Both blocks set the same properties, so nothing leaks between themes.
+ */
+:root[data-accent] {
+	--signal: oklch(from var(--accent-user) clamp(0.45, l, 0.6) min(c, 0.2) h);
+	--signal-ink: oklch(from var(--accent-user) min(l, 0.48) c h);
+	--signal-soft: color-mix(in oklab, var(--signal) 16%, #ffffff);
+	--primary: var(--signal-ink);
+	--primary-foreground: #ffffff;
+	--ring: var(--signal-ink);
+	--sidebar-ring: var(--signal-ink);
+	--glass-tint: color-mix(in oklab, var(--signal) 16%, transparent);
+	--glow: color-mix(in oklab, var(--signal) 32%, transparent);
+	--shadow-glow-value: 0 0 0 1px color-mix(in oklab, var(--signal) 28%, transparent),
+		0 10px 30px -10px color-mix(in oklab, var(--signal) 50%, transparent);
+	--chart-1: var(--signal);
+	--orb-1: var(--signal);
+}
+.dark[data-accent] {
+	--signal: oklch(from var(--accent-user) max(l, 0.74) c h);
+	--signal-ink: var(--signal);
+	--signal-soft: color-mix(in oklab, var(--signal) 14%, transparent);
+	--primary: var(--signal);
+	--primary-foreground: oklch(from var(--signal) 0.2 calc(c * 0.4) h);
+	--ring: var(--signal);
+	--sidebar-ring: var(--signal);
+	--glass-tint: color-mix(in oklab, var(--signal) 16%, transparent);
+	--glow: color-mix(in oklab, var(--signal) 35%, transparent);
+	--shadow-glow-value: 0 0 0 1px color-mix(in oklab, var(--signal) 50%, transparent),
+		0 0 34px -6px color-mix(in oklab, var(--signal) 45%, transparent);
+	--chart-1: var(--signal);
+	--orb-1: var(--signal);
+}
+
 /* Shared base and utilities */
 @layer base {
 	* {
@@ -422,6 +594,17 @@
 		box-shadow: inset 0 0 220px rgb(0 0 0 / 0.55);
 		z-index: -1; /* below content, above the canvas gradient */
 	}
+	/* Bench: graphite with a faint measurement grid instead of Nebula's atmosphere. */
+	[data-skin="bench"] body {
+		background:
+			linear-gradient(to bottom, transparent 15%, var(--background) 45%),
+			linear-gradient(to right, color-mix(in oklab, var(--foreground) 5%, transparent) 1px, transparent 1px),
+			linear-gradient(to bottom, color-mix(in oklab, var(--foreground) 5%, transparent) 1px, transparent 1px),
+			var(--background);
+		background-size: 100% 100%, 114px 104px, 114px 104px, auto;
+		background-attachment: fixed;
+	}
+	[data-skin="bench"].dark body::before { box-shadow: none; }
 }
 
 /* Glass (overlays only; serves both skins) */
@@ -507,6 +690,47 @@ html[data-transparency="reduce"]:not(.dark) {
 	--glass-thin: #ffffff;
 	--glass-frost: #ffffff;
 	--glass-sheen: transparent;
+}
+
+/* Bench under reduced transparency: its own solids, not Nebula's teal. */
+@media (prefers-reduced-transparency: reduce) {
+	.dark[data-skin="bench"] {
+		--sheet: #101215;
+		--card: #131619;
+		--glass: #101215;
+		--glass-thin: #101215;
+		--glass-frost: #101215;
+		--glass-sheen: transparent;
+		--sidebar: #0e1012;
+	}
+}
+html[data-transparency="reduce"].dark[data-skin="bench"] {
+	--sheet: #101215;
+	--card: #131619;
+	--glass: #101215;
+	--glass-thin: #101215;
+	--glass-frost: #101215;
+	--glass-sheen: transparent;
+	--sidebar: #0e1012;
+}
+
+/* Home wallpapers (prefs). Tokens only, so they follow the skin and the accent. */
+.wallpaper-glow {
+	background: radial-gradient(1100px 520px at 50% -12%, color-mix(in oklab, var(--signal) 22%, transparent), transparent 72%);
+}
+.wallpaper-orbs {
+	background:
+		radial-gradient(520px 420px at 12% 18%, color-mix(in oklab, var(--orb-1) 20%, transparent), transparent 70%),
+		radial-gradient(560px 460px at 88% 22%, color-mix(in oklab, var(--orb-2) 14%, transparent), transparent 70%),
+		radial-gradient(620px 520px at 70% 92%, color-mix(in oklab, var(--orb-3) 16%, transparent), transparent 72%),
+		radial-gradient(480px 400px at 22% 86%, color-mix(in oklab, var(--orb-4) 14%, transparent), transparent 70%);
+}
+.wallpaper-grid {
+	background:
+		linear-gradient(to bottom, transparent, var(--sheet) 85%),
+		linear-gradient(to right, color-mix(in oklab, var(--foreground) 6%, transparent) 1px, transparent 1px),
+		linear-gradient(to bottom, color-mix(in oklab, var(--foreground) 6%, transparent) 1px, transparent 1px);
+	background-size: 100% 100%, 48px 48px, 48px 48px;
 }
 
 /* Skin switch: circular reveal from the toggle (components/theme-toggle.tsx).

@@ -3,8 +3,14 @@ import { cookies } from "next/headers";
 import { PAGE_COLUMN } from "@/components/shell/page-frame";
 import { ShellFrame } from "@/components/shell/shell-frame";
 import { requireOwner } from "@/lib/auth/owner";
+import type { Notice } from "@/lib/notifications/notifications";
+import { loadNotices } from "@/lib/notifications/store";
+import { PREFS_COOKIE, decodePrefs } from "@/lib/prefs/prefs";
+import { loadPrefs } from "@/lib/prefs/store";
 import { DEMO_ACCOUNT, type ShellAccount } from "@/lib/shell/account";
 import { RAIL_COOKIE, parseRail } from "@/lib/shell/rail";
+import type { NoticesSource } from "@/components/notifications/notifications-provider";
+import type { PrefsSource } from "@/components/prefs/prefs-provider";
 import { cn } from "@/lib/utils";
 
 // Every page in the shell is behind requireOwner(). It reads the request, so
@@ -26,8 +32,20 @@ async function OwnerShell({ children }: { children: React.ReactNode }) {
       ? { kind: "owner", name: owner.user.name || owner.user.email, email: owner.user.email }
       : DEMO_ACCOUNT;
 
+  // Prefs and alerts: the owner's from the database (either read failing falls back,
+  // never throws); demo has this device's cookie and sample alerts.
+  const devicePrefs = decodePrefs(jar.get(PREFS_COOKIE)?.value);
+  let prefs: { initial: typeof devicePrefs; source: PrefsSource } = { initial: devicePrefs, source: "demo" };
+  // Demo samples are stamped on the client (NotificationsProvider), not here.
+  let notices: { initial: Notice[]; source: NoticesSource } = { initial: [], source: "demo" };
+  if (owner.kind === "owner") {
+    const [p, n] = await Promise.all([loadPrefs(owner.user.id), loadNotices(owner.user.id)]);
+    prefs = p.kind === "loaded" ? { initial: p.prefs, source: "owner" } : { initial: devicePrefs, source: "load-failed" };
+    notices = { initial: n.notices, source: n.kind === "loaded" ? "owner" : "load-failed" };
+  }
+
   return (
-    <ShellFrame account={account} initialExpanded={parseRail(jar.get(RAIL_COOKIE)?.value)}>
+    <ShellFrame account={account} initialExpanded={parseRail(jar.get(RAIL_COOKIE)?.value)} prefs={prefs} notices={notices}>
       {children}
     </ShellFrame>
   );

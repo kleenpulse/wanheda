@@ -20,6 +20,7 @@ export function PageFrame({
   subtitle,
   actions,
   sheetClassName,
+  backdrop,
   children,
 }: {
   title: React.ReactNode;
@@ -27,6 +28,8 @@ export function PageFrame({
   /** The page's own controls, at the right of the header. */
   actions?: React.ReactNode;
   sheetClassName?: string;
+  /** Drawn behind the sheet's content, clipped to its rounded top: Home's wallpaper. */
+  backdrop?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
@@ -46,7 +49,12 @@ export function PageFrame({
         </header>
       </div>
 
-      <div className="flex-1 rounded-t-frame bg-sheet dark:border-t dark:border-glass-border">
+      <div className="relative isolate flex-1 rounded-t-frame bg-sheet dark:border-t dark:border-glass-border">
+        {backdrop ? (
+          <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 overflow-hidden rounded-t-frame">
+            {backdrop}
+          </div>
+        ) : null}
         <div className={cn(PAGE_COLUMN, "@container flex flex-col gap-4 py-6 md:py-8", sheetClassName)}>{children}</div>
       </div>
     </div>

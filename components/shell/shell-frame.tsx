@@ -3,11 +3,16 @@
 import * as React from "react";
 import { AccountProvider } from "@/components/shell/account";
 import { Island } from "@/components/island/island";
+import { NotificationCentre } from "@/components/notifications/notification-centre";
+import { NotificationsProvider, type NoticesSource } from "@/components/notifications/notifications-provider";
+import { PrefsProvider, type PrefsSource } from "@/components/prefs/prefs-provider";
 import { CommandPalette } from "@/components/shell/command-palette";
 import { Dock } from "@/components/shell/dock";
 import { MobileTabBar } from "@/components/shell/mobile-tab-bar";
 import { NavRail } from "@/components/shell/nav-rail";
 import { WindowLayer } from "@/components/windows/window-layer";
+import type { Notice } from "@/lib/notifications/notifications";
+import type { Prefs } from "@/lib/prefs/prefs";
 import type { ShellAccount } from "@/lib/shell/account";
 import { RAIL_ATTR, RAIL_WIDTH, railCookie } from "@/lib/shell/rail";
 
@@ -27,11 +32,15 @@ function isTyping(target: EventTarget | null) {
 export function ShellFrame({
   account,
   initialExpanded,
+  prefs,
+  notices,
   children,
 }: {
   account: ShellAccount;
   /** From the cookie, so the server paints the right width: no first-frame jump. */
   initialExpanded: boolean;
+  prefs: { initial: Prefs; source: PrefsSource };
+  notices: { initial: Notice[]; source: NoticesSource };
   children: React.ReactNode;
 }) {
   const [expanded, setExpanded] = React.useState(initialExpanded);
@@ -74,6 +83,8 @@ export function ShellFrame({
 
   return (
     <AccountProvider account={account}>
+      <PrefsProvider initial={prefs.initial} source={prefs.source}>
+      <NotificationsProvider initial={notices.initial} source={notices.source}>
       <div
         className="relative flex min-h-svh w-full [--rail-w:0px] md:[--rail-w:var(--rail-w-md)]"
         style={{ ["--rail-w-md" as string]: `${railW}px` }}
@@ -85,7 +96,10 @@ export function ShellFrame({
         <Dock />
         <Island />
         <CommandPalette railExpanded={expanded} onToggleRail={toggle} />
+        <NotificationCentre />
       </div>
+      </NotificationsProvider>
+      </PrefsProvider>
     </AccountProvider>
   );
 }
