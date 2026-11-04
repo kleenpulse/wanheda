@@ -15,6 +15,13 @@
       "when": 1793828179775,
       "tag": "0001_board_layout",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793832109497,
+      "tag": "0002_prefs_notifications",
+      "breakpoints": true
     }
   ]
 }

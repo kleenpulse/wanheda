@@ -24,6 +24,11 @@ Each skin is one CSS block. Swapping it re-tints the app without touching compon
 - **Never run `shadcn init`.** It injects a rival `--color-accent`. Primitives are vendored into `components/ui/` and restyled to tokens.
 - Fonts: Geist, Geist Mono and Instrument Sans via `next/font/google`. Themes via `next-themes`.
 
+### Amended 2026-11-04 (Phase 1 CP6)
+
+- **Bench shipped** behind `html[data-skin="bench"]`, picked in Settings. It is Bench's palette mapped onto Wanheda's own role tokens (`--signal`, `--sheet`, `--card` …), not the skill's `--sg-*` vocabulary, so components are unchanged and Bench's `--color-accent` never enters. Wanheda's four fonts stay (SPEC V15); Bench's Space Mono is not loaded.
+- **The owner picks the signal hue freely** (owner's decision, 2026-11-04). Still one signal hue at a time. The chosen colour is set as `--accent-user` and `globals.css` derives the signal family from it per theme with `oklch(from …)`. Hue is kept; lightness (and chroma in light mode) is clamped so marks stay ≥ 3:1 and signal text ≥ 4.5:1, measured over all 64 sRGB corner colours in both themes. A lightness clamp alone was not enough: vivid greens and cyans clip out of gamut and brighten.
+
 ## Consequences
 
 ### In 6 months
@@ -44,6 +49,6 @@ Each skin is one CSS block. Swapping it re-tints the app without touching compon
 
 ## Revisit when
 
-- Phase 1: the skin picker and `[data-skin]` layer are built.
+- ~~Phase 1: the skin picker and `[data-skin]` layer are built.~~ Done 2026-11-04 (see the amendment above).
 - Phase 3: the data palette is chosen.
 - The skill itself changes its skin keys or the shadcn bridge.

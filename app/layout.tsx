@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono, Instrument_Sans, Poppins } from "next/font/google";
 import { MotionProvider } from "@/components/providers/motion-provider";
 import { ThemeProvider } from "@/components/providers/theme-provider";
+import { prefsBootScript } from "@/lib/prefs/prefs";
 import { railBootScript } from "@/lib/shell/rail";
 import "./globals.css";
 
@@ -36,6 +37,8 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <head>
         {/* Before first paint: the shell fallback's rail width (lib/shell/rail.ts). */}
         <script dangerouslySetInnerHTML={{ __html: railBootScript() }} />
+        {/* Before first paint: the skin and accent from the prefs cookie (lib/prefs/prefs.ts). */}
+        <script dangerouslySetInnerHTML={{ __html: prefsBootScript() }} />
       </head>
       <body className="min-h-full flex flex-col font-sans">
         <ThemeProvider>

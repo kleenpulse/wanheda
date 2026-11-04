@@ -1,4 +1,5 @@
 import { Board, type BoardSource } from "@/components/board/board";
+import { Wallpaper } from "@/components/prefs/wallpaper";
 import { PageFrame } from "@/components/shell/page-frame";
 import { widgetNodes } from "@/components/widgets";
 import { requireOwner } from "@/lib/auth/owner";
@@ -20,7 +21,11 @@ export default async function Home() {
   }
 
   return (
-    <PageFrame title="Home" subtitle={mode === "demo" ? "Seed data, open to anyone." : "Your board"}>
+    <PageFrame
+      title="Home"
+      subtitle={mode === "demo" ? "Seed data, open to anyone." : "Your board"}
+      backdrop={<Wallpaper />}
+    >
       <Board initial={layouts} source={source} nodes={widgetNodes(mode)} />
     </PageFrame>
   );

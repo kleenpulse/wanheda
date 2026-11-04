@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion } from "motion/react";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { NotificationBell } from "@/components/notifications/notification-centre";
 import { AccountMenu } from "@/components/shell/account-menu";
 import { activeFill, activeInk, circle, idleInk } from "@/components/shell/styles";
 import { WanhedaMark } from "@/components/shell/wanheda-mark";
@@ -121,6 +122,7 @@ export function NavRail({
               <span className={cn(label, "text-ink-2", hidden)}>Collapse</span>
             </button>,
           )}
+          {tip("Notifications", <NotificationBell circleClass={cn(circle, idleInk)} labelClass={cn(label, "text-ink-2", hidden)} />)}
           <div className="flex items-center gap-3">
             <ThemeToggle className={cn(circle, idleInk, "[&_svg]:size-4")} />
             <span aria-hidden className={cn(label, "text-ink-2", hidden)}>

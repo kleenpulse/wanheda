@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import {
   AppWindow,
+  Bell,
   Monitor,
   Moon,
   PanelLeft,
@@ -18,6 +19,7 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react";
+import { useNotifications } from "@/components/notifications/notifications-provider";
 import { usePalette } from "@/components/shell/palette-store";
 import { centerOf, revealTheme, type ThemeChoice } from "@/components/theme-toggle";
 import { Kbd } from "@/components/ui/kbd";
@@ -109,6 +111,7 @@ function PaletteBody({
   const { startTimer, toggleTimer, cancelTimer } = useActivity.getState();
   const openWindows = useWindows((s) => s.open);
   const { openWindow, closeWindow } = useWindows.getState();
+  const notifications = useNotifications();
   // The body mounts per open, so "done" is judged as of opening.
   const [openedAt] = React.useState(Date.now);
   const typedTimer = parseTimerQuery(query);
@@ -199,6 +202,19 @@ function PaletteBody({
               onSelect={run(() => startTimer(min * MINUTE))}
             />
           ))}
+        </Command.Group>
+
+        <Command.Group heading="Notifications">
+          <Item
+            value="notifications-open"
+            keywords={["notifications", "alerts", "inbox", "bell", "unread"]}
+            icon={Bell}
+            title="Open notifications"
+            {...(notifications.unread > 0 ? { hint: `${String(notifications.unread)} unread` } : {})}
+            onSelect={run(() => {
+              notifications.setOpen(true);
+            })}
+          />
         </Command.Group>
 
         <Command.Group heading="Windows">
