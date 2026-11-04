@@ -2,6 +2,9 @@
 
 import * as React from "react";
 import { AccountProvider } from "@/components/shell/account";
+import { Island } from "@/components/island/island";
+import { CommandPalette } from "@/components/shell/command-palette";
+import { FloatingPill } from "@/components/shell/floating-pill";
 import { MobileTabBar } from "@/components/shell/mobile-tab-bar";
 import { NavRail } from "@/components/shell/nav-rail";
 import type { ShellAccount } from "@/lib/shell/account";
@@ -77,6 +80,9 @@ export function ShellFrame({
         <NavRail expanded={expanded} onToggle={toggle} className="hidden md:flex" />
         <main className="relative min-w-0 flex-1 pb-[88px] md:pb-0">{children}</main>
         <MobileTabBar />
+        <FloatingPill />
+        <Island />
+        <CommandPalette railExpanded={expanded} onToggleRail={toggle} />
       </div>
     </AccountProvider>
   );
