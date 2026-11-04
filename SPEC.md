@@ -23,7 +23,7 @@ Source prose: `FRD.md` (amended 2026-11-04, local only ∵ gitignored). This fil
 - C9: repo public ∵ free-plan ruleset `protect-default-branch` (PRs only, ⊥ force-push, ⊥ delete, required `rails` + `check`) (ADR-0011). user merges.
 - C10: desktop = Electron (port Raven `desktop/`), Phase 8 (ADR-0001). TTS = Piper (WASM web / sherpa-onnx native) + Kokoro opt (ADR-0005). media = native → remux → transcode (ADR-0006). sync = server-first + Dexie outbox, ⊥ sync engine (ADR-0008).
 - C11: tests = Vitest (`bun run test`, ⊥ `bun test`), Playwright smoke (from Phase 0 CP3): `request` fixture only ∴ ⊥ browser download.
-- C12: deploy envs — 2 GitHub OAuth apps (local, prod; 1 callback each); Vercel Production = db + auth vars, secrets `--sensitive`; Preview = ⊥ db ∧ ⊥ auth vars ∴ demo (seed only) ∵ preview builds = unreviewed code; `scripts/setup-deploy.sh` exit 1 if Preview ∋ any db|auth var; prod deploys from `main` via Git integration only (⊥ `vercel deploy --prod` from a branch); OAuth tokens stored encrypted (`account.encryptOAuthTokens`) (ADR-0002, ADR-0003).
+- C12: deploy envs — 2 GitHub OAuth apps (local, prod; 1 callback each); Vercel Production = db + auth vars, secrets `--sensitive`; Preview = ⊥ db ∧ ⊥ auth vars ∴ demo (seed only) ∵ preview builds = unreviewed code; `scripts/setup-deploy.sh` exit 1 if Preview ∋ any db|auth var; prod deploys from `main` via Git integration only (⊥ `vercel deploy --prod` from a branch); Vercel `productionBranch` = `main` (wizard exit 1 otherwise, fails closed); new project ⇒ 1st deploy = Production ∀ branch (Vercel rule, §B1) ∴ 1st push = `main`; branch deploys off: `vercel.json` `git.deploymentEnabled` `{"**": false, "main": true}` (`**` ∵ minimatch `*` ⊥ match `/`; any `true` rule wins) — user 2026-11-04, Vercel resources; OAuth tokens stored encrypted (`account.encryptOAuthTokens`) (ADR-0002, ADR-0003).
 
 ## §I Interfaces
 
@@ -89,9 +89,10 @@ T16|x|CP2 auth schema hand-written from better-auth `getSchema()` (⊥ `auth` CL
 T17|x|CP2 `lib/auth/{server,client,owner}.ts` — GitHub + passkey + nextCookies last; allowlist hook (fail closed); `requireOwner()`; `/api/auth/[...all]`; tests|V6,V7
 T18|x|CP2 `proxy.ts` (locked 503, gated → /login?next=), `/login` page, `(shell)` layout + placeholder (add passkey, sign out, theme, demo chip)|V6,V7,V8,V16
 T19|x|CP3 `vercel.json` fra1; Playwright smoke: gated (/ → 307 /login, ≤1 redirect; forged cookie → streamed redirect /login, ⊥ shell) + locked (/ ∧ /money ∧ /login ∧ /api/auth → 503, ⊥ data) + demo (zero env → 200); CI step|V6,V7,V8
-T20|.|CP3 wizard for user-only steps: GitHub OAuth apps (local + prod), vercel link + git connect + Production env (db + auth), Preview clean check, .env.local vars — script `scripts/setup-deploy.sh`; machine stages run by Builder 2026-11-04 (user asked), OAuth apps + OWNER_EMAILS pending user|C6,C8,C12
-T21|.|CP3 prove exit criteria on deployed URL; Phase 0 done hand-off + Builder/Reviewer prompts for Phase 1|V6,V8
+T20|x|CP3 wizard for user-only steps: GitHub OAuth apps (local + prod), vercel link + git connect + Production env (db + auth), Preview clean check, production-branch check, .env.local vars — `scripts/setup-deploy.sh`; machine stages run by Builder 2026-11-04 (user asked), OAuth apps + secrets by user|C6,C8,C12
+T21|x|CP3 exit criteria on `wanheda-chi.vercel.app` 2026-11-04: owner GitHub + passkey sign-in (user); signed-out → `/login` 1 hop; CI asserts planted IOCs, gitleaks canary, forged commits; zero-env build + demo smoke; Phase 0 done hand-off w/ Phase 1 prompts. ⊥ tried live: 2nd GitHub account refused (unit-tested only)|V6,V7,V8
 
 ## §B Bugs
 
 id|date|cause|fix
+B1|2026-11-04|PR #2 branch build (`phase-0/deploy-and-exit`, `f4fa76f`) deployed as **Production** w/ all 8 prod vars, aliased to `wanheda-chi.vercel.app` ~7 min before merge ∵ Vercel: a new project's 1st deployment = Production ∀ branch (productionBranch was `main`); "Preview = demo" claim held ⊥ for that build. ⊥ harm ∵ tree = reviewed = merged|C12 amended; wizard `assert_production_branch_main` (fails closed, Git Bash-safe) + `warn_first_deploy` (1st push must be `main`); verify w/ `vercel inspect` target ∀ new project's 1st branch build

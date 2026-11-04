@@ -272,6 +272,51 @@ assert_preview_clean() {
   printf '  %s✓%s Vercel Preview has no database or auth variables\n' "$GREEN" "$RESET"
 }
 
+# production_branch_of — read a Vercel project JSON on stdin and print its
+# productionBranch. Prints nothing if the field is missing, and every distinct
+# value (one per line) if there is more than one, so callers can't be fooled.
+production_branch_of() {
+  # `|| true`: no match must print nothing, not abort under `set -o pipefail`.
+  { grep -oE '"productionBranch"[[:space:]]*:[[:space:]]*"[^"]*"' || true; } | sed -E 's/.*"([^"]*)"$/\1/' | sort -u
+}
+
+# assert_production_branch_main — stop unless Vercel deploys production from
+# main only (SPEC C12). Fails closed: an unreadable answer is a failure.
+# MSYS_NO_PATHCONV stops Git Bash from rewriting "/v9/…" into a Windows path.
+# It also stops it converting --cwd, which works because MAIN_ROOT comes from
+# git as "D:/…" on Windows; a "/d/…" path would make the call fail (closed).
+assert_production_branch_main() {
+  local json branch
+  if ! json=$(MSYS_NO_PATHCONV=1 vercel api "/v9/projects/$PROJECT_NAME" --cwd "$MAIN_ROOT" 2>/dev/null); then
+    printf '  %s✗ could not read the Vercel project settings%s\n' "$RED" "$RESET"
+    exit 1
+  fi
+  branch=$(printf '%s' "$json" | production_branch_of) || branch=""
+  if [[ "$branch" != "main" ]]; then
+    printf '  %s✗ Vercel production branch is "%s", not "main".%s\n' "$RED" "${branch:-unset}" "$RESET"
+    step "Fix it: $PROJECT_NAME → Settings → Environments → Production → Branch Tracking → main."
+    exit 1
+  fi
+  printf '  %s✓%s Vercel deploys production from main only\n' "$GREEN" "$RESET"
+}
+
+# warn_first_deploy — a new Vercel project's FIRST deployment is always a
+# production deployment, whatever its branch (Vercel docs; it happened here,
+# SPEC §B1). Warn unless a production deployment already exists. Only stdout
+# counts (bare deployment URLs) and only on exit 0: stderr carries banners and
+# update notices whose links must never read as "a deployment exists".
+warn_first_deploy() {
+  local out
+  out=$(vercel ls "$PROJECT_NAME" --prod --cwd "$MAIN_ROOT" 2>/dev/null) || out=""
+  if grep -qE '^https://' <<<"$out"; then
+    printf '  %s✓%s A production deployment exists, so branch pushes become previews\n' "$GREEN" "$RESET"
+    return
+  fi
+  warn "No production deployment yet. The FIRST deployment goes to Production with"
+  warn "the production variables, from whatever branch triggers it."
+  step "Make it from main: push or merge to main BEFORE pushing any other branch."
+}
+
 banner "Wanheda — GitHub sign-in and Vercel"
 
 # ── 1 ─────────────────────────────────────────────────────────────────────
@@ -344,7 +389,7 @@ pause "Press Enter to continue"
 # ── 4 ─────────────────────────────────────────────────────────────────────
 stage "Vercel project — link and connect the repo" 3
 say "This creates the Vercel project '$PROJECT_NAME' and links it to this repo."
-note "Nothing deploys yet. Production deploys start when main changes."
+note "Nothing deploys yet. The first push to GitHub will, and it goes to Production."
 say "Answer the prompts like this:"
 step "Set up the directory?            yes"
 step "Which scope?                     your personal account"
@@ -376,6 +421,9 @@ if ! confirm "Is the repo connected?"; then
     SKIPPED+=("connect the Git repo (vercel git connect)")
   fi
 fi
+assert_production_branch_main
+warn_first_deploy
+pause "Press Enter to continue"
 
 # ── 5 ─────────────────────────────────────────────────────────────────────
 stage "Production URL and GitHub OAuth app — production" 3

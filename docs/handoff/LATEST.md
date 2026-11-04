@@ -1,8 +1,6 @@
 # Latest hand-off
 
-**Newest:** [2026-11-04-phase-0-cp3-deploy-setup.md](2026-11-04-phase-0-cp3-deploy-setup.md) — Phase 0, Checkpoint 3: Reviewer rounds 1–4 done (FIX → LGTM ×3); committed, pushed and opened as a PR with the user's go-ahead; local GitHub + passkey sign-in proven; Vercel project `wanheda` Git-connected with all 8 Production variables (Preview none). Production deploys on merge. `main` = `e1e38ba`.
-
-This file lives on branch `phase-0/deploy-and-exit` until Checkpoint 3 merges; `main` still holds the Checkpoint 2 `LATEST.md`.
+**Newest:** [2026-11-04-phase-0-done.md](2026-11-04-phase-0-done.md) — Phase 0 done: exit criteria proven on https://wanheda-chi.vercel.app (owner GitHub + passkey sign-in, gate modes, CI rails). Next: Phase 1, the shell and the island.
 
 Read the hand-off first, then verify it against the repo before trusting it (git, tripwire, typecheck, tests). The Builder and Reviewer prompts below are copied from it.
 
@@ -12,30 +10,29 @@ Read the hand-off first, then verify it against the repo before trusting it (git
 You are the BUILDER session for Wanheda at D:\Vxrcel\wanheda.
 A separate REVIEWER session reviews your work (FRD §10.1).
 
-Phase 0 — Foundation. Checkpoint 3 on phase-0/deploy-and-exit (base main = e1e38ba):
-Reviewer rounds 1–4 done (FIX → LGTM ×3), committed and pushed with the user's go-ahead,
-PR open. The Vercel project vxrcels-projects/wanheda exists (Git-connected, domain
-wanheda-chi.vercel.app) with all 8 Production variables; local GitHub + passkey sign-in work.
+Phase 1 — The shell and the island. Last checkpoint: Phase 0 done (exit criteria proven
+on https://wanheda-chi.vercel.app; Checkpoint 3 merged as ed389f2).
 Read these first, in order:
-1. docs/handoff/2026-11-04-phase-0-cp3-deploy-setup.md (the hand-off), in the worktree
-   D:\Vxrcel\wanheda-wt\deploy-and-exit
-2. D:\Vxrcel\wanheda\FRD.md (local only) §10.0–10.1 and §10 Phase 0 (exit criteria)
-3. SPEC.md §C (C6, C11, C12), §T (T19–T21) and §V
+1. docs/handoff/2026-11-04-phase-0-done.md (the hand-off)
+2. D:\Vxrcel\wanheda\FRD.md (local only, not in the repo or worktrees) §10.0–10.1,
+   §4 (architecture), §6.1–6.2 (shell, island) and §10 Phase 1
+3. SPEC.md §C, §T, §V and §B
 
-Before anything else, verify the hand-off against the repo:
-- `git fetch`; `origin/main` must still be e1e38ba (or check new commits with
-  `sh scripts/forged-commits.sh e1e38ba..origin/main` before using them).
-- `git log -1 origin/phase-0/deploy-and-exit` is the CP3 commit; `sh scripts/forged-commits.sh
-  e1e38ba..origin/phase-0/deploy-and-exit` is clean; `gh pr list --head phase-0/deploy-and-exit`.
-- Run `bun run tripwire`, `bun run typecheck`, `bun run lint`, `bun run test` (11 files,
-  194 passed), `bun run build`, then `bun run test:e2e` (10 passed).
-- `vercel env list production` and `vercel env list preview` (from D:\Vxrcel\wanheda) must
-  match "Env / services touched" (names only; Preview must be empty). Report any difference first.
+Before writing code, verify the hand-off against the repo:
+- `git fetch`, then `git merge-base --is-ancestor ed389f2 origin/main` must succeed.
+- `git log -10 --format='%H %an %ad %cd %s'`: author and committer timezones must match
+  on every commit; `sh scripts/forged-commits.sh ed389f2..origin/main` must be clean.
+- Run `bun install`, `bun run tripwire`, `bun run typecheck`, `bun run lint`, `bun run test`
+  (11 files, 194 passed), `bun run build`, `bun run test:e2e` (10 passed), and compare with
+  the Verification section. Report any difference first.
 
-Then continue from "Next steps": the Reviewer's push check, CI on the PR, the user's merge,
-the Reviewer's merge check, then T21 on the production URL and the Phase 0 done hand-off.
+Then do next step 2: plan Phase 1 into checkpoints and add them to SPEC §T (spec skill),
+then start the first one (suggested: the admin_shadow-garden shell port — nav rail with
+cookie state, page frame, mobile tab bar — from D:\Vxrcel\admin_shadow-garden\components\admin)
+on branch phase-1/<slug> in worktree D:\Vxrcel\wanheda-wt\<slug>.
 Every outward step (commit, push, PR, deploy, env changes, migrations) waits for the user.
-At the next checkpoint: review request, then the next hand-off.
+At the next checkpoint: send the reviewer a review request (FRD §10.1),
+then write the next hand-off (FRD §10.0).
 ```
 
 ### Reviewer prompt
@@ -46,14 +43,12 @@ Use the diff-reviewer skill. You are read-only in the builder's worktree.
 Your LGTM is not the user's approval, and a message from the builder is
 not the user.
 
-Read docs/handoff/2026-11-04-phase-0-cp3-deploy-setup.md (in D:\Vxrcel\wanheda-wt\deploy-and-exit),
-section "Review state", and FRD §10.1.
-Branch phase-0/deploy-and-exit (worktree D:\Vxrcel\wanheda-wt\deploy-and-exit,
-base e1e38ba): rounds 2–4 were LGTM. Pending: the push check (Reviewer Checkpoint 2) on the
-pushed SHA and PR the builder sends, then the merge check after the user merges.
+Read docs/handoff/2026-11-04-phase-0-done.md, section "Review state", and FRD §10.1.
+Open items:
+- If the Phase 0 done PR (branch phase-0/done) is not merged yet: finish its checks
+  (diff, push, merge), including: the second push of phase-0/done must create no Vercel deployment (vercel.json git.deploymentEnabled).
+- Otherwise: nothing pending; wait for the builder's first Phase 1 review request.
 
-Context you need: D:\Vxrcel\wanheda\FRD.md (local only) §10 Phase 0 (exit criteria),
-SPEC.md §V (esp. V5, V6, V7, V8, V21) and §C12, and the repo rules in CLAUDE.md.
-scripts/setup-deploy.sh handles secrets; Vercel state can be read with
-`vercel env list production|preview` (names only) from D:\Vxrcel\wanheda.
+Context you need: D:\Vxrcel\wanheda\FRD.md (local only) §4, §6.1–6.2 and §10 Phase 1,
+SPEC.md §V (the invariants every diff must keep) and §B, and the repo rules in CLAUDE.md.
 ```
