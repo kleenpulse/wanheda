@@ -3,7 +3,7 @@ import { getSchema } from "better-auth/db";
 import { getTableColumns, getTableName, is } from "drizzle-orm";
 import { getTableConfig, PgTable } from "drizzle-orm/pg-core";
 import { describe, expect, it } from "vitest";
-import * as schema from "./index";
+import * as schema from "./auth";
 
 // The hand-written tables must match what Better Auth writes. Keep the plugin
 // list in step with lib/auth/server.ts (nextCookies adds no tables).
