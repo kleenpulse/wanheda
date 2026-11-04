@@ -36,3 +36,4 @@ bun-debug.log*
 # generated videos (/brag)
 /brag-output*/
 FRD.md
+.impeccable/config.json
