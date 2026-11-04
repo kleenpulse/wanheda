@@ -36,12 +36,13 @@ export function Island() {
   const ready = useActivitySync();
   const timers = useActivity((s) => s.timers);
   const lastStarted = useActivity((s) => s.lastStarted);
+  const lastStartedAt = useActivity((s) => s.lastStartedAt);
   const activities = React.useMemo(() => orderTimers(timers).map(timerActivity), [timers]);
 
   if (!ready || activities.length === 0) return null;
   return (
     <div className="pointer-events-none fixed inset-x-0 top-2 z-40 md:left-(--rail-w)">
-      <LiveActivity activities={activities} show={lastStarted ?? undefined} />
+      <LiveActivity activities={activities} show={lastStarted ?? undefined} showKey={lastStartedAt} />
     </div>
   );
 }

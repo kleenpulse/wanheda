@@ -1,12 +1,11 @@
-import { CloudSun, Clock, House, NotebookPen, Settings, Sunrise, type LucideIcon } from "lucide-react";
+import { CloudSun, Clock, House, NotebookPen, Settings, Sunrise, Timer, type LucideIcon } from "lucide-react";
 import type { Route } from "next";
 
-// The module registry (FRD 4.2). The shell builds the rail, the tab bar and
-// the board's widget picker from it, and later the dock and the palette, so a
-// new module adds a manifest here and never edits shell code.
+// The module registry (FRD 4.2). The shell builds the rail, the tab bar, the
+// dock, the board's widget picker and the palette's window commands from it,
+// so a new module adds a manifest here and never edits shell code.
 //
-// `commands`, `activities` and `capability` arrive with the checkpoints that
-// use them (SPEC T26-T27).
+// `commands` and `capability` arrive with the checkpoints that use them.
 
 /** Size limits in grid cells, on the 12-column board. Narrower boards clamp them. */
 export interface WidgetSize {
@@ -29,6 +28,26 @@ export interface WidgetDef {
   size: WidgetSize;
 }
 
+/** Activity kinds on the bus (FRD 4.3). Phase 1 publishes timers only. */
+export type ActivityKind = "media" | "speech" | "timer" | "transfer" | "sync" | "money-alert" | "agent" | "pomodoro";
+
+/** Size of a mini window in px. The layer clamps it to the screen. */
+export interface WindowSize {
+  w: number;
+  h: number;
+  minW: number;
+  minH: number;
+}
+
+/** A mini window a module offers (FR-SHELL-5). The renderer lives in components/windows. */
+export interface WindowDef {
+  /** Globally unique, `<module>.<window>`. Stored with its position, so never rename one. */
+  id: string;
+  title: string;
+  icon: LucideIcon;
+  size: WindowSize;
+}
+
 export interface ModuleManifest {
   /** Stable id, also the route segment for real modules: "money". */
   id: string;
@@ -38,7 +57,15 @@ export interface ModuleManifest {
   /** One short line for the palette and tooltips. No counts: they go stale. */
   blurb: string;
   widgets?: readonly WidgetDef[];
+  windows?: readonly WindowDef[];
+  /** Activity kinds this module publishes. Any of them live makes it "running" in the dock. */
+  activities?: readonly ActivityKind[];
+  /** In the dock even when not running. Prefs make this the owner's choice later (T27). */
+  pinned?: boolean;
 }
+
+/** A shell tool: lives in the dock and the palette, opens a mini window, has no route. */
+export type ToolManifest = Omit<ModuleManifest, "route" | "widgets">;
 
 const HOME = {
   id: "home",
@@ -46,6 +73,7 @@ const HOME = {
   icon: House,
   route: "/",
   blurb: "Your board",
+  pinned: true,
   // Placeholders until their modules land: the note becomes the Notes app's
   // pinned notes, and "today" grows spend and renewals with Money.
   widgets: [
@@ -83,9 +111,22 @@ const HOME = {
 /** The apps, in rail order. Phase 1 has no app modules yet, only Home. */
 export const MODULES = [HOME] as const satisfies readonly ModuleManifest[];
 
+const TIMER = {
+  id: "timer",
+  title: "Timer",
+  icon: Timer,
+  blurb: "Countdowns that follow you between apps",
+  pinned: true,
+  activities: ["timer"],
+  windows: [{ id: "timer.window", title: "Timers", icon: Timer, size: { w: 320, h: 360, minW: 260, minH: 220 } }],
+} as const satisfies ToolManifest;
+
+/** Shell tools, in dock order. */
+export const TOOLS = [TIMER] as const satisfies readonly ToolManifest[];
+
 /** Shell pages that are not apps. They sit at the foot of the rail. */
 export const SYSTEM_PAGES: readonly ModuleManifest[] = [
-  { id: "settings", title: "Settings", icon: Settings, route: "/settings", blurb: "Theme, passkeys and account" },
+  { id: "settings", title: "Settings", icon: Settings, route: "/settings", blurb: "Theme, timers, passkeys and account" },
 ];
 
 /** Every widget id the registry offers. Renderers are keyed by it, so a missing one fails typecheck. */
@@ -98,6 +139,24 @@ const WIDGET_IDS: ReadonlySet<string> = new Set(WIDGETS.map((w) => w.id));
 
 export function isWidgetId(id: string): id is WidgetId {
   return WIDGET_IDS.has(id);
+}
+
+/** Every mini-window id the registry offers. Renderers are keyed by it, so a missing one fails typecheck. */
+export type WindowId = (typeof TOOLS)[number]["windows"][number]["id"];
+
+/** Every mini window on offer. */
+export const WINDOWS: readonly (WindowDef & { id: WindowId })[] = TOOLS.flatMap((t) => t.windows);
+
+const WINDOW_DEFS: ReadonlyMap<string, WindowDef & { id: WindowId }> = new Map(WINDOWS.map((w) => [w.id, w]));
+
+export function isWindowId(id: string): id is WindowId {
+  return WINDOW_DEFS.has(id);
+}
+
+export function windowDef(id: WindowId): WindowDef & { id: WindowId } {
+  const def = WINDOW_DEFS.get(id);
+  if (!def) throw new Error(`Unknown window ${id}`);
+  return def;
 }
 
 /**

@@ -11,7 +11,16 @@ export interface Timer {
   endsAt: number | null;
   /** Time left, while paused. */
   pausedLeftMs: number | null;
+  /** The length it was started with. Absent on timers stored before it existed. */
+  setMs?: number;
 }
+
+/**
+ * What starting a length that is already on the bus does: `single` brings the
+ * existing timer forward (the default), `multiple` starts another, numbered.
+ */
+export type TimerMode = "single" | "multiple";
+export const TIMER_MODES: readonly TimerMode[] = ["single", "multiple"];
 
 export const MINUTE = 60_000;
 /** Longest timer the palette will start: a day. */
@@ -19,7 +28,33 @@ export const MAX_TIMER_MS = 24 * 60 * MINUTE;
 
 export function createTimer(id: string, ms: number, now: number, label = defaultLabel(ms)): Timer {
   const total = clampMs(ms);
-  return { id, label, totalMs: total, endsAt: now + total, pausedLeftMs: null };
+  return { id, label, totalMs: total, endsAt: now + total, pausedLeftMs: null, setMs: total };
+}
+
+/** The length a timer was started with, ignoring time added since. */
+export function lengthOf(t: Timer): number {
+  return t.setMs ?? t.totalMs;
+}
+
+/** The timer of this length already on the bus, if any. */
+export function sameLength(timers: readonly Timer[], ms: number): Timer | undefined {
+  const total = clampMs(ms);
+  return timers.find((t) => lengthOf(t) === total);
+}
+
+/** Starts a timer over at its original length, keeping its id and label. */
+export function restart(t: Timer, now: number): Timer {
+  return createTimer(t.id, lengthOf(t), now, t.label);
+}
+
+/** "25 min timer", or "25 min timer 2" when that name is taken, so repeats can be told apart. */
+export function labelFor(timers: readonly Timer[], ms: number): string {
+  const base = defaultLabel(clampMs(ms));
+  const taken = new Set(timers.map((t) => t.label));
+  if (!taken.has(base)) return base;
+  let n = 2;
+  while (taken.has(`${base} ${String(n)}`)) n += 1;
+  return `${base} ${String(n)}`;
 }
 
 export function remainingMs(t: Timer, now: number): number {

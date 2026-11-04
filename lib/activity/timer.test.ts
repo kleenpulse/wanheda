@@ -8,11 +8,15 @@ import {
   formatDuration,
   isDone,
   isRunning,
+  labelFor,
+  lengthOf,
   parseTimerQuery,
   pause,
   progress,
   remainingMs,
+  restart,
   resume,
+  sameLength,
 } from "./timer";
 
 const T0 = 1_000_000;
@@ -107,5 +111,37 @@ describe("formatDuration", () => {
     [90 * MINUTE, "1 h 30 min"],
   ])("%d ms → %s", (ms, text) => {
     expect(formatDuration(ms)).toBe(text);
+  });
+});
+
+describe("repeat timers", () => {
+  it("finds a timer by the length it was started with, even after time was added", () => {
+    const t = addTime(createTimer("a", 25 * MINUTE, T0), 5 * MINUTE, T0);
+    expect(lengthOf(t)).toBe(25 * MINUTE);
+    expect(sameLength([t], 25 * MINUTE)?.id).toBe("a");
+    expect(sameLength([t], 30 * MINUTE)).toBeUndefined();
+  });
+
+  it("falls back to the total for timers stored before setMs existed", () => {
+    const { setMs: _, ...old } = createTimer("a", 10 * MINUTE, T0);
+    expect(lengthOf(old)).toBe(10 * MINUTE);
+    expect(sameLength([old], 10 * MINUTE)?.id).toBe("a");
+  });
+
+  it("numbers a repeated length so the two can be told apart", () => {
+    const first = createTimer("a", 25 * MINUTE, T0);
+    expect(labelFor([], 25 * MINUTE)).toBe("25 min timer");
+    expect(labelFor([first], 25 * MINUTE)).toBe("25 min timer 2");
+    const second = createTimer("b", 25 * MINUTE, T0, "25 min timer 2");
+    expect(labelFor([first, second], 25 * MINUTE)).toBe("25 min timer 3");
+    expect(labelFor([second], 25 * MINUTE)).toBe("25 min timer");
+  });
+
+  it("restarts a finished timer at its original length, keeping id and label", () => {
+    const done = createTimer("a", 5 * MINUTE, T0, "Tea");
+    const later = T0 + 10 * MINUTE;
+    expect(isDone(done, later)).toBe(true);
+    const again = restart(addTime(done, 0, later), later);
+    expect(again).toMatchObject({ id: "a", label: "Tea", totalMs: 5 * MINUTE, endsAt: later + 5 * MINUTE });
   });
 });

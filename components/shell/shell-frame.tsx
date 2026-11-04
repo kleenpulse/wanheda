@@ -4,9 +4,10 @@ import * as React from "react";
 import { AccountProvider } from "@/components/shell/account";
 import { Island } from "@/components/island/island";
 import { CommandPalette } from "@/components/shell/command-palette";
-import { FloatingPill } from "@/components/shell/floating-pill";
+import { Dock } from "@/components/shell/dock";
 import { MobileTabBar } from "@/components/shell/mobile-tab-bar";
 import { NavRail } from "@/components/shell/nav-rail";
+import { WindowLayer } from "@/components/windows/window-layer";
 import type { ShellAccount } from "@/lib/shell/account";
 import { RAIL_ATTR, RAIL_WIDTH, railCookie } from "@/lib/shell/rail";
 
@@ -21,7 +22,7 @@ function isTyping(target: EventTarget | null) {
  * pages behave normally.
  *
  * `--rail-w` is set here and read by anything that centres on the content
- * column (the page frame's max width, later the floating pill and island).
+ * column (the page frame's max width, the dock, the island and the window layer).
  */
 export function ShellFrame({
   account,
@@ -80,7 +81,8 @@ export function ShellFrame({
         <NavRail expanded={expanded} onToggle={toggle} className="hidden md:flex" />
         <main className="relative min-w-0 flex-1 pb-[88px] md:pb-0">{children}</main>
         <MobileTabBar />
-        <FloatingPill />
+        <WindowLayer />
+        <Dock />
         <Island />
         <CommandPalette railExpanded={expanded} onToggleRail={toggle} />
       </div>

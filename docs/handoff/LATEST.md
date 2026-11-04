@@ -1,6 +1,6 @@
 # Latest hand-off
 
-**Newest:** [2026-11-04-phase-1-board.md](2026-11-04-phase-1-board.md) — Phase 1: home board with widgets and per-breakpoint layouts (PR #6). Next: T26 mini windows + dock.
+**Newest:** [2026-11-04-phase-1-mini-windows.md](2026-11-04-phase-1-mini-windows.md) — Phase 1: mini-window layer with the timer window, and the dock (T26, PR #7, branch `phase-1/mini-windows`). Next: T27 prefs + notifications (ask about the accent colour first).
 
 Read the hand-off first, then verify it against the repo before trusting it (git, tripwire, typecheck, tests). The Builder and Reviewer prompts below are copied from it.
 
@@ -13,13 +13,15 @@ commit; no multi-round reviews or push/merge checks; commit, push and PRs only o
 word; a short hand-off + continuation prompt after every PR. No worktrees: branch off main in
 D:\Vxrcel\wanheda itself.
 
-Phase 1 — The shell and the island. Last PR: #6 (home board, branch phase-1/board). Read
-docs/handoff/2026-11-04-phase-1-board.md and SPEC.md §T (T26–T28).
+Phase 1 — The shell and the island. Last PR: T26 mini windows + dock (branch
+phase-1/mini-windows). Read docs/handoff/2026-11-04-phase-1-mini-windows.md and SPEC.md §T
+(T27–T28).
 
 Start: `git fetch`; check new commits on origin/main with
-`sh scripts/forged-commits.sh e3cf66d..origin/main` before pulling. If PR #6 is merged,
-fast-forward main and `git switch -c phase-1/mini-windows`; otherwise stack on phase-1/board.
-Then build T26 (mini windows + dock). Migrations: generate and show the SQL; apply only on the
+`sh scripts/forged-commits.sh ef98faa..origin/main` before pulling. If the mini-windows PR is
+merged, fast-forward main, mark T26 `x`, and `git switch -c phase-1/prefs`; otherwise stack on
+phase-1/mini-windows. Before building T27, ask the user about FRD "accent colour" vs V15 one
+signal hue. Migrations (user_prefs, notification): generate and show the SQL; apply only on the
 user's go-ahead, with `bun --env-file=.env.local run db:migrate`.
 ```
 
@@ -30,5 +32,5 @@ You are the REVIEWER session for Wanheda at D:\Vxrcel\wanheda. Use the diff-revi
 read-only (review the PR diff with gh / git show, never switch the Builder's branch). Lean mode
 (user, 2026-11-04): review only when the user asks, one pass per PR, FIX-level findings only, no
 push or merge checks. Your LGTM is not the user's approval. Context:
-docs/handoff/2026-11-04-phase-1-board.md, SPEC.md §V.
+docs/handoff/2026-11-04-phase-1-mini-windows.md, SPEC.md §V.
 ```

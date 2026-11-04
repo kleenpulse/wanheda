@@ -83,6 +83,7 @@ function useNow(): number {
 export function LiveActivity({
   activities,
   show,
+  showKey,
   cycleInterval = 6,
   stiffness = 420,
   damping = 25,
@@ -92,6 +93,8 @@ export function LiveActivity({
   activities: IslandActivity[];
   /** Id to bring forward when it changes, e.g. a timer that just started. */
   show?: string | undefined;
+  /** Changes when the same `show` id should be brought forward again (it was started again). */
+  showKey?: number | undefined;
   /** Seconds each activity holds the island before the next takes over. */
   cycleInterval?: number;
   stiffness?: number;
@@ -108,9 +111,9 @@ export function LiveActivity({
   const cardRef = useRef<HTMLDivElement>(null);
 
   const [picked, setPicked] = useState(show ?? activities[0]?.id);
-  const [lastShow, setLastShow] = useState(show);
-  if (show !== lastShow) {
-    setLastShow(show);
+  const [lastShow, setLastShow] = useState({ show, showKey });
+  if (show !== lastShow.show || showKey !== lastShow.showKey) {
+    setLastShow({ show, showKey });
     if (show) setPicked(show);
   }
   const index = Math.max(
