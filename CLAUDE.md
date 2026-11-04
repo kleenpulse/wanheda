@@ -40,6 +40,8 @@ A personal super-dashboard and mini OS for one owner: money, media, reading, voi
 | Lint (warn only) | `bun run lint` |
 | Worm tripwire | `bun run tripwire` (CI: `sh scripts/tripwire.sh`) |
 | Forged-commit check | `sh scripts/forged-commits.sh <range>` |
+| DB migration SQL | `bun run db:generate` (writes reviewed SQL to `drizzle/`) |
+| Apply migrations | `bun run db:migrate` (only with the user's go-ahead; never `drizzle-kit push`) |
 
 ## Security: the 2026-10 worm
 

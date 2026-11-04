@@ -1,4 +1,7 @@
 import type { NextConfig } from "next";
+// Validate the environment at build and start (a bad production env fails the build, SPEC V6).
+import "./env/server";
+import "./env/client";
 
 const nextConfig: NextConfig = {
   cacheComponents: true,
