@@ -21,7 +21,7 @@ The owner-only steps (GitHub OAuth apps, Vercel project and Production variables
 bash scripts/setup-deploy.sh
 ```
 
-Production deploys from `main` through Vercel's Git integration. Previews get no database and no sign-in, so they run demo mode on seed data (ADR-0002).
+Production deploys from `main` through Vercel's Git integration. Other branches don't deploy at all (`git.deploymentEnabled` in `vercel.json`, to save Vercel resources). If previews are turned back on, they get no database and no sign-in, so they run demo mode on seed data (ADR-0002).
 
 ## Checks
 

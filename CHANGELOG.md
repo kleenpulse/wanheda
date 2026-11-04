@@ -12,5 +12,5 @@ All notable user-visible changes. Shipped in-app as "What's New" (FR-SHELL-10).
 - Gate modes: with no database and no sign-in configured the app runs open on seed data (demo); with a database but no sign-in every page answers 503 (locked); with sign-in configured every page needs the owner (gated).
 - `/login` page and a placeholder home with add passkey, sign out and a theme toggle.
 - Switching between Ember and Nebula grows the new skin as a circle from the theme toggle. Reduced motion switches instantly.
-- Live at https://wanheda-chi.vercel.app (Vercel, Frankfurt), with GitHub and passkey sign-in for the owner. Preview deployments run demo mode, with no database and no sign-in.
+- Live at https://wanheda-chi.vercel.app (Vercel, Frankfurt), with GitHub and passkey sign-in for the owner. Only `main` deploys; other branches get no preview deployment.
 - Sign-in tokens from GitHub are stored encrypted.

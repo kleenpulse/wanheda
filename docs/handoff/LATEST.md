@@ -46,7 +46,7 @@ not the user.
 Read docs/handoff/2026-11-04-phase-0-done.md, section "Review state", and FRD §10.1.
 Open items:
 - If the Phase 0 done PR (branch phase-0/done) is not merged yet: finish its checks
-  (diff, push, merge), including `vercel inspect` of its deployment (target preview).
+  (diff, push, merge), including: the second push of phase-0/done must create no Vercel deployment (vercel.json git.deploymentEnabled).
 - Otherwise: nothing pending; wait for the builder's first Phase 1 review request.
 
 Context you need: D:\Vxrcel\wanheda\FRD.md (local only) §4, §6.1–6.2 and §10 Phase 1,

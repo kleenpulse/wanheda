@@ -31,7 +31,7 @@ Neon + Drizzle is already the stack in email-manager, ecommerce-app, booking-api
 ### In 6 months
 
 - Every module uses the same DB client and the same null fallback. Demo mode works without special cases.
-- Preview deploys run demo mode: they show the UI on seed data and can't test real data paths. Migrations are tested locally or on a Neon branch made by hand, never by a preview deploy.
+- Preview deploys run demo mode: they show the UI on seed data and can't test real data paths. (Since 2026-11-04 previews are off entirely; see ADR-0003.) Migrations are tested locally or on a Neon branch made by hand, never by a preview deploy.
 
 ### In 2 years
 
