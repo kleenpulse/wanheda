@@ -1,6 +1,6 @@
 # Latest hand-off
 
-**Newest:** [2026-11-04-phase-1-mini-windows.md](2026-11-04-phase-1-mini-windows.md) — Phase 1: mini-window layer with the timer window, and the dock (T26, branch `phase-1/mini-windows`). Next: T27 prefs + notifications (ask about the accent colour first).
+**Newest:** [2026-11-04-phase-1-mini-windows.md](2026-11-04-phase-1-mini-windows.md) — Phase 1: mini-window layer with the timer window, and the dock (T26, PR #7, branch `phase-1/mini-windows`). Next: T27 prefs + notifications (ask about the accent colour first).
 
 Read the hand-off first, then verify it against the repo before trusting it (git, tripwire, typecheck, tests). The Builder and Reviewer prompts below are copied from it.
 

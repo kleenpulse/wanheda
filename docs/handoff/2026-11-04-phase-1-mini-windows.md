@@ -4,7 +4,7 @@
 |---|---|
 | Date | 2026-11-04 |
 | Phase / tasks | Phase 1, SPEC T26 (mini windows + dock) |
-| Branch / PR | `phase-1/mini-windows`, built in `D:\Vxrcel\wanheda`. Not committed yet: waiting for the user's go-ahead |
+| Branch / PR | `phase-1/mini-windows`, PR #7 (open), code commit `fc3ed4b`, favicon `50f07f3` (user asked for it in the PR); built in `D:\Vxrcel\wanheda` |
 | Main | `ef98faa` — Merge pull request #6 (home board); forged-commit check on `e3cf66d..origin/main` clean (3 commits) |
 | Previous hand-off | docs/handoff/2026-11-04-phase-1-board.md |
 
@@ -57,7 +57,7 @@ The shell has a mini-window layer and a dock. The timer is the first window: it 
 
 ## Next steps
 
-1. User: go-ahead to commit, push and open the PR for `phase-1/mini-windows` (no migration in this checkpoint).
+1. User merges PR #7 (no migration in this checkpoint). `.impeccable/config.json` (two file-scoped design-hook ignores for the resize-corner glyph) stays untracked: the user said to leave it out.
 2. After merge: mark T26 `x`.
 3. T27 prefs + notifications: ask about the accent colour first. Pinned dock items can become a pref there.
 4. T28 Phase 1 exit.
