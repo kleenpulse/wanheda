@@ -89,5 +89,9 @@ jobs:
       - run: bun run test
       - name: Build with zero env (demo mode)
         run: bun run build
+      # HTTP-only (request fixture), so no browser is downloaded. Starts the
+      # build above three times: gated, locked and demo, each by env alone.
+      - name: Playwright smoke (gate modes)
+        run: bun run test:e2e
       - name: Lint (warns, never gates)
         run: bun run lint || echo "::warning::lint reported problems"

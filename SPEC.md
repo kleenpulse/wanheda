@@ -17,19 +17,23 @@ Source prose: `FRD.md` (amended 2026-11-04, local only ∵ gitignored). This fil
 - C3: TypeScript only — ⊥ tracked `.js|.cjs|.mjs`. Tailwind via `@tailwindcss/turbopack` loader ∴ ⊥ postcss config; ESLint = `eslint.config.ts` (warn, ⊥ gate).
 - C4: Tailwind v4 CSS-first, tokens ∈ `app/globals.css`, ⊥ tailwind.config; ⊥ `shadcn init` (`shadcn` pkg = CSS import only).
 - C5: visual system = `vxrcel-ui-design` skill. Ember `:root` + Nebula `.dark`, next-themes `attribute="class"`. Bench deferred → Phase 1 skin picker (needs `[data-skin]` scope; `--color-accent` clash) (ADR-0009). fonts = Geist / Geist Mono / Instrument Sans via next/font. motion = `motion/react` + `lib/motion.ts`.
-- C6: DB = Neon Postgres `eu-central-1` + Drizzle 0.45, neon-http; pooled `DATABASE_URL` @ runtime, `DATABASE_URL_UNPOOLED` (fallback: strip `-pooler` from host) for drizzle-kit. ⊥ `@neon/env|@neon/config` (unverified). preview branches = Neon↔Vercel integration, 7d expiry (ADR-0002).
+- C6: DB = Neon Postgres `eu-central-1` + Drizzle 0.45, neon-http; pooled `DATABASE_URL` @ runtime, `DATABASE_URL_UNPOOLED` (fallback: strip `-pooler` from host) for drizzle-kit. ⊥ `@neon/env|@neon/config` (unverified). ⊥ Neon↔Vercel integration ∧ ⊥ preview branches ∵ a branch = copy of prod rows ∧ Vercel builds ∀ pushed branch unreviewed; prod `DATABASE_URL(_UNPOOLED)` set by hand, Vercel Production only, sensitive (ADR-0002 amended 2026-11-04).
 - C7: auth = Better Auth, GitHub OAuth + passkey, `OWNER_EMAILS` allowlist, cookie sessions (ADR-0003).
 - C8: hosting = Vercel `fra1` + Neon Frankfurt — NDPA (ADR-0010). files = Cloudflare R2 (ADR-0007).
 - C9: repo public ∵ free-plan ruleset `protect-default-branch` (PRs only, ⊥ force-push, ⊥ delete, required `rails` + `check`) (ADR-0011). user merges.
 - C10: desktop = Electron (port Raven `desktop/`), Phase 8 (ADR-0001). TTS = Piper (WASM web / sherpa-onnx native) + Kokoro opt (ADR-0005). media = native → remux → transcode (ADR-0006). sync = server-first + Dexie outbox, ⊥ sync engine (ADR-0008).
-- C11: tests = Vitest (`bun run test`, ⊥ `bun test`), Playwright smoke (from Phase 0 CP3).
+- C11: tests = Vitest (`bun run test`, ⊥ `bun test`), Playwright smoke (from Phase 0 CP3): `request` fixture only ∴ ⊥ browser download.
+- C12: deploy envs — 2 GitHub OAuth apps (local, prod; 1 callback each); Vercel Production = db + auth vars, secrets `--sensitive`; Preview = ⊥ db ∧ ⊥ auth vars ∴ demo (seed only) ∵ preview builds = unreviewed code; `scripts/setup-deploy.sh` exit 1 if Preview ∋ any db|auth var; prod deploys from `main` via Git integration only (⊥ `vercel deploy --prod` from a branch); OAuth tokens stored encrypted (`account.encryptOAuthTokens`) (ADR-0002, ADR-0003).
 
 ## §I Interfaces
 
-- cmd: `bun run dev|build|start|typecheck|lint|test|tripwire|db:generate|db:migrate` (`db:migrate` only on user go-ahead, ⊥ `push`); `sh scripts/forged-commits.sh <range>`.
+- cmd: `bun run dev|build|start|typecheck|lint|test|test:e2e|tripwire|db:generate|db:migrate` (`db:migrate` only on user go-ahead, ⊥ `push`); `sh scripts/forged-commits.sh <range>`.
 - script: `scripts/tripwire.sh` → exit 0 clean | 1 markers | 2 scan error / ⊥ git tree; `TRIPWIRE_TARGET=<dir>` content-only mode; `TRIPWIRE_EXTRA_PATTERN`.
 - script: `scripts/forged-commits.sh <range>` → 0 clean | 1 suspicious | 2 bad range; `FORBIDDEN_TZ` default `-0700 -0800`.
-- ci: `.github/workflows/ci.yml` jobs `rails` (tripwire, forged-commits, gitleaks canary + whole history) → `check` (typecheck, test, build zero-env, lint warn).
+- ci: `.github/workflows/ci.yml` jobs `rails` (tripwire, forged-commits, gitleaks canary + whole history) → `check` (typecheck, test, build zero-env, Playwright smoke, lint warn).
+- e2e: `playwright.config.ts` 3 `next start` servers on one build — gated :3101 (dummy db + auth), locked :3102 (dummy db), demo :3103 (zero env); unused vars set `""` ∵ Next `.env*` loader ⊥ overrides a set var; `e2e/smoke.spec.ts` `maxRedirects: 0` per hop.
+- script: `scripts/setup-deploy.sh` (bash, `/wizard` template) — user-only deploy steps; writes main checkout `.env.local` + Vercel Production; prod secrets ⊥ `.env.local`, ⊥ printed; `assert_preview_clean` fails closed; undoes `vercel link`'s `.gitignore` edit.
+- deploy: `vercel.json` `regions: ["fra1"]`.
 - hook: `.husky/pre-commit` → tripwire + `gitleaks git --pre-commit --staged` (warn if gitleaks absent).
 - env (names only, `.env.example`): `DATABASE_URL`, `DATABASE_URL_UNPOOLED`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `OWNER_EMAILS`, `NEXT_PUBLIC_APP_URL`.
 - env: `env/server.ts` `createServerEnv(runtime)` + `PRODUCTION_REQUIRED`, `env` validated @ build|start via import ∈ `next.config.ts`; `env/client.ts` `NEXT_PUBLIC_APP_URL`.
@@ -84,8 +88,8 @@ T15|x|CP2 `lib/db/{index,client}.ts` (null handle, neon-http retry 4×/10s/jitte
 T16|x|CP2 auth schema hand-written from better-auth `getSchema()` (⊥ `auth` CLI ∵ pulls babel+prettier); drift test `lib/db/schema/auth.test.ts`; snake_case, timestamptz, RLS on; ⊥ `account.issuer` (1.7.0–1.7.2 only, required col ⇒ ∀ insert fails); `db:generate` → `drizzle/0000_auth.sql`; `db:migrate` applied to Neon 2026-11-04 (user go-ahead)|C6,C7
 T17|x|CP2 `lib/auth/{server,client,owner}.ts` — GitHub + passkey + nextCookies last; allowlist hook (fail closed); `requireOwner()`; `/api/auth/[...all]`; tests|V6,V7
 T18|x|CP2 `proxy.ts` (locked 503, gated → /login?next=), `/login` page, `(shell)` layout + placeholder (add passkey, sign out, theme, demo chip)|V6,V7,V8,V16
-T19|.|CP3 `vercel.json` fra1; Playwright smoke: gated (/ → 307 /login, ≤1 redirect) + locked (/ ∧ /money → 503, ⊥ data)|V6,V8
-T20|.|CP3 wizard for user-only steps: GitHub OAuth app, vercel link + env, Neon↔Vercel integration, .env.local vars|C6,C8
+T19|x|CP3 `vercel.json` fra1; Playwright smoke: gated (/ → 307 /login, ≤1 redirect; forged cookie → streamed redirect /login, ⊥ shell) + locked (/ ∧ /money ∧ /login ∧ /api/auth → 503, ⊥ data) + demo (zero env → 200); CI step|V6,V7,V8
+T20|.|CP3 wizard for user-only steps: GitHub OAuth apps (local + prod), vercel link + git connect + Production env (db + auth), Preview clean check, .env.local vars — script `scripts/setup-deploy.sh`; machine stages run by Builder 2026-11-04 (user asked), OAuth apps + OWNER_EMAILS pending user|C6,C8,C12
 T21|.|CP3 prove exit criteria on deployed URL; Phase 0 done hand-off + Builder/Reviewer prompts for Phase 1|V6,V8
 
 ## §B Bugs

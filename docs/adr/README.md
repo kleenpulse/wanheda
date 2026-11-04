@@ -3,7 +3,7 @@
 One file per decision. Each records the context, the decision, its effects in 6 months and in 2 years, the alternatives, and when to look again. Decisions D1–D9 come from `FRD.md` §2. The FRD is a local-only file (`D:\Vxrcel\wanheda\FRD.md`), kept out of the public repo; "Source: FRD.md …" lines below refer to it.
 
 - [ADR-0001](0001-desktop-shell-electron.md): Desktop shell is Electron, ported from Raven (Tauri rejected for now).
-- [ADR-0002](0002-database-neon-drizzle.md): Neon Postgres + Drizzle, null DB handle when unconfigured, preview branches from the Neon ↔ Vercel integration.
+- [ADR-0002](0002-database-neon-drizzle.md): Neon Postgres + Drizzle, null DB handle when unconfigured; previews get no database.
 - [ADR-0003](0003-auth-better-auth-owner-only.md): Better Auth with passkey + GitHub, owner allowlist, gate modes `demo` / `locked` / `gated`.
 - [ADR-0004](0004-shell-launcher-mini-windows.md): Launcher + full-screen apps + pop-out mini windows, no window manager in v1.
 - [ADR-0005](0005-tts-piper-kokoro.md): Piper everywhere (WASM on web, native on desktop), Kokoro as the quality option, GPL note.
