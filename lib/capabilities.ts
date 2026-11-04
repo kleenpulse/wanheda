@@ -1,4 +1,5 @@
 import { parseOwnerEmails } from "@/lib/auth/allowlist";
+import { parseLocation, type WeatherLocation } from "@/lib/weather/location";
 
 // One question, one shape: "does this deployment have the credentials for X?"
 // (pattern from rawstash).
@@ -21,6 +22,15 @@ function value(raw: string | undefined): string | undefined {
 /** The pooled Neon URL, or undefined. */
 export function databaseUrl(): string | undefined {
   return value(process.env.DATABASE_URL);
+}
+
+/** Where the board's weather is for, or null. Keyless (Open-Meteo), so not a capability. */
+export function weatherLocation(): WeatherLocation | null {
+  return parseLocation({
+    latitude: process.env.WEATHER_LATITUDE,
+    longitude: process.env.WEATHER_LONGITUDE,
+    place: process.env.WEATHER_PLACE,
+  });
 }
 
 /** The owner allowlist. Empty means nobody may sign up or in. */

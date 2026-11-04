@@ -519,6 +519,73 @@ html[data-transparency="reduce"]:not(.dark) {
 	}
 }
 
+/* Home board (react-grid-layout positions items inline). The library's own
+   CSS is not imported: it paints in raw colours. Same rules, in tokens. */
+.board .react-grid-layout {
+	position: relative;
+	transition: height 200ms var(--ease-out-quint);
+}
+.board .react-grid-item {
+	transition: transform 220ms var(--ease-out-quint), width 220ms var(--ease-out-quint), height 220ms var(--ease-out-quint);
+}
+.board .react-grid-item.resizing,
+.board .react-grid-item.react-draggable-dragging {
+	transition: none;
+	z-index: 3;
+	will-change: transform;
+}
+.board .react-grid-item.react-draggable-dragging {
+	cursor: grabbing;
+	border-radius: var(--radius-card);
+	box-shadow: var(--shadow-lift);
+}
+.board .react-grid-item.dropping {
+	visibility: hidden;
+}
+.board .react-grid-item.react-grid-placeholder {
+	z-index: 2;
+	border: 1.5px dashed var(--signal);
+	border-radius: var(--radius-card);
+	background: var(--signal-soft);
+	opacity: 0.7;
+	transition-duration: 100ms;
+	user-select: none;
+}
+.board-editing .react-grid-item:not(.react-grid-placeholder) {
+	cursor: grab;
+	touch-action: none;
+}
+.board .react-grid-item > .react-resizable-handle {
+	position: absolute;
+	right: 6px;
+	bottom: 6px;
+	width: 24px;
+	height: 24px;
+	cursor: se-resize;
+	touch-action: none;
+}
+.board .react-grid-item > .react-resizable-handle::after {
+	content: "";
+	position: absolute;
+	right: 5px;
+	bottom: 5px;
+	width: 9px;
+	height: 9px;
+	border-right: 2px solid var(--ink-3);
+	border-bottom: 2px solid var(--ink-3);
+	border-bottom-right-radius: 4px;
+}
+/* The edit chrome sits where a widget's header note is. */
+.board-editing [data-widget-note] {
+	visibility: hidden;
+}
+.board:not(.board-editing) .react-resizable-handle {
+	display: none;
+}
+.board .react-grid-item > .react-resizable-handle:hover::after {
+	border-color: var(--signal);
+}
+
 /* Reduced motion, layer 1: CSS backstop (motion.md) */
 @media (prefers-reduced-motion: reduce) {
 	*, *::before, *::after {

@@ -46,6 +46,10 @@ export function createServerEnv(runtimeEnv: RuntimeEnv) {
       GITHUB_CLIENT_ID: z.string().min(1).optional(),
       GITHUB_CLIENT_SECRET: z.string().min(1).optional(),
       OWNER_EMAILS: ownerEmails.optional(),
+      // Home board weather (Open-Meteo, keyless). All three or none.
+      WEATHER_LATITUDE: z.coerce.number().min(-90).max(90).optional(),
+      WEATHER_LONGITUDE: z.coerce.number().min(-180).max(180).optional(),
+      WEATHER_PLACE: z.string().min(1).max(60).optional(),
     },
     runtimeEnv: {
       VERCEL_ENV: runtimeEnv.VERCEL_ENV,
@@ -56,6 +60,9 @@ export function createServerEnv(runtimeEnv: RuntimeEnv) {
       GITHUB_CLIENT_ID: runtimeEnv.GITHUB_CLIENT_ID,
       GITHUB_CLIENT_SECRET: runtimeEnv.GITHUB_CLIENT_SECRET,
       OWNER_EMAILS: runtimeEnv.OWNER_EMAILS,
+      WEATHER_LATITUDE: runtimeEnv.WEATHER_LATITUDE,
+      WEATHER_LONGITUDE: runtimeEnv.WEATHER_LONGITUDE,
+      WEATHER_PLACE: runtimeEnv.WEATHER_PLACE,
     },
     emptyStringAsUndefined: true,
   });

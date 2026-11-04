@@ -1,5 +1,6 @@
 import { relations } from "drizzle-orm";
 import { boolean, index, integer, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import { createdAt, updatedAt } from "./columns";
 
 // Better Auth tables (better-auth 1.7.14 core + @better-auth/passkey 1.7.14).
 // Written by hand from `getSchema()` instead of the `auth` CLI, which pulls
@@ -11,13 +12,6 @@ import { boolean, index, integer, pgTable, text, timestamp } from "drizzle-orm/p
 // - No `account.issuer`: it existed only in 1.7.0 to 1.7.2. A required column
 //   Better Auth never writes makes every insert fail.
 // - RLS on with no policies (FRD §8): only the owning role reads these tables.
-
-const createdAt = () => timestamp("created_at", { withTimezone: true }).defaultNow().notNull();
-const updatedAt = () =>
-  timestamp("updated_at", { withTimezone: true })
-    .defaultNow()
-    .$onUpdate(() => new Date())
-    .notNull();
 
 export const user = pgTable("user", {
   id: text("id").primaryKey(),
