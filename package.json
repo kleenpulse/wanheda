@@ -17,6 +17,7 @@
     "prepare": "husky"
   },
   "dependencies": {
+    "@base-ui/react": "1.9.0",
     "@better-auth/passkey": "1.7.14",
     "@neondatabase/serverless": "1.2.0",
     "@t3-oss/env-nextjs": "0.13.11",

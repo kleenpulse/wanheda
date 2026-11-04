@@ -14,3 +14,5 @@ All notable user-visible changes. Shipped in-app as "What's New" (FR-SHELL-10).
 - Switching between Ember and Nebula grows the new skin as a circle from the theme toggle. Reduced motion switches instantly.
 - Live at https://wanheda-chi.vercel.app (Vercel, Frankfurt), with GitHub and passkey sign-in for the owner. Only `main` deploys; other branches get no preview deployment.
 - Sign-in tokens from GitHub are stored encrypted.
+- The shell: a nav rail that widens from 84 px to 232 px to show labels (press `[` to toggle), and it remembers its width without a flash on load. On phones it becomes a floating tab bar.
+- An account menu on the rail with settings and sign out, and a Settings page for the theme and passkeys.
