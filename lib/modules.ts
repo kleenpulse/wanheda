@@ -1,4 +1,4 @@
-import { CloudSun, Clock, House, NotebookPen, Pin, Settings, Sunrise, Timer, type LucideIcon } from "lucide-react";
+import { CloudSun, Clock, DollarSign, House, NotebookPen, Pin, Settings, Sunrise, Timer, type LucideIcon } from "lucide-react";
 import type { Route } from "next";
 
 // The module registry (FRD 4.2). The shell builds the rail, the tab bar, the
@@ -119,8 +119,19 @@ const NOTES = {
   windows: [{ id: "notes.note", title: "Note", icon: NotebookPen, size: { w: 340, h: 440, minW: 280, minH: 280 } }],
 } as const satisfies ModuleManifest;
 
+const MONEY = {
+  id: "money",
+  title: "Money",
+  icon: DollarSign,
+  route: "/money",
+  blurb: "Spending, income and subscriptions",
+  widgets: [],
+  windows: [],
+  activities: ["money-alert"],
+} as const satisfies ModuleManifest;
+
 /** The apps, in rail order. */
-export const MODULES = [HOME, NOTES] as const satisfies readonly ModuleManifest[];
+export const MODULES = [HOME, MONEY, NOTES] as const satisfies readonly ModuleManifest[];
 
 const TIMER = {
   id: "timer",

@@ -19,22 +19,45 @@ export interface Toast {
   id: string;
   title: string;
   body?: string;
-  action?: { label: string; href: Route };
+  /** A link to go somewhere, or a callback such as Undo. */
+  action?: { label: string; href: Route } | { label: string; onClick: () => void };
+  /**
+   * Runs once if the toast runs out on its own: timed out, replaced, or pushed
+   * out by newer toasts. An undoable action commits here, so it never happens
+   * while its Undo is on screen, and closing the toast never commits it.
+   */
+  onExpire?: () => void;
+  /** Runs once if the owner closes the toast (×). For an undoable action: cancel it. */
+  onClose?: () => void;
+  /** The × button's name for screen readers, such as "Cancel delete". Default "Dismiss". */
+  closeLabel?: string;
 }
+
+/** How a toast left: ran out, was closed with ×, or its action was taken (the caller runs that). */
+export type ToastExit = "expire" | "close" | "action";
 
 const SHOW_MS = 9_000;
 const MAX_TOASTS = 3;
 
 const useToasts = create<{ toasts: Toast[] }>(() => ({ toasts: [] }));
 
-export function dismissToast(id: string) {
+/** Removes a toast and runs the callback for how it left (none for "action"). */
+export function dismissToast(id: string, exit: ToastExit = "close") {
+  const gone = useToasts.getState().toasts.find((t) => t.id === id);
+  if (!gone) return;
   useToasts.setState((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) }));
+  if (exit === "expire") gone.onExpire?.();
+  else if (exit === "close") gone.onClose?.();
 }
 
 /** Shows a toast. One with the same id replaces it. */
 export function toast(next: Omit<Toast, "id"> & { id?: string }) {
   const item: Toast = { ...next, id: next.id ?? crypto.randomUUID() };
-  useToasts.setState((s) => ({ toasts: [...s.toasts.filter((t) => t.id !== item.id), item].slice(-MAX_TOASTS) }));
+  const all = [...useToasts.getState().toasts.filter((t) => t.id !== item.id), item];
+  const kept = all.slice(-MAX_TOASTS);
+  const replaced = useToasts.getState().toasts.find((t) => t.id === item.id);
+  useToasts.setState({ toasts: kept });
+  for (const t of [...(replaced ? [replaced] : []), ...all.slice(0, -MAX_TOASTS)]) t.onExpire?.();
 }
 
 export function Toaster() {
@@ -55,13 +78,18 @@ export function Toaster() {
 
 function ToastCard({ toast: t }: { toast: Toast }) {
   const [held, setHeld] = React.useState(false);
+  // Time left, kept across holds so the timer and the countdown bar agree:
+  // a hover pauses both, and both resume from where they stopped.
+  const remaining = React.useRef(SHOW_MS);
   React.useEffect(() => {
     if (held) return;
+    const started = Date.now();
     const timer = setTimeout(() => {
-      dismissToast(t.id);
-    }, SHOW_MS);
+      dismissToast(t.id, "expire");
+    }, remaining.current);
     return () => {
       clearTimeout(timer);
+      remaining.current = Math.max(0, remaining.current - (Date.now() - started));
     };
   }, [t.id, held]);
 
@@ -84,32 +112,51 @@ function ToastCard({ toast: t }: { toast: Toast }) {
       onBlur={() => {
         setHeld(false);
       }}
-      className="pointer-events-auto flex w-full max-w-[380px] items-start gap-3 rounded-[18px] bg-card px-4 py-3 text-foreground shadow-lift ring-1 ring-border dark:bg-card-nested dark:ring-glass-border"
+      className="pointer-events-auto relative flex w-full max-w-[380px] items-start gap-3 overflow-hidden rounded-[18px] bg-card px-4 py-3 text-foreground shadow-lift ring-1 ring-border dark:bg-card-nested dark:ring-glass-border"
     >
+      {/* Countdown to auto-dismiss (and, for Undo toasts, to the commit). Hidden under reduced motion. */}
+      <span
+        aria-hidden
+        className="absolute inset-x-0 bottom-0 h-[3px] origin-left bg-signal motion-reduce:hidden in-data-[motion=reduce]:hidden"
+        style={{ animation: `toast-countdown ${String(SHOW_MS)}ms linear forwards`, animationPlayState: held ? "paused" : "running" }}
+      />
       <div className="min-w-0 flex-1">
         <p className="text-[13.5px] font-medium">{t.title}</p>
         {t.body ? <p className="mt-0.5 text-pretty text-[12.5px] leading-snug text-ink-2">{t.body}</p> : null}
-        {t.action ? (
+        {t.action && "href" in t.action ? (
           <Link
             href={t.action.href}
             onClick={() => {
-              dismissToast(t.id);
+              dismissToast(t.id, "action");
             }}
             className="mt-2 inline-block rounded-sm text-[12.5px] font-medium text-foreground underline underline-offset-4 outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             {t.action.label}
           </Link>
         ) : null}
+        {t.action && "onClick" in t.action ? (
+          <button
+            type="button"
+            onClick={() => {
+              const action = t.action;
+              dismissToast(t.id, "action");
+              if (action && "onClick" in action) action.onClick();
+            }}
+            className={buttonClass("surface", "pill-sm", "mt-2")}
+          >
+            {t.action.label}
+          </button>
+        ) : null}
       </div>
       <button
         type="button"
         onClick={() => {
-          dismissToast(t.id);
+          dismissToast(t.id, "close");
         }}
         className={buttonClass("ghost", "circle-sm", "-my-1 -mr-1.5 size-8")}
       >
         <X aria-hidden strokeWidth={1.75} />
-        <span className="sr-only">Dismiss</span>
+        <span className="sr-only">{t.closeLabel ?? "Dismiss"}</span>
       </button>
     </motion.div>
   );

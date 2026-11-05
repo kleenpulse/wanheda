@@ -25,11 +25,13 @@ import {
   SquarePen,
   Sun,
   Timer as TimerIcon,
+  DollarSign,
   Wallpaper,
   X,
   type LucideIcon,
 } from "lucide-react";
 import { signOutOk } from "@/components/auth/account-actions";
+import { lastAccountId, newTxn, useMoney, useMoneyApi } from "@/components/money/use-money";
 import { useNoteSearch, useNotesApi } from "@/components/notes/notes-provider";
 import { useNotifications } from "@/components/notifications/notifications-provider";
 import { usePrefs } from "@/components/prefs/prefs-provider";
@@ -37,11 +39,16 @@ import { useAccount } from "@/components/shell/account";
 import { usePalette } from "@/components/shell/palette-store";
 import { centerOf, revealTheme, type ThemeChoice } from "@/components/theme-toggle";
 import { Kbd } from "@/components/ui/kbd";
+import { toast } from "@/components/ui/toaster";
 import { TAB_SPRING } from "@/lib/motion";
 import { useActivity } from "@/lib/activity/store";
 import { MINUTE, formatDuration, isDone, isRunning, parseTimerQuery } from "@/lib/activity/timer";
 import { BOARD_EDIT_HREF } from "@/lib/board/edit";
 import { MODULES, SYSTEM_PAGES, WINDOWS } from "@/lib/modules";
+import { formatMoney } from "@/lib/money/currency";
+import { todayIn } from "@/lib/money/dates";
+import { byId, categoryPath, type Category, type Txn } from "@/lib/money/money";
+import { looksLikeQuickAdd, parseQuickAdd } from "@/lib/money/quick-add";
 import { parseCapture } from "@/lib/notes/notes";
 import { ACCENT_PRESETS, SKINS, SKIN_LABELS, TIMER_MODE_LABELS, WALLPAPERS, WALLPAPER_LABELS } from "@/lib/prefs/prefs";
 import { TIMER_MODES } from "@/lib/activity/timer";
@@ -53,7 +60,8 @@ import { useWindows } from "@/lib/windows/store";
   the activity bus, mini windows, the board, every appearance pref, theme and
   shell commands. Typing a duration ("25",
   "10 min", "1h30") offers to start that timer; "note buy SSD" saves a note
-  on Enter (FR-NOTES-3); any other words also search note bodies (FR-NOTES-7). Ctrl/⌘K toggles it anywhere;
+  on Enter (FR-NOTES-3); "4500 food jollof" logs spending (FR-MONEY-3); any
+  other words also search note bodies (FR-NOTES-7). Ctrl/⌘K toggles it anywhere;
   `/` opens it when you're not typing.
 */
 
@@ -155,9 +163,22 @@ function PaletteBody({
   const typedTimer = parseTimerQuery(query);
   const notesApi = useNotesApi();
   const captured = parseCapture(query);
-  const noteSearch = useNoteSearch(query, typedTimer === null && captured === null);
+  // A duration wins ("25" starts a timer); anything else that starts with an amount is money.
+  const moneyQuery = typedTimer === null && captured === null && looksLikeQuickAdd(query) ? query : null;
+  const money = useMoney({ enabled: moneyQuery !== null });
+  const moneyApi = useMoneyApi();
+  const quick =
+    moneyQuery !== null && money.data
+      ? parseQuickAdd(moneyQuery, {
+          accounts: money.data.accounts,
+          categories: money.data.categories,
+          defaultAccountId: lastAccountId(),
+          today: todayIn(money.data.timeZone),
+        })
+      : null;
+  const noteSearch = useNoteSearch(query, typedTimer === null && captured === null && moneyQuery === null);
   const firstHit = noteSearch.kind === "hits" ? noteSearch.hits[0]?.id : undefined;
-  const preferred = captured !== null ? "note-capture" : firstHit ? `note-hit-${firstHit}` : null;
+  const preferred = captured !== null ? "note-capture" : moneyQuery !== null ? "money-add" : firstHit ? `note-hit-${firstHit}` : null;
   // The best note row takes the highlight, on every new query and when late
   // hits arrive, until the owner moves it (keys or pointer) for this query.
   const [movedAt, setMovedAt] = React.useState<string | null>(null);
@@ -168,8 +189,15 @@ function PaletteBody({
   const noteMove = () => {
     setMovedAt(query);
   };
+  // The highlight shows only while it's being driven: by the pointer over the
+  // list, or by typing and arrow keys. Opened untouched, or once the pointer
+  // leaves, it fades, and Enter on a faded row only brings it back, so nothing
+  // you can't see ever runs (user 2026-11-05).
+  const [cursor, setCursor] = React.useState<"idle" | "keys" | "pointer">("idle");
+  const faded = cursor === "idle";
   // cmdk's empty state ignores force-mounted rows, so it is ours to hide when they show.
-  const forcedRows = captured !== null || noteSearch.kind === "failed" || (noteSearch.kind === "hits" && noteSearch.hits.length > 0);
+  const forcedRows =
+    captured !== null || moneyQuery !== null || noteSearch.kind === "failed" || (noteSearch.kind === "hits" && noteSearch.hits.length > 0);
 
   const run = (fn: () => void) => () => {
     close();
@@ -183,15 +211,34 @@ function PaletteBody({
         <Command.Input
           autoFocus
           value={query}
-          onValueChange={setQuery}
-          onKeyDown={(e) => {
-            if (MOVE_KEYS.has(e.key)) noteMove();
+          onValueChange={(q) => {
+            setQuery(q);
+            setCursor("keys");
           }}
-          placeholder="Search apps, commands and notes. 25 starts a timer, note … saves one"
+          onKeyDown={(e) => {
+            if (MOVE_KEYS.has(e.key)) {
+              noteMove();
+              setCursor("keys");
+            } else if (e.key === "Enter" && faded) {
+              e.preventDefault();
+              setCursor("keys");
+            }
+          }}
+          placeholder="Search apps, commands and notes. 25 starts a timer, note … saves one, 4500 food logs spending"
           className="h-12 w-full rounded-full bg-sheet pr-5 pl-12 text-[15px] text-foreground ring-1 ring-border outline-none placeholder:text-ink-3 focus-visible:ring-2 focus-visible:ring-ring dark:bg-card-nested dark:ring-glass-border"
         />
       </div>
-      <Command.List onPointerMove={noteMove} className="mt-2 max-h-[min(24rem,60svh)] overflow-y-auto overscroll-contain">
+      <Command.List
+        data-faded={faded || undefined}
+        onPointerMove={() => {
+          noteMove();
+          setCursor("pointer");
+        }}
+        onPointerLeave={() => {
+          setCursor((c) => (c === "pointer" ? "idle" : c));
+        }}
+        className="group/list mt-2 max-h-[min(24rem,60svh)] overflow-y-auto overscroll-contain"
+      >
         {!forcedRows && (
           <Command.Empty className="px-3 py-6 text-center text-[13px] text-ink-2">
             {noteSearch.kind === "loading" ? "Searching notes" : "Nothing by that name."}
@@ -222,6 +269,47 @@ function PaletteBody({
                 notesApi.capture(captured);
               })}
             />
+          </Command.Group>
+        )}
+
+        {moneyQuery !== null && (
+          <Command.Group heading="Money" forceMount>
+            {quick?.ok ? (
+              <Item
+                forceMount
+                value="money-add"
+                icon={DollarSign}
+                title={quickTitle(quick.draft, money.data)}
+                hint="Enter"
+                onSelect={run(() => {
+                  const d = quick.draft;
+                  void moneyApi.save(newTxn(d));
+                  toast({
+                    title: `Added ${quickTitle(d, money.data, false)}`,
+                    ...(pathname === "/money" ? {} : { action: { label: "Open Money", href: "/money" } }),
+                  });
+                })}
+              />
+            ) : (
+              <Item
+                forceMount
+                disabled
+                value="money-add"
+                icon={DollarSign}
+                title={
+                  quick === null
+                    ? money.failed
+                      ? "Money could not load"
+                      : "Loading money"
+                    : quick.reason === "no-account"
+                      ? quick.currency
+                        ? `No open ${quick.currency} account`
+                        : "No open account yet"
+                      : "Not an amount"
+                }
+                onSelect={() => undefined}
+              />
+            )}
           </Command.Group>
         )}
 
@@ -482,6 +570,25 @@ function PaletteBody({
 }
 
 /** The hint that marks the pref already in use. */
+/** "Spend ₦4,500 · Food & drink · jollof" (or "Income …") for a quick-add draft. */
+function quickTitle(
+  d: { amountMinor: number; currency: Txn["currency"]; categoryId: string | null; payee: string; postedOn: string; tags: readonly string[] },
+  data: { categories: readonly Category[]; timeZone: string } | null,
+  verb = true,
+): string {
+  const cats = byId(data?.categories ?? []);
+  const cat = d.categoryId ? cats.get(d.categoryId) : undefined;
+  const yesterday = data && d.postedOn !== todayIn(data.timeZone) ? "yesterday" : null;
+  const parts = [
+    `${verb ? (d.amountMinor > 0 ? "Income " : "Spend ") : ""}${formatMoney({ minor: Math.abs(d.amountMinor), currency: d.currency })}`,
+    cat ? `${cat.emoji} ${categoryPath(cat, cats)}` : null,
+    d.payee || null,
+    yesterday,
+    d.tags.length ? d.tags.map((t) => `#${t}`).join(" ") : null,
+  ];
+  return parts.filter(Boolean).join(" · ");
+}
+
 function inUse(on: boolean): { hint?: string } {
   return on ? { hint: "In use" } : {};
 }
@@ -575,7 +682,7 @@ function Item({
       {...(forceMount ? { forceMount: true } : {})}
       {...(disabled ? { disabled: true } : {})}
       onSelect={onSelect}
-      className="flex h-11 cursor-pointer items-center gap-3 rounded-[14px] px-2 text-ink-2 outline-none data-[selected=true]:bg-signal-soft data-[selected=true]:text-foreground"
+      className="flex h-11 cursor-pointer items-center gap-3 rounded-[14px] px-2 text-ink-2 outline-none transition-colors duration-200 ease-out data-[selected=true]:bg-signal-soft data-[selected=true]:text-foreground group-data-faded/list:data-[selected=true]:bg-transparent"
     >
       <span className="grid size-8 shrink-0 place-items-center rounded-full bg-card-nested text-ink-2 ring-1 ring-border dark:ring-glass-border">
         <Icon className="size-4" strokeWidth={1.75} aria-hidden />

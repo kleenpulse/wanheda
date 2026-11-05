@@ -93,6 +93,15 @@
 	--color-sticky-sky-mark: var(--sticky-sky-mark);
 	--color-sticky-mint-mark: var(--sticky-mint-mark);
 	--color-sticky-violet-mark: var(--sticky-violet-mark);
+	--color-cat-blue: var(--cat-blue);
+	--color-cat-aqua: var(--cat-aqua);
+	--color-cat-yellow: var(--cat-yellow);
+	--color-cat-magenta: var(--cat-magenta);
+	--color-cat-green: var(--cat-green);
+	--color-cat-violet: var(--cat-violet);
+	--color-cat-red: var(--cat-red);
+	--color-cat-cyan: var(--cat-cyan);
+	--color-cat-slate: var(--cat-slate);
 
 	--radius-sm: calc(var(--radius) * 0.6);
 	--radius-md: calc(var(--radius) * 0.8);
@@ -197,6 +206,8 @@
 	animation-delay: var(--draw-delay, 260ms);
 }
 @keyframes ring-sweep { from { stroke-dashoffset: 100; } }
+/* Toast countdown: drains across the toast's life; paused while it is held. */
+@keyframes toast-countdown { from { transform: scaleX(1); } to { transform: scaleX(0); } }
 
 /* Play intro choreography once per session: set data-intro="off" on <html> after the first run. */
 [data-intro="off"] :is(.entrance, .animate-bloom) { animation: none; }
@@ -254,6 +265,21 @@
 	--sticky-sky-mark: #008dbe;
 	--sticky-mint-mark: #1a7244;
 	--sticky-violet-mark: #642da4;
+
+	/* Money categories: a data palette, never the signal (SPEC V29). Order
+	   passes the dataviz validator (adjacent CVD >= 9.1, normal >= 19.6) on the
+	   Ember card and white; aqua, yellow and magenta sit under 3:1 there, so a
+	   category colour always comes with its name and emoji. Bench light shares
+	   these. slate = no colour. */
+	--cat-blue: #2a78d6;
+	--cat-aqua: #1baf7a;
+	--cat-yellow: #eda100;
+	--cat-magenta: #e87ba4;
+	--cat-green: #008300;
+	--cat-violet: #6250d6;
+	--cat-red: #e34948;
+	--cat-cyan: #0891b2;
+	--cat-slate: var(--ink-3);
 
 	--shadow-card-value: none;
 	--shadow-lift-value: 0 14px 34px -16px rgb(17 17 17 / 0.22);
@@ -340,6 +366,18 @@
 	--sticky-sky-mark: #218cb5;
 	--sticky-mint-mark: #1e7546;
 	--sticky-violet-mark: #7a53b4;
+
+	/* Money categories, dark steps of the same hues: all checks pass on Nebula
+	   and Bench dark (adjacent CVD >= 8.4, normal >= 19.3, all >= 3:1). */
+	--cat-blue: #3987e5;
+	--cat-aqua: #199e70;
+	--cat-yellow: #c98500;
+	--cat-magenta: #d55181;
+	--cat-green: #008300;
+	--cat-violet: #9085e9;
+	--cat-red: #e66767;
+	--cat-cyan: #1a93b3;
+	--cat-slate: var(--ink-3);
 
 	--shadow-card-value: inset 0 1px 0 rgb(255 255 255 / 0.05), 0 24px 60px -32px rgb(0 0 0 / 0.75);
 	--shadow-lift-value: inset 0 1px 0 rgb(255 255 255 / 0.07), 0 26px 50px -24px rgb(0 0 0 / 0.85);
@@ -724,6 +762,17 @@
 		var(--glass-frost);
 	border: 1px solid var(--glass-border);
 	backdrop-filter: blur(24px) saturate(180%);
+}
+
+/* Frosted lists (select, dropdown): glass-frost's fill and sheen without the
+   signal tint, blurred deeper so text over a busy page stays readable. Built
+   from the frost tokens, so reduced transparency turns it solid for free. */
+@utility glass-menu {
+	background:
+		linear-gradient(180deg, var(--glass-sheen), transparent 40%),
+		var(--glass-frost);
+	border: 1px solid var(--glass-border);
+	backdrop-filter: blur(32px) saturate(180%);
 }
 
 /* Attention: glow sweep */
