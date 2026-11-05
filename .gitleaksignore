@@ -1,3 +1,6 @@
 # Fake test UUIDs in a test fixture, flagged by generic-api-key (not secrets).
 2094b0f5e2c7a5f95f357e5a1e7c978947c0e8da:lib/money/list-filter.test.ts:generic-api-key:7
 2094b0f5e2c7a5f95f357e5a1e7c978947c0e8da:lib/money/list-filter.test.ts:generic-api-key:9
+# Fake Polar test token in a test fixture (replaced in ed59cfc)
+9f8bf668ea6717a28b4051f6123a69f5bff1d82d:lib/saas/server.test.ts:generic-api-key:29
+9f8bf668ea6717a28b4051f6123a69f5bff1d82d:lib/saas/server.test.ts:generic-api-key:105
