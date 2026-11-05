@@ -69,7 +69,7 @@ export function Dock() {
         // Only when focus leaves the dock: tabbing between items blurs one before focusing the next.
         if (!e.currentTarget.contains(e.relatedTarget)) cursor.set(AWAY);
       }}
-      className="glass fixed bottom-5 left-[calc(50%+var(--rail-w)/2)] z-30 hidden h-14 -translate-x-1/2 items-end gap-2 rounded-[22px] px-2 pb-2 shadow-dock md:flex"
+      className="glass fixed bottom-5 left-[calc(50%+var(--rail-w)/2)] z-30 hidden h-14 -translate-x-1/2 items-end gap-2 rounded-[22px] px-2 pb-2 shadow-dock md:flex dark:border-rail-border"
     >
       {apps.map((e) => (
         <DockItem
