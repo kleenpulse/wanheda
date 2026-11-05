@@ -10,6 +10,7 @@ import {
   cycleLabel,
   dueAlerts,
   dueLabel,
+  editedAnchor,
   nextOn,
   nextRenewal,
   occurrence,
@@ -20,6 +21,7 @@ import {
   upcoming,
   type Subscription,
 } from "./subscriptions";
+import type { Day } from "./dates";
 
 let n = 0;
 function sub(over: Partial<Subscription> = {}): Subscription {
@@ -102,6 +104,58 @@ describe("schedule (V30)", () => {
   it("lists every renewal in a range", () => {
     const s = sub({ anchorOn: "2026-10-05", cycle: "week" });
     expect(renewalsBetween(s, "2026-11-01", "2026-11-30")).toEqual(["2026-11-02", "2026-11-09", "2026-11-16", "2026-11-23", "2026-11-30"]);
+  });
+});
+
+describe("editedAnchor (V30)", () => {
+  // Edit a schedule the way the form does: the date field shows nextOn(initial, today).
+  function edit(initial: Subscription, edited: Pick<Subscription, "cycle" | "intervalCount">, today: Day, renewOn?: Day) {
+    const shownNext = nextOn(initial, today);
+    const anchorOn = editedAnchor(initial, edited, shownNext, renewOn ?? shownNext, today);
+    return { shownNext, anchorOn, after: { ...initial, ...edited, anchorOn } };
+  }
+
+  it("keeps the stored anchor when nothing in the schedule changed", () => {
+    const s = sub({ anchorOn: "2026-01-31" });
+    expect(edit(s, { cycle: "month", intervalCount: 1 }, "2026-02-05").anchorOn).toBe("2026-01-31");
+  });
+
+  it("takes a changed date as the new anchor", () => {
+    const s = sub({ anchorOn: "2026-01-31" });
+    expect(edit(s, { cycle: "month", intervalCount: 2 }, "2026-02-05", "2026-02-20").anchorOn).toBe("2026-02-20");
+  });
+
+  it("keeps a month end when only the count changes in a short month", () => {
+    const s = sub({ anchorOn: "2026-01-31" });
+    const { shownNext, anchorOn, after } = edit(s, { cycle: "month", intervalCount: 2 }, "2026-02-05");
+    expect(shownNext).toBe("2026-02-28");
+    expect(anchorOn).toBe("2025-12-31");
+    expect(nextOn(after, "2026-02-05")).toBe("2026-02-28");
+    expect(renewalsBetween(after, "2026-02-01", "2026-12-31")).toEqual(["2026-02-28", "2026-04-30", "2026-06-30", "2026-08-31", "2026-10-31", "2026-12-31"]);
+  });
+
+  it("keeps the day when switching monthly to yearly, Feb 29 reaching back to a leap year", () => {
+    const s = sub({ anchorOn: "2026-01-29" });
+    const { anchorOn, after } = edit(s, { cycle: "year", intervalCount: 1 }, "2027-02-10");
+    expect(anchorOn).toBe("2024-02-29");
+    expect(nextOn(after, "2027-02-10")).toBe("2027-02-28");
+    expect(occurrence(after, 4)).toBe("2028-02-29");
+  });
+
+  it("never moves the shown next renewal, even if the day must clamp", () => {
+    // Every 2 months on the 31st, next Feb 28; monthly from Jan 5 would renew on Jan 31 first.
+    const s = sub({ anchorOn: "2025-12-31", intervalCount: 2 });
+    const { shownNext, anchorOn, after } = edit(s, { cycle: "month", intervalCount: 1 }, "2026-01-05");
+    expect(shownNext).toBe("2026-02-28");
+    expect(anchorOn).toBe("2026-02-28");
+    expect(nextOn(after, "2026-01-05")).toBe("2026-02-28");
+  });
+
+  it("uses the shown day when either cycle counts days or weeks", () => {
+    const weekly = sub({ anchorOn: "2026-01-31", cycle: "week" });
+    expect(edit(weekly, { cycle: "month", intervalCount: 1 }, "2026-02-05").anchorOn).toBe(nextOn(weekly, "2026-02-05"));
+    const monthly = sub({ anchorOn: "2026-01-31" });
+    expect(edit(monthly, { cycle: "week", intervalCount: 1 }, "2026-02-05").anchorOn).toBe("2026-02-28");
   });
 });
 

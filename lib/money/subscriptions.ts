@@ -2,7 +2,7 @@ import { z } from "zod";
 import type { NewNotice } from "@/lib/notifications/notifications";
 import { addRatio, compareRatio, roundHalfEven, scale, ZERO, type Ratio } from "./convert";
 import { CURRENCY_CODES, type Currency, type Money } from "./currency";
-import { addDays, addMonthsClamped, daysBetween, isDay, monthsBetween, shortDayLabel, type Day } from "./dates";
+import { addDays, addMonths, addMonthsClamped, daysBetween, daysInMonth, isDay, monthsBetween, shortDayLabel, type Day } from "./dates";
 
 // Subscriptions (FR-MONEY-8, 9; SPEC T36). Pure: shared by the store, the
 // actions, the client and the alert check. A subscription stores one known
@@ -140,6 +140,39 @@ function firstIndexFrom(s: Schedule, from: Day): number {
 /** The first renewal on or after `from`, whatever the status. */
 export function nextOn(s: Schedule, from: Day): Day {
   return occurrence(s, firstIndexFrom(s, from));
+}
+
+/**
+ * The anchor an edit stores (V30). The form shows the next renewal, not the
+ * anchor. A changed date becomes the anchor; an untouched one keeps the stored
+ * anchor while the schedule is the same. When only the cycle or count changed,
+ * the shown day stays the next renewal, but a month end shown clamped (a 31st
+ * as Feb 28) would turn into a 28th for good. So it anchors on an earlier
+ * renewal of the new schedule that still holds the old day of the month, as
+ * long as the next renewal from today stays the shown one.
+ */
+export function editedAnchor(
+  initial: Schedule,
+  edited: Pick<Schedule, "cycle" | "intervalCount">,
+  shownNext: Day,
+  renewOn: Day,
+  today: Day,
+): Day {
+  if (renewOn !== shownNext) return renewOn;
+  if (edited.cycle === initial.cycle && edited.intervalCount === initial.intervalCount) return initial.anchorOn;
+  const monthly = (c: SubCycle) => c === "month" || c === "year";
+  if (!monthly(initial.cycle) || !monthly(edited.cycle)) return shownNext;
+  const want = Number(initial.anchorOn.slice(8));
+  const step = edited.intervalCount * (edited.cycle === "year" ? 12 : 1);
+  let best = shownNext;
+  // Four steps back reach a month long enough, or a leap year for Feb 29.
+  for (let j = 1; j <= 4 && Number(best.slice(8)) < want; j++) {
+    const month = addMonths(shownNext, -j * step);
+    const dim = daysInMonth(Number(month.slice(0, 4)), Number(month.slice(5, 7)));
+    const candidate: Day = `${month.slice(0, 8)}${String(Math.min(want, dim)).padStart(2, "0")}`;
+    if (candidate.slice(8) > best.slice(8) && nextOn({ ...edited, anchorOn: candidate }, today) === shownNext) best = candidate;
+  }
+  return best;
 }
 
 /** The next renewal from today, or null when paused or cancelled (V30). */
