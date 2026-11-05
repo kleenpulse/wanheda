@@ -1,6 +1,6 @@
 # Latest hand-off
 
-**Newest:** [2026-11-05-phase-3-periods.md](2026-11-05-phase-3-periods.md) — **Phase 3 CP2 periods and charts built** (T35 `x`). Branch `phase-3/periods`, uncommitted until the user's go-ahead: day|week|month|custom periods in `?p=` with previous-period compare, bars, cumulative line, daily heatmap, ranked breakdown, virtualised list, accounts with balances. No new SQL. Money outbox decided yes as T35b. Reviewer `wanheda-ad`: 1 FIX (B14, fixed) + 1 nit (taken), then LGTM. Next: user go-ahead, PR, merge, then T35b in a fresh session.
+**Newest:** [2026-11-05-phase-3-periods.md](2026-11-05-phase-3-periods.md) — **Phase 3 CP2 periods and charts built** (T35 `x`). Branch `phase-3/periods`, PR #16: day|week|month|custom periods in `?p=` with previous-period compare, bars, cumulative line, daily heatmap, ranked breakdown, virtualised list, accounts with balances. No new SQL. Money outbox decided yes as T35b. Reviewer `wanheda-ad`: 1 FIX (B14, fixed) + 1 nit (taken), then LGTM. Next: user merges PR #16, then T35b in a fresh session.
 
 Read the hand-off first, then verify it against the repo before trusting it (git, tripwire, typecheck, tests). The Builder and Reviewer prompts below are copied from it.
 

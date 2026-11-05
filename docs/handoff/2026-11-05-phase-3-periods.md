@@ -4,7 +4,7 @@
 |---|---|
 | Date | 2026-11-05 |
 | Phase / tasks | T35 built and marked `x`; T35b (money outbox) added and decided, not built |
-| Branch / PR | `phase-3/periods`, cut from `main` at `d571ecb` in `D:\Vxrcel\wanheda`. Uncommitted at writing; commit, push and PR wait for the user's go-ahead |
+| Branch / PR | `phase-3/periods`, cut from `main` at `d571ecb` in `D:\Vxrcel\wanheda`. commits `2e70019` (T35) + `31e77a0` (hand-off), pushed and PR #16 opened 2026-11-05 on the user's go-ahead |
 | Main | `d571ecb` — Merge pull request #15 (`phase-3/money-core`). `git fetch` at session start found 0 new commits (forged-commit check clean) |
 | Previous hand-off | docs/handoff/2026-11-05-phase-3-money-core.md |
 
@@ -39,7 +39,7 @@
 ## Next steps (in order)
 
 1. Reviewer: LGTM on the fix delta (done).
-2. The user's go-ahead → commit (stage files explicitly), push, PR.
+2. Done: committed, pushed, PR #16 (user's go-ahead). Next: the user merges.
 3. The user tries owner mode: step back to a month before the window (three months back), add an account, archive one.
 4. After merge: **stop**. T35b (money outbox) starts in a fresh session from the Builder prompt below.
 5. Before T37: ask the user for redacted sample statements from their NG and US banks.
