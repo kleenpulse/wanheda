@@ -47,40 +47,39 @@ export interface Sticky {
   placed: boolean;
 }
 
+function cellPlace(cell: number): BoardPlace {
+  return {
+    x: (cell % FLOW_COLUMNS) * (STICKY_SIZE.w + GAP),
+    y: Math.floor(cell / FLOW_COLUMNS) * (STICKY_SIZE.h + GAP),
+    w: STICKY_SIZE.w,
+    h: STICKY_SIZE.h,
+  };
+}
+
 /**
  * Every note on the board: the archive stays off it. Placed notes sit where
- * the owner put them; the rest flow into a grid from the origin, oldest
- * first, skipping cells a placed note covers. Oldest first so a new note
- * never shifts the others.
+ * the owner put them; the rest flow into a grid from the origin. A note's
+ * cell is its rank among all live notes by creation, placed ones included,
+ * so placing one sticky leaves a gap instead of moving every younger one,
+ * and a new note never shifts the others. A cell a placed note covers sends
+ * its note to the overflow cells past the end, in order.
  */
 export function layoutBoard(notes: readonly Note[]): Sticky[] {
-  const live = notes.filter((n) => !n.archived);
+  const live = notes.filter((n) => !n.archived).sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id));
   const placed: Sticky[] = [];
-  const unplaced: Note[] = [];
-  for (const n of live) {
-    if (n.board) placed.push({ note: n, place: n.board, placed: true });
-    else unplaced.push(n);
-  }
-  unplaced.sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id));
-
+  for (const n of live) if (n.board) placed.push({ note: n, place: n.board, placed: true });
   const taken = placed.map((s) => s.place);
+  const free = (p: BoardPlace) => !taken.some((t) => overlaps(t, p));
+
   const flowed: Sticky[] = [];
-  let cell = 0;
-  for (const note of unplaced) {
-    let place: BoardPlace;
+  let overflow = live.length;
+  live.forEach((note, rank) => {
+    if (note.board) return;
+    let place = cellPlace(rank);
     // Bounded: each placed note can cover only a few cells.
-    for (;;) {
-      place = {
-        x: (cell % FLOW_COLUMNS) * (STICKY_SIZE.w + GAP),
-        y: Math.floor(cell / FLOW_COLUMNS) * (STICKY_SIZE.h + GAP),
-        w: STICKY_SIZE.w,
-        h: STICKY_SIZE.h,
-      };
-      cell++;
-      if (!taken.some((t) => overlaps(t, place))) break;
-    }
+    while (!free(place)) place = cellPlace(overflow++);
     flowed.push({ note, place, placed: false });
-  }
+  });
   return [...placed, ...flowed];
 }
 

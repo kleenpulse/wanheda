@@ -61,6 +61,20 @@ describe("layoutBoard", () => {
     const after = layoutBoard([note(3), note(1), note(2)]);
     expect(after.slice(0, 2)).toEqual(before);
   });
+
+  it("placing one sticky leaves the younger ones where they were (review nit, PR #12)", () => {
+    const notes = [note(1), note(2), note(3), note(4)];
+    const before = new Map(layoutBoard(notes).map((s) => [s.note.id, s.place]));
+    // Note 2 is dragged far away: notes 3 and 4 keep their cells, a gap stays.
+    const after = layoutBoard([note(1), note(2, { board: { x: 2400, y: 2400, w: 240, h: 192 } }), note(3), note(4)]);
+    for (const s of after.filter((x) => !x.placed)) expect(s.place).toEqual(before.get(s.note.id));
+    // Dropped onto note 4's cell: only note 4 moves, to the overflow past the end.
+    const onto = before.get(note(4).id) as BoardPlace;
+    const bumped = layoutBoard([note(1), note(2, { board: onto }), note(3), note(4)]);
+    const four = bumped.find((s) => s.note.id === note(4).id);
+    expect(four?.place).not.toEqual(onto);
+    expect(bumped.find((s) => s.note.id === note(3).id)?.place).toEqual(before.get(note(3).id));
+  });
 });
 
 describe("camera", () => {

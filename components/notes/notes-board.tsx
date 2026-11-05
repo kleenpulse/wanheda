@@ -48,10 +48,20 @@ export interface NotesBoardHandle {
   centerPlace: () => BoardPlace;
 }
 
+/** A sticky under the pointer: where it started, and whether it has moved past the slop yet. */
+interface Held {
+  id: string;
+  el: HTMLElement;
+  start: BoardPlace;
+  px: number;
+  py: number;
+  moved: boolean;
+}
+
 type Gesture =
   | { kind: "pan"; lastX: number; lastY: number; lastT: number }
-  | { kind: "drag"; id: string; el: HTMLElement; start: BoardPlace; px: number; py: number; moved: boolean }
-  | { kind: "resize"; id: string; el: HTMLElement; start: BoardPlace; px: number; py: number }
+  | ({ kind: "drag" } & Held)
+  | ({ kind: "resize" } & Held)
   | { kind: "pinch"; dist: number };
 
 function readCamera(): Camera | null {
@@ -105,12 +115,13 @@ export function NotesBoard({
 
   const cam = React.useRef({ x: GRID, y: GRID, scale: 1, vx: 0, vy: 0, zoomTarget: 1, anchorX: 0, anchorY: 0 });
   const applyRef = React.useRef<(() => void) | null>(null);
+  const resizeRef = React.useRef<(() => void) | null>(null);
   const frameRef = React.useRef<((dt: number) => false | undefined) | null>(null);
 
   const loop = useAnimationLoop({
     target: containerRef,
     halted: false,
-    onResize: () => applyRef.current?.(),
+    onResize: () => resizeRef.current?.(),
     onFrame: ({ dt }) => (frameRef.current ? frameRef.current(dt) : false),
   });
 
@@ -180,12 +191,25 @@ export function NotesBoard({
     applyRef.current = apply;
 
     // The view saved on this device, unless it shows no sticky at all (a
-    // smaller screen than it was saved on): then every note.
-    const places = live.current.stickies.map((s) => s.place);
-    const stored = readCamera();
-    const start = stored && (!places.length || showsAny(stored, places, view())) ? stored : fitCamera(places, view());
-    Object.assign(c, start, { zoomTarget: start.scale });
+    // smaller screen than it was saved on): then every note. A board mounted
+    // hidden (a deep link to a note on a phone) has no size yet, so the
+    // choice waits for its first real one.
+    let startPending = true;
+    const chooseStart = () => {
+      const v = view();
+      if (v.w <= 0 || v.h <= 0) return;
+      startPending = false;
+      const places = live.current.stickies.map((s) => s.place);
+      const stored = readCamera();
+      const start = stored && (!places.length || showsAny(stored, places, v)) ? stored : fitCamera(places, v);
+      Object.assign(c, start, { zoomTarget: start.scale });
+    };
+    chooseStart();
     apply();
+    resizeRef.current = () => {
+      if (startPending) chooseStart();
+      apply();
+    };
 
     let gesture: Gesture | null = null;
 
@@ -217,7 +241,8 @@ export function NotesBoard({
       const settled = !gesture && c.vx === 0 && c.vy === 0 && c.scale === c.zoomTarget;
       if (settled) {
         world.style.willChange = "";
-        saveCamera();
+        // A board still waiting for its size must not overwrite the saved view with the default.
+        if (!startPending) saveCamera();
         return false;
       }
       world.style.willChange = "transform";
@@ -246,6 +271,11 @@ export function NotesBoard({
       }
 
       if (pointers.size === 2) {
+        // A second finger mid-drag turns it into a pinch: the sticky goes back where it was.
+        if (gesture?.kind === "drag" || gesture?.kind === "resize") {
+          setPlace(gesture.el, gesture.start);
+          delete gesture.el.dataset.dragging;
+        }
         const [p1, p2] = [...pointers.values()];
         if (p1 && p2) gesture = { kind: "pinch", dist: Math.hypot(p2.x - p1.x, p2.y - p1.y) };
         return;
@@ -256,7 +286,8 @@ export function NotesBoard({
       if (el && sticky) {
         setRaised(sticky.note.id);
         const base = { id: sticky.note.id, el, start: sticky.place, px: e.clientX, py: e.clientY };
-        gesture = target.closest("[data-resize]") ? { kind: "resize", ...base } : { kind: "drag", ...base, moved: false };
+        const held: Held = { ...base, moved: false };
+        gesture = target.closest("[data-resize]") ? { kind: "resize", ...held } : { kind: "drag", ...held };
         return;
       }
 
@@ -287,9 +318,9 @@ export function NotesBoard({
       if (g.kind === "drag" || g.kind === "resize") {
         const dx = (e.clientX - g.px) / c.scale;
         const dy = (e.clientY - g.py) / c.scale;
+        if (!g.moved && Math.hypot(e.clientX - g.px, e.clientY - g.py) < DRAG_SLOP) return;
+        g.moved = true;
         if (g.kind === "drag") {
-          if (!g.moved && Math.hypot(e.clientX - g.px, e.clientY - g.py) < DRAG_SLOP) return;
-          g.moved = true;
           g.el.dataset.dragging = "";
           setPlace(g.el, { ...g.start, x: g.start.x + dx, y: g.start.y + dy });
         } else {
@@ -346,6 +377,8 @@ export function NotesBoard({
         return;
       }
       if (g.kind === "resize") {
+        // A click on the corner moved nothing: nothing to save (an unplaced sticky stays unplaced).
+        if (!g.moved) return;
         const place = cancelled
           ? g.start
           : settlePlace({ ...g.start, w: g.start.w + (e.clientX - g.px) / c.scale, h: g.start.h + (e.clientY - g.py) / c.scale });
@@ -446,6 +479,7 @@ export function NotesBoard({
       clearTimeout(nudgeTimer);
       frameRef.current = null;
       applyRef.current = null;
+      resizeRef.current = null;
       container.removeEventListener("pointerdown", onPointerDown);
       container.removeEventListener("pointermove", onPointerMove);
       container.removeEventListener("pointerup", onPointerUp);
@@ -578,7 +612,7 @@ const StickyNote = React.memo(function StickyNote({
           </span>
         </div>
         {text ? (
-          <p className="min-h-0 flex-1 overflow-hidden pr-2 text-[13px] leading-snug break-words text-ink-2 mask-b-from-70%">{text}</p>
+          <p className="min-h-0 flex-1 overflow-hidden pr-2 text-[13px] leading-snug wrap-break-word text-ink-2 mask-b-from-70%">{text}</p>
         ) : (
           <span className="flex-1" />
         )}

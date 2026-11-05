@@ -53,13 +53,8 @@ export function NoteWindow() {
     });
   }, []);
 
-  // A note made here and left blank goes when the window moves on or closes.
-  React.useEffect(() => {
-    if (!noteId) return;
-    return () => {
-      api.discardIfEmpty(noteId);
-    };
-  }, [api, noteId]);
+  // A note left blank goes when the window moves on or closes, unless /notes still shows it.
+  React.useEffect(() => (noteId ? api.hold(noteId) : undefined), [api, noteId]);
 
   if (!ready) return null;
   if (note) {

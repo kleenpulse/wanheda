@@ -46,13 +46,8 @@ export function NoteEditor({ note, onBack, backLabel = "Notes" }: { note: Note; 
   const bodyRef = React.useRef<HTMLTextAreaElement>(null);
   const progress = checklistProgress(note.bodyMd);
 
-  // A "New note" left empty disappears when you move on.
-  React.useEffect(
-    () => () => {
-      api.discardIfEmpty(note.id);
-    },
-    [api, note.id],
-  );
+  // A "New note" left empty disappears when you move on, unless another surface still shows it.
+  React.useEffect(() => api.hold(note.id), [api, note.id]);
 
   React.useEffect(() => {
     if (fresh) bodyRef.current?.focus();

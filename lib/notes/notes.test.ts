@@ -10,6 +10,7 @@ import {
   sameContent,
   noteWriteSchema,
   parseCapture,
+  placeAfter,
   prefixTsQuery,
   resolveWrite,
   searchLocal,
@@ -113,11 +114,41 @@ describe("resolveWrite (SPEC V23)", () => {
     expect(resolveWrite(current, { ...stale, editedAt: NOW })).toEqual({ kind: "conflict", winner: "server" });
   });
 
-  it("applies a stale write that only moves the sticky: a move never sends text to history", () => {
-    const moved = { ...writeOf(current, 2), board: { x: 24, y: 48, w: 240, h: 192 }, editedAt: NOW - 5 };
-    expect(resolveWrite(current, moved)).toEqual({ kind: "update" });
-    // Text that differs too is still a conflict, settled by edit time.
-    expect(resolveWrite(current, { ...moved, title: "stale text" })).toEqual({ kind: "conflict", winner: "server" });
+  it("settles a move as place only, on any version: it never touches the text conflict", () => {
+    const place = { x: 24, y: 48, w: 240, h: 192 };
+    expect(resolveWrite(current, { ...writeOf(current), board: place })).toEqual({ kind: "place" });
+    expect(resolveWrite(current, { ...writeOf(current, 2), board: place, editedAt: NOW - 5 })).toEqual({ kind: "place" });
+    // A replayed move is nothing.
+    expect(resolveWrite({ ...current, board: place }, { ...writeOf(current, 2), board: place })).toEqual({ kind: "noop" });
+  });
+
+  it("applies an offline text edit made before a move elsewhere, and keeps the move (review FIX, PR #12)", () => {
+    // Desktop moved the sticky: place only, so the version stays where the phone's edit was made.
+    const moved: Note = { ...current, board: { x: 96, y: 0, w: 240, h: 192 } };
+    const { board: _phoneSawNoMove, ...phone } = { ...writeOf(current), bodyMd: "edited offline", editedAt: NOW - 60_000 };
+    expect(resolveWrite(moved, phone)).toEqual({ kind: "update" });
+    expect(placeAfter(moved, phone)).toEqual(moved.board);
+  });
+
+  it("lets a move ride along with a text conflict either way", () => {
+    const place = { x: 24, y: 48, w: 240, h: 192 };
+    const stale = { ...writeOf(current, 2), title: "stale text", board: place };
+    expect(resolveWrite(current, { ...stale, editedAt: NOW - 5 })).toEqual({ kind: "conflict", winner: "server" });
+    expect(placeAfter(current, stale)).toEqual(place);
+    const { board: _none, ...unmoved } = stale;
+    expect(placeAfter({ ...current, board: place }, unmoved)).toEqual(place);
+  });
+});
+
+describe("writeOf", () => {
+  const place = { x: 0, y: 24, w: 240, h: 192 };
+  it("carries the place only when it differs from the server's copy", () => {
+    const local = note({ board: place });
+    expect(writeOf(local, 3, note({ board: place })).board).toBeUndefined();
+    expect(writeOf(local, 3, note()).board).toEqual(place);
+    // A note the server hasn't seen yet sends its place, none included.
+    expect(writeOf(local, 0, null).board).toEqual(place);
+    expect("board" in writeOf(note(), 0, undefined)).toBe(true);
   });
 });
 
