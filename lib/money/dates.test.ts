@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addDays, addMonths, dayLabel, daysBetween, endOfMonth, isDay, isTimeZone, startOfWeek, todayIn, weekdayOf } from "./dates";
+import { addDays, addMonths, dayLabel, daysBetween, endOfMonth, isDay, isTimeZone, longDayLabel, monthGrid, monthLabel, shortDayLabel, startOfWeek, todayIn, weekdayOf } from "./dates";
 
 describe("todayIn", () => {
   it("is the owner's calendar day, not the server's", () => {
@@ -49,5 +49,17 @@ describe("calendar maths", () => {
     expect(dayLabel("2026-11-04", "2026-11-05")).toBe("Yesterday");
     expect(dayLabel("2026-11-02", "2026-11-05")).toBe("Mon 2 Nov");
     expect(dayLabel("2025-12-31", "2026-11-05")).toBe("Wed 31 Dec 2025");
+  });
+
+  it("lays out a month as six Monday-first weeks", () => {
+    const nov = monthGrid("2026-11-17");
+    expect(nov).toHaveLength(42);
+    expect(nov[0]).toBe("2026-10-26"); // Monday before Sun 1 Nov
+    expect(nov.at(-1)).toBe("2026-12-06");
+    expect(nov.every((d, i) => weekdayOf(d) === i % 7)).toBe(true);
+    expect(monthGrid("2027-02-01")[0]).toBe("2027-02-01"); // a month that starts on Monday
+    expect(monthLabel("2026-11-05")).toBe("November 2026");
+    expect(longDayLabel("2026-11-05")).toBe("Thursday 5 November 2026");
+    expect(shortDayLabel("2026-11-05")).toBe("Thu 5 Nov");
   });
 });

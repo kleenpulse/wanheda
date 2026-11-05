@@ -19,7 +19,14 @@ export interface Toast {
   id: string;
   title: string;
   body?: string;
-  action?: { label: string; href: Route };
+  /** A link to go somewhere, or a callback such as Undo. */
+  action?: { label: string; href: Route } | { label: string; onClick: () => void };
+  /**
+   * Runs once when the toast leaves without its action being used: timed out,
+   * closed, replaced, or pushed out by newer toasts. An undoable action commits
+   * here, so it never happens while its Undo is still on screen.
+   */
+  onDismiss?: () => void;
 }
 
 const SHOW_MS = 9_000;
@@ -27,14 +34,22 @@ const MAX_TOASTS = 3;
 
 const useToasts = create<{ toasts: Toast[] }>(() => ({ toasts: [] }));
 
-export function dismissToast(id: string) {
+/** Removes a toast. `used` = its action was taken, so its onDismiss does not run. */
+export function dismissToast(id: string, used = false) {
+  const gone = useToasts.getState().toasts.find((t) => t.id === id);
+  if (!gone) return;
   useToasts.setState((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) }));
+  if (!used) gone.onDismiss?.();
 }
 
 /** Shows a toast. One with the same id replaces it. */
 export function toast(next: Omit<Toast, "id"> & { id?: string }) {
   const item: Toast = { ...next, id: next.id ?? crypto.randomUUID() };
-  useToasts.setState((s) => ({ toasts: [...s.toasts.filter((t) => t.id !== item.id), item].slice(-MAX_TOASTS) }));
+  const all = [...useToasts.getState().toasts.filter((t) => t.id !== item.id), item];
+  const kept = all.slice(-MAX_TOASTS);
+  const replaced = useToasts.getState().toasts.find((t) => t.id === item.id);
+  useToasts.setState({ toasts: kept });
+  for (const t of [...(replaced ? [replaced] : []), ...all.slice(0, -MAX_TOASTS)]) t.onDismiss?.();
 }
 
 export function Toaster() {
@@ -89,7 +104,7 @@ function ToastCard({ toast: t }: { toast: Toast }) {
       <div className="min-w-0 flex-1">
         <p className="text-[13.5px] font-medium">{t.title}</p>
         {t.body ? <p className="mt-0.5 text-pretty text-[12.5px] leading-snug text-ink-2">{t.body}</p> : null}
-        {t.action ? (
+        {t.action && "href" in t.action ? (
           <Link
             href={t.action.href}
             onClick={() => {
@@ -99,6 +114,19 @@ function ToastCard({ toast: t }: { toast: Toast }) {
           >
             {t.action.label}
           </Link>
+        ) : null}
+        {t.action && "onClick" in t.action ? (
+          <button
+            type="button"
+            onClick={() => {
+              const action = t.action;
+              dismissToast(t.id, true);
+              if (action && "onClick" in action) action.onClick();
+            }}
+            className={buttonClass("surface", "pill-sm", "mt-2")}
+          >
+            {t.action.label}
+          </button>
         ) : null}
       </div>
       <button

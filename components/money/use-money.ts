@@ -135,15 +135,35 @@ export function useMoneyApi() {
     [demo, writeCache],
   );
 
+  /**
+   * Deletes with an undo (user 2026-11-05: destructive actions get a confirm
+   * or an undo). The row hides at once; the delete is sent only when the
+   * toast leaves without Undo (timed out, closed or pushed out), so Undo never
+   * has to resurrect anything on the server.
+   */
   const remove = React.useCallback(
-    async (txn: Txn): Promise<boolean> => {
-      if (demo) {
-        writeCache((p) => removeTxn(p, txn.id));
-        return true;
-      }
-      const outcome = await writer.remove(txn, writeCache);
-      if (!outcome.ok && outcome.reason !== "superseded") toast({ title: `Not deleted: ${describe(txn)}`, body: "The server didn't answer. Try again." });
-      return outcome.ok;
+    (txn: Txn) => {
+      setPending(txn.id, null);
+      toast({
+        id: `undo-delete:${txn.id}`,
+        title: `Deleted ${describe(txn)}`,
+        action: {
+          label: "Undo",
+          onClick: () => {
+            clearPending(txn.id);
+          },
+        },
+        onDismiss: () => {
+          if (demo) {
+            writeCache((p) => removeTxn(p, txn.id));
+            clearPending(txn.id);
+            return;
+          }
+          void writer.remove(txn, writeCache).then((outcome) => {
+            if (!outcome.ok && outcome.reason !== "superseded") toast({ title: `Not deleted: ${describe(txn)}`, body: "The server didn't answer. Try again." });
+          });
+        },
+      });
     },
     [demo, writeCache],
   );

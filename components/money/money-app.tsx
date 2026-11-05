@@ -2,10 +2,10 @@
 
 import * as React from "react";
 import { Dialog } from "@base-ui/react/dialog";
-import { Ellipsis, Plus, Trash2, X } from "lucide-react";
+import { Pencil, Plus, Trash2, X } from "lucide-react";
 import { EmptyState, SheetHeading } from "@/components/shell/page-frame";
 import { buttonClass } from "@/components/ui/button";
-import { Menu, MenuContent, MenuItem, MenuTrigger } from "@/components/ui/menu";
+import { Tip } from "@/components/ui/tooltip";
 import { dayLabel, startOfMonth, type Day } from "@/lib/money/dates";
 import { byId, categoryPath, totals, type Account, type Category, type MoneyPayload, type Txn } from "@/lib/money/money";
 import { cn } from "@/lib/utils";
@@ -62,6 +62,7 @@ function MoneyView({ payload }: { payload: MoneyPayload }) {
   // Base currency first, then the rest as they come (no conversion until FX lands, V26).
   const baseFirst = (xs: Totals["spend"]) => [...xs].sort((a, b) => Number(b.currency === base) - Number(a.currency === base));
   const [sheetOpen, setSheetOpen] = React.useState(false);
+  const [editing, setEditing] = React.useState<Txn | null>(null);
   const stale = payload.source === "load-failed";
 
   return (
@@ -81,7 +82,7 @@ function MoneyView({ payload }: { payload: MoneyPayload }) {
       <div className="grid grid-cols-1 items-start gap-6 @4xl:grid-cols-[minmax(0,1fr)_minmax(320px,400px)]">
         <section aria-labelledby="money-recent" className="flex min-w-0 flex-col gap-3">
           <SheetHeading title={<span id="money-recent">Recent</span>} note={`Since ${dayLabel(payload.since, today)}`} />
-          <Recent payload={payload} today={today} categories={categories} accounts={accounts} />
+          <Recent payload={payload} today={today} categories={categories} accounts={accounts} onEdit={setEditing} />
         </section>
 
         <aside aria-label="Add a transaction" className="bento hidden p-5 @4xl:sticky @4xl:top-6 @4xl:block">
@@ -91,6 +92,9 @@ function MoneyView({ payload }: { payload: MoneyPayload }) {
       </div>
 
       <AddSheet payload={payload} today={today} open={sheetOpen} setOpen={setSheetOpen} />
+      <EditDialog payload={payload} today={today} txn={editing} close={() => {
+          setEditing(null);
+        }} />
     </div>
   );
 }
@@ -118,11 +122,13 @@ function Recent({
   today,
   categories,
   accounts,
+  onEdit,
 }: {
   payload: MoneyPayload;
   today: Day;
   categories: ReadonlyMap<string, Category>;
   accounts: ReadonlyMap<string, Account>;
+  onEdit: (txn: Txn) => void;
 }) {
   const shown = payload.txns.slice(0, RECENT_LIMIT);
   if (shown.length === 0) {
@@ -153,15 +159,26 @@ function Recent({
           <section key={d.day} aria-label={dayLabel(d.day, today)} className="bento overflow-hidden p-1.5">
             <header className="flex items-center justify-between gap-3 px-3 pt-2 pb-1.5">
               <h3 className="readout">{dayLabel(d.day, today)}</h3>
-              <span className="readout flex gap-2">
-                {dayTotals.spend.map((m) => (
-                  <MoneyText key={m.currency} value={{ minor: -m.minor, currency: m.currency }} />
-                ))}
-              </span>
+              {/* The day's total only when it adds something: with one spend it would repeat the row (user 2026-11-05). */}
+              {dayTotals.spendCount > 1 ? (
+                <span className="readout flex gap-2">
+                  Spent
+                  {dayTotals.spend.map((m) => (
+                    <MoneyText key={m.currency} value={m} />
+                  ))}
+                </span>
+              ) : null}
             </header>
             <ul className="flex flex-col">
               {d.txns.map((t) => (
-                <TxnRow key={t.id} txn={t} category={t.categoryId ? (categories.get(t.categoryId) ?? null) : null} categories={categories} account={accounts.get(t.accountId)} />
+                <TxnRow
+                  key={t.id}
+                  txn={t}
+                  category={t.categoryId ? (categories.get(t.categoryId) ?? null) : null}
+                  categories={categories}
+                  account={accounts.get(t.accountId)}
+                  onEdit={onEdit}
+                />
               ))}
             </ul>
           </section>
@@ -181,11 +198,13 @@ function TxnRow({
   category,
   categories,
   account,
+  onEdit,
 }: {
   txn: Txn;
   category: Category | null;
   categories: ReadonlyMap<string, Category>;
   account: Account | undefined;
+  onEdit: (txn: Txn) => void;
 }) {
   const api = useMoneyApi();
   const title = txn.payee || category?.name || "Untitled";
@@ -195,7 +214,7 @@ function TxnRow({
     <li className="group flex items-center gap-3 rounded-[14px] px-2.5 py-2 hover:bg-card-nested focus-within:bg-card-nested">
       <CategoryMark category={category} />
       <div className="min-w-0 flex-1">
-        <p className="truncate text-[14px] font-medium text-foreground">{title}</p>
+        <p className="truncate font-display text-[15px] leading-snug font-semibold tracking-[-0.005em] text-foreground">{title}</p>
         <p className="truncate text-[12.5px] text-ink-2">{sub}</p>
       </div>
       <MoneyText
@@ -203,28 +222,39 @@ function TxnRow({
         sign={income ? "always" : "auto"}
         className={cn("shrink-0 text-[14px] font-medium", income ? "text-ok" : "text-foreground")}
       />
-      <Menu>
-        <MenuTrigger
-          className={buttonClass(
-            "ghost",
-            "circle-sm",
-            "size-8 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 has-data-popup-open:opacity-100 pointer-coarse:opacity-100",
-          )}
-        >
-          <Ellipsis aria-hidden strokeWidth={1.75} />
-          <span className="sr-only">More for {title}</span>
-        </MenuTrigger>
-        <MenuContent align="end" className="min-w-40">
-          <MenuItem
-            onClick={() => {
-              void api.remove(txn);
-            }}
-          >
-            <Trash2 aria-hidden className="size-4" />
-            Delete
-          </MenuItem>
-        </MenuContent>
-      </Menu>
+      {/* Always shown (user 2026-11-05: hidden controls read as a padding gap), quiet until hovered. */}
+      <div className="flex shrink-0 items-center text-ink-3">
+        <Tip
+          label="Edit"
+          render={
+            <button
+              type="button"
+              onClick={() => {
+                onEdit(txn);
+              }}
+              className={buttonClass("ghost", "circle-sm", "size-7 text-ink-3")}
+            >
+              <Pencil aria-hidden className="size-[15px]" strokeWidth={1.75} />
+              <span className="sr-only">Edit {title}</span>
+            </button>
+          }
+        />
+        <Tip
+          label="Delete"
+          render={
+            <button
+              type="button"
+              onClick={() => {
+                api.remove(txn);
+              }}
+              className={buttonClass("ghost", "circle-sm", "size-7 text-ink-3 hover:text-destructive")}
+            >
+              <Trash2 aria-hidden className="size-[15px]" strokeWidth={1.75} />
+              <span className="sr-only">Delete {title}</span>
+            </button>
+          }
+        />
+      </div>
     </li>
   );
 }
@@ -272,3 +302,53 @@ function AddSheet({ payload, today, open, setOpen }: { payload: MoneyPayload; to
   );
 }
 
+/** Edit one txn: centred on wide screens, a bottom sheet on phones. Delete here is undoable too. */
+function EditDialog({ payload, today, txn, close }: { payload: MoneyPayload; today: Day; txn: Txn | null; close: () => void }) {
+  const api = useMoneyApi();
+  // Keep the last txn while the dialog animates out.
+  const [shown, setShown] = React.useState(txn);
+  if (txn && txn !== shown) setShown(txn);
+  return (
+    <Dialog.Root
+      open={txn !== null}
+      onOpenChange={(open) => {
+        if (!open) close();
+      }}
+    >
+      <Dialog.Portal>
+        <Dialog.Backdrop className="fixed inset-0 z-50 bg-background/40 backdrop-blur-[2px] transition-opacity duration-150 data-ending-style:opacity-0 data-starting-style:opacity-0" />
+        <Dialog.Popup
+          className={cn(
+            "glass-window fixed inset-x-2 bottom-2 z-50 flex max-h-[calc(100svh-1rem)] flex-col overflow-y-auto overscroll-contain rounded-card p-5 shadow-lift outline-none",
+            "md:inset-x-auto md:top-1/2 md:bottom-auto md:left-1/2 md:w-[min(440px,calc(100vw-2rem))] md:-translate-x-1/2 md:-translate-y-1/2",
+            "transition-[opacity,translate,scale] duration-200 ease-out-quint data-ending-style:opacity-0 data-starting-style:opacity-0",
+            "max-md:data-ending-style:translate-y-6 max-md:data-starting-style:translate-y-6 md:data-ending-style:scale-[0.97] md:data-starting-style:scale-[0.97]",
+          )}
+        >
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <Dialog.Title className="font-display text-[17px] leading-tight text-foreground">Edit</Dialog.Title>
+            <Dialog.Close aria-label="Close" className={buttonClass("ghost", "circle-sm", "size-8")}>
+              <X aria-hidden />
+            </Dialog.Close>
+          </div>
+          {shown ? (
+            <>
+              <TxnForm key={shown.id} payload={payload} today={today} variant="inline" initial={shown} onSaved={close} />
+              <button
+                type="button"
+                onClick={() => {
+                  api.remove(shown);
+                  close();
+                }}
+                className={buttonClass("ghost", "pill-sm", "mt-3 self-start text-destructive hover:text-destructive")}
+              >
+                <Trash2 aria-hidden />
+                Delete
+              </button>
+            </>
+          ) : null}
+        </Dialog.Popup>
+      </Dialog.Portal>
+    </Dialog.Root>
+  );
+}

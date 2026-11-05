@@ -118,3 +118,28 @@ export function dayLabel(day: Day, today: Day): string {
     .format(date)
     .replace(",", "");
 }
+
+/** The 42 days a month calendar shows: six Monday-first weeks from the week holding the 1st. */
+export function monthGrid(day: Day): Day[] {
+  const first = startOfWeek(startOfMonth(day));
+  return Array.from({ length: 42 }, (_, i) => addDays(first, i));
+}
+
+/** "November 2026" for a day's month. */
+export function monthLabel(day: Day): string {
+  return new Intl.DateTimeFormat("en-GB", { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(`${startOfMonth(day)}T00:00:00Z`));
+}
+
+/** "Thursday 5 November 2026": the accessible name of a day. */
+export function longDayLabel(day: Day): string {
+  return new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "UTC" })
+    .format(new Date(`${day}T00:00:00Z`))
+    .replace(",", "");
+}
+
+/** "Thu 5 Nov": the short form, without the year. */
+export function shortDayLabel(day: Day): string {
+  return new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" })
+    .format(new Date(`${day}T00:00:00Z`))
+    .replace(",", "");
+}

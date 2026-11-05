@@ -3,11 +3,12 @@
 import * as React from "react";
 import { Check } from "lucide-react";
 import { buttonClass } from "@/components/ui/button";
+import { DatePicker } from "@/components/ui/calendar";
 import { Segmented } from "@/components/ui/segmented";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { exponentOf, formatMoney, parseAmount } from "@/lib/money/currency";
+import { exponentOf, formatMoney, parseAmount, toInputString } from "@/lib/money/currency";
 import { addDays, isDay, type Day } from "@/lib/money/dates";
-import { PAYEE_MAX, byId, defaultAccount, type Category, type MoneyPayload } from "@/lib/money/money";
+import { PAYEE_MAX, byId, defaultAccount, type Category, type MoneyPayload, type Txn } from "@/lib/money/money";
 import { cn } from "@/lib/utils";
 import { CategoryMark } from "./money-text";
 import { lastAccountId, newTxn, useMoneyApi } from "./use-money";
@@ -48,22 +49,26 @@ export function TxnForm({
   variant,
   onSaved,
   autoFocus,
+  initial,
 }: {
   payload: MoneyPayload;
   today: Day;
   variant: "inline" | "sheet";
   onSaved?: () => void;
   autoFocus?: boolean;
+  /** Edit this txn instead of adding one: same id, so the write replaces it (V28). */
+  initial?: Txn;
 }) {
   const api = useMoneyApi();
   const categories = React.useMemo(() => byId(payload.categories), [payload.categories]);
-  const openAccounts = payload.accounts.filter((a) => !a.archived);
-  const [direction, setDirection] = React.useState<Direction>("out");
-  const [amount, setAmount] = React.useState("");
-  const [categoryId, setCategoryId] = React.useState<string>("");
-  const [payee, setPayee] = React.useState("");
-  const [accountId, setAccountId] = React.useState<string>(() => defaultAccount(payload.accounts, lastAccountId())?.id ?? "");
-  const [day, setDay] = React.useState<Day>(today);
+  // An edited txn keeps its own account in the list, even if that account is archived now.
+  const openAccounts = payload.accounts.filter((a) => !a.archived || a.id === initial?.accountId);
+  const [direction, setDirection] = React.useState<Direction>(initial && initial.amountMinor > 0 ? "in" : "out");
+  const [amount, setAmount] = React.useState(initial ? toInputString(initial.amountMinor, initial.currency) : "");
+  const [categoryId, setCategoryId] = React.useState<string>(initial?.categoryId ?? "");
+  const [payee, setPayee] = React.useState(initial?.payee ?? "");
+  const [accountId, setAccountId] = React.useState<string>(() => initial?.accountId ?? defaultAccount(payload.accounts, lastAccountId())?.id ?? "");
+  const [day, setDay] = React.useState<Day>(initial?.postedOn ?? today);
   const [tried, setTried] = React.useState(false);
   const amountRef = React.useRef<HTMLInputElement>(null);
   const formId = React.useId();
@@ -90,16 +95,19 @@ export function TxnForm({
     e.preventDefault();
     setTried(true);
     if (!account || minor === null || minor === 0 || !isDay(day)) return;
-    const txn = newTxn({
+    const fields = {
       accountId: account.id,
       postedOn: day,
       amountMinor: direction === "in" ? minor : -minor,
       currency: account.currency,
       payee: payee.trim().slice(0, PAYEE_MAX),
       categoryId: categoryId || null,
-      tags: [],
-    });
-    void api.save(txn);
+    };
+    void api.save(initial ? { ...initial, ...fields } : newTxn({ ...fields, tags: [] }));
+    if (initial) {
+      onSaved?.();
+      return;
+    }
     setAmount("");
     setPayee("");
     setCategoryId("");
@@ -112,7 +120,7 @@ export function TxnForm({
   const decimals = account ? exponentOf(account.currency) : 2;
 
   return (
-    <form onSubmit={submit} noValidate aria-label="Add a transaction" className="@container flex flex-col gap-4">
+    <form onSubmit={submit} noValidate aria-label={initial ? "Edit transaction" : "Add a transaction"} className="@container flex flex-col gap-4">
       <Segmented
         label="Direction"
         value={direction}
@@ -257,33 +265,24 @@ export function TxnForm({
           <label htmlFor={`${formId}-day`} className={LABEL}>
             Day
           </label>
-          <div className="flex gap-2">
-            <input
-              id={`${formId}-day`}
-              type="date"
-              value={day}
-              max={addDays(today, 366)}
-              onChange={(e) => {
-                if (isDay(e.target.value)) setDay(e.target.value);
-              }}
-              className={cn(FIELD, "tabular")}
-            />
-            <button
-              type="button"
-              onClick={() => {
-                setDay(day === today ? addDays(today, -1) : today);
-              }}
-              className={buttonClass("surface", "pill-sm", "h-10 shrink-0")}
-            >
-              {day === today ? "Yesterday" : "Today"}
-            </button>
-          </div>
+          <DatePicker
+            id={`${formId}-day`}
+            value={day}
+            onChange={setDay}
+            today={today}
+            max={addDays(today, 366)}
+            presets={[
+              { label: "Today", day: today },
+              { label: "Yesterday", day: addDays(today, -1) },
+              { label: "2 days ago", day: addDays(today, -2) },
+            ]}
+          />
         </div>
       </div>
 
       <button type="submit" disabled={!account} className={buttonClass("inverse", "pill", variant === "sheet" ? "h-14 w-full text-[15px]" : "self-start")}>
         <Check aria-hidden />
-        Add {direction === "in" ? "income" : "expense"}
+        {initial ? "Save changes" : `Add ${direction === "in" ? "income" : "expense"}`}
       </button>
       {!account ? <p className="text-[12.5px] text-ink-2">No open account yet. Accounts arrive with the next update.</p> : null}
     </form>

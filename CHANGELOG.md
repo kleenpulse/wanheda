@@ -30,6 +30,9 @@ All notable user-visible changes. Shipped in-app as "What's New" (FR-SHELL-10).
 - Log spending from anywhere: type `4500 food jollof` into the palette and press Enter. `+50000 salary` logs income, `$12 netflix` uses your dollar account, `@bank` picks an account, `yesterday` backdates it and `#work` tags it.
 - An add form beside the list (Enter saves and it's ready for the next one), and on phones an Add button that opens a one-thumb sheet with your most-used categories as big buttons.
 - Dropdowns in the Money form are frosted glass in every skin, each category with its emoji and colour, with keyboard and type-to-find.
+- Edit any entry with the pencil on its row: amount, direction, category, payee, account and day.
+- Deleting an entry can be undone: it disappears at once and an Undo button stays up for a few seconds before anything is deleted.
+- Picking a day opens a calendar (arrow keys move by day and week, Page Up and Page Down by month) with Today, Yesterday and 2 days ago one tap away.
 - The palette's highlight fades when the pointer leaves the list and comes back when you type or use the arrow keys, so Enter never runs a row you can't see.
 
 ### Fixed
