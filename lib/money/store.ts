@@ -1,15 +1,17 @@
 import "server-only";
-import { and, desc, eq, gte, isNotNull, sql } from "drizzle-orm";
+import { and, desc, eq, gte, isNotNull, lt, lte, sql } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { category, moneyAccount, txn, userPrefs } from "@/lib/db/schema";
 import { DEFAULT_CATEGORIES, isCategoryColor, isCategoryKind } from "./categories";
-import { assertMinor, isCurrency, type Currency } from "./currency";
+import { assertMinor, isCurrency, MoneyError, type Currency } from "./currency";
 import { addMonths, DEFAULT_TIME_ZONE, isTimeZone, todayIn, type Day } from "./dates";
 import {
   ACCOUNT_KINDS,
+  TXN_LIST_LIMIT,
   TXN_SOURCES,
   type Account,
   type AccountKind,
+  type AccountWrite,
   type Category,
   type Txn,
   type TxnSource,
@@ -21,7 +23,8 @@ import {
 // the page keeps what the device already shows (V17). Amounts are checked to
 // be safe integers on the way out of the database (V25).
 
-export const TXN_LIST_LIMIT = 5000;
+/** Rows one range read returns (a custom period and the one it is compared with). */
+export const TXN_RANGE_LIMIT = 10_000;
 
 export interface MoneySettings {
   baseCurrency: Currency;
@@ -29,7 +32,17 @@ export interface MoneySettings {
 }
 
 export type LoadedMoney =
-  | { kind: "loaded"; settings: MoneySettings; today: Day; since: Day; accounts: Account[]; categories: Category[]; txns: Txn[] }
+  | {
+      kind: "loaded";
+      settings: MoneySettings;
+      today: Day;
+      since: Day;
+      accounts: Account[];
+      categories: Category[];
+      txns: Txn[];
+      priorMinor: Record<string, number>;
+      truncated: boolean;
+    }
   | { kind: "failed" };
 
 type AccountRow = typeof moneyAccount.$inferSelect;
@@ -82,6 +95,14 @@ function toTxn(r: TxnRow): Txn | null {
 }
 
 const present = <T,>(x: T | null): x is T => x !== null;
+
+/** A bigint sum read as text: exact, or a MoneyError past 2^53 (V25). */
+export function minorFromText(text: string): number {
+  const exact = BigInt(text);
+  const n = Number(exact);
+  if (!Number.isSafeInteger(n) || BigInt(n) !== exact) throw new MoneyError(`Sum is not a safe integer: ${text}`);
+  return n;
+}
 
 /**
  * The default categories and a Cash account, inserted once (V29). Every row
@@ -151,7 +172,7 @@ export async function loadMoney(userId: string, now = new Date()): Promise<Loade
     // Archived seeded rows still count, so this only runs for a new owner or a new default.
     if ((seeded[0]?.n ?? 0) < DEFAULT_CATEGORIES.length || cash.length === 0) await seedOwner(userId, settings.baseCurrency);
 
-    const [accountRows, categoryRows, txnRows] = await db.batch([
+    const [accountRows, categoryRows, txnRows, priorRows] = await db.batch([
       db.select().from(moneyAccount).where(eq(moneyAccount.userId, userId)).orderBy(moneyAccount.createdAt),
       db.select().from(category).where(eq(category.userId, userId)).orderBy(category.createdAt, category.name),
       db
@@ -159,7 +180,13 @@ export async function loadMoney(userId: string, now = new Date()): Promise<Loade
         .from(txn)
         .where(and(eq(txn.userId, userId), gte(txn.postedOn, since)))
         .orderBy(desc(txn.postedOn), desc(txn.createdAt), desc(txn.id))
-        .limit(TXN_LIST_LIMIT),
+        .limit(TXN_LIST_LIMIT + 1),
+      // Everything before the window, summed per account, for balances.
+      db
+        .select({ accountId: txn.accountId, total: sql<string>`coalesce(sum(${txn.amountMinor}), 0)::text` })
+        .from(txn)
+        .where(and(eq(txn.userId, userId), lt(txn.postedOn, since)))
+        .groupBy(txn.accountId),
     ]);
     return {
       kind: "loaded",
@@ -168,11 +195,35 @@ export async function loadMoney(userId: string, now = new Date()): Promise<Loade
       since,
       accounts: accountRows.map(toAccount).filter(present),
       categories: categoryRows.map(toCategory),
-      txns: txnRows.map(toTxn).filter(present),
+      // One row past the cap says the window was cut (the oldest rows go), so the page can say so.
+      txns: txnRows.slice(0, TXN_LIST_LIMIT).map(toTxn).filter(present),
+      truncated: txnRows.length > TXN_LIST_LIMIT,
+      priorMinor: Object.fromEntries(priorRows.map((r) => [r.accountId, minorFromText(r.total)])),
     };
   } catch (error) {
     console.error("loadMoney failed", error);
     return { kind: "failed" };
+  }
+}
+
+/**
+ * The owner's txns over [from, to], newest first, for a period older than the
+ * loaded window. Capped at TXN_RANGE_LIMIT rows; `truncated` says so.
+ */
+export async function loadTxnRange(userId: string, from: Day, to: Day): Promise<{ txns: Txn[]; truncated: boolean } | null> {
+  const db = getDb();
+  if (!db) return null;
+  try {
+    const rows = await db
+      .select()
+      .from(txn)
+      .where(and(eq(txn.userId, userId), gte(txn.postedOn, from), lte(txn.postedOn, to)))
+      .orderBy(desc(txn.postedOn), desc(txn.createdAt), desc(txn.id))
+      .limit(TXN_RANGE_LIMIT + 1);
+    return { txns: rows.slice(0, TXN_RANGE_LIMIT).map(toTxn).filter(present), truncated: rows.length > TXN_RANGE_LIMIT };
+  } catch (error) {
+    console.error("loadTxnRange failed", error);
+    return null;
   }
 }
 
@@ -271,4 +322,38 @@ export async function removeCategory(userId: string, id: string): Promise<Remove
   }
   await db.delete(category).where(and(eq(category.id, id), eq(category.userId, userId)));
   return "deleted";
+}
+
+export type SaveAccountOutcome = { kind: "saved"; account: Account } | { kind: "not-yours" };
+
+/**
+ * Creates or edits one account (FR-MONEY-1, V28). The id comes from the
+ * client, so a create sent twice lands once. An edit changes the name, kind
+ * and opening balance only: the currency stays what it was created with.
+ * Another user's id never matches the upsert's WHERE.
+ */
+export async function saveAccount(userId: string, w: AccountWrite): Promise<SaveAccountOutcome | null> {
+  const db = getDb();
+  if (!db) return null;
+  const edit = { name: w.name, kind: w.kind, openingMinor: assertMinor(w.openingMinor) };
+  const rows = await db
+    .insert(moneyAccount)
+    .values({ id: w.id, userId, currency: w.currency, ...edit })
+    .onConflictDoUpdate({ target: moneyAccount.id, set: { ...edit, updatedAt: sql`now()` }, setWhere: eq(moneyAccount.userId, userId) })
+    .returning();
+  const saved = rows[0] ? toAccount(rows[0]) : null;
+  return saved ? { kind: "saved", account: saved } : { kind: "not-yours" };
+}
+
+/** Archives or restores one of the owner's accounts. Its txns stay; new ones can't land on it while archived. */
+export async function setAccountArchived(userId: string, id: string, archived: boolean): Promise<Account | "missing" | null> {
+  const db = getDb();
+  if (!db) return null;
+  const rows = await db
+    .update(moneyAccount)
+    .set({ archived, updatedAt: sql`now()` })
+    .where(and(eq(moneyAccount.id, id), eq(moneyAccount.userId, userId)))
+    .returning();
+  const row = rows[0] ? toAccount(rows[0]) : null;
+  return row ?? "missing";
 }

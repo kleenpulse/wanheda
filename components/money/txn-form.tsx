@@ -284,7 +284,7 @@ export function TxnForm({
         <Check aria-hidden />
         {initial ? "Save changes" : `Add ${direction === "in" ? "income" : "expense"}`}
       </button>
-      {!account ? <p className="text-[12.5px] text-ink-2">No open account yet. Accounts arrive with the next update.</p> : null}
+      {!account ? <p className="text-[12.5px] text-ink-2">No open account yet. Add one under Accounts.</p> : null}
     </form>
   );
 }

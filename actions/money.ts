@@ -2,8 +2,14 @@
 
 import { z } from "zod";
 import { requireOwner } from "@/lib/auth/owner";
-import { txnWriteSchema, type Txn } from "@/lib/money/money";
-import { deleteTxn as deleteStoredTxn, removeCategory as removeStoredCategory, saveTxn as saveStoredTxn } from "@/lib/money/store";
+import { accountWriteSchema, txnWriteSchema, type Account, type Txn } from "@/lib/money/money";
+import {
+  deleteTxn as deleteStoredTxn,
+  removeCategory as removeStoredCategory,
+  saveAccount as saveStoredAccount,
+  saveTxn as saveStoredTxn,
+  setAccountArchived,
+} from "@/lib/money/store";
 
 // Money writes (FR-MONEY-2, 3). Reads go through /api/money. The owner comes
 // from the session and every id in the input is checked against it in the
@@ -11,6 +17,7 @@ import { deleteTxn as deleteStoredTxn, removeCategory as removeStoredCategory, s
 
 export type SaveTxnResult = { ok: true; txn: Txn } | { ok: false; reason: "demo" | "invalid" | "archived-account" | "failed" };
 export type DoneResult = { ok: true } | { ok: false; reason: "demo" | "invalid" | "failed" };
+export type AccountResult = { ok: true; account: Account } | { ok: false; reason: "demo" | "invalid" | "failed" };
 export type RemoveCategoryResult = { ok: true; kind: "archived" | "deleted" | "missing" } | { ok: false; reason: "demo" | "invalid" | "failed" };
 
 /** Creates or edits one txn. The server sets its currency from the account. */
@@ -58,6 +65,40 @@ export async function removeCategory(input: unknown): Promise<RemoveCategoryResu
     return kind ? { ok: true, kind } : { ok: false, reason: "failed" };
   } catch (error) {
     console.error("removeCategory failed", error);
+    return { ok: false, reason: "failed" };
+  }
+}
+
+/** Creates or edits an account (FR-MONEY-1). The currency is fixed once created. */
+export async function saveAccount(input: unknown): Promise<AccountResult> {
+  const owner = await requireOwner();
+  if (owner.kind === "demo") return { ok: false, reason: "demo" };
+  const parsed = accountWriteSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, reason: "invalid" };
+  try {
+    const outcome = await saveStoredAccount(owner.user.id, parsed.data);
+    if (!outcome) return { ok: false, reason: "failed" };
+    return outcome.kind === "saved" ? { ok: true, account: outcome.account } : { ok: false, reason: "invalid" };
+  } catch (error) {
+    console.error("saveAccount failed", error);
+    return { ok: false, reason: "failed" };
+  }
+}
+
+const archiveSchema = z.object({ id: z.uuid(), archived: z.boolean() }).strict();
+
+/** Archives or restores an account. Archiving keeps its txns and its balance. */
+export async function archiveAccount(input: unknown): Promise<AccountResult> {
+  const owner = await requireOwner();
+  if (owner.kind === "demo") return { ok: false, reason: "demo" };
+  const parsed = archiveSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, reason: "invalid" };
+  try {
+    const outcome = await setAccountArchived(owner.user.id, parsed.data.id, parsed.data.archived);
+    if (!outcome) return { ok: false, reason: "failed" };
+    return outcome === "missing" ? { ok: false, reason: "invalid" } : { ok: true, account: outcome };
+  } catch (error) {
+    console.error("archiveAccount failed", error);
     return { ok: false, reason: "failed" };
   }
 }

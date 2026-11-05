@@ -68,6 +68,11 @@ export function CategoryMark({ category, className }: { category: Category | nul
   );
 }
 
+/** A category colour's fill class, for marks such as bars and dots. */
+export function categoryBg(color: CategoryColor): string {
+  return DOT[color];
+}
+
 export function CategoryDot({ color, className }: { color: CategoryColor; className?: string }) {
   return <span aria-hidden className={cn("inline-block size-2 shrink-0 rounded-full", DOT[color], className)} />;
 }
