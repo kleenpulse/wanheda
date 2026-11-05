@@ -1,4 +1,5 @@
 import type * as React from "react";
+import { EmptyMark } from "@/components/shell/empty-mark";
 import { ModeChip } from "@/components/shell/mode-chip";
 import { SyncChip } from "@/components/shell/sync-chip";
 import { cn } from "@/lib/utils";
@@ -81,17 +82,11 @@ export function SheetHeading({ title, note }: { title: React.ReactNode; note?: R
   );
 }
 
-/** The empty state (vxrcel-ui-design [R]): hairline rings around the signal dot. */
+/** The empty state (vxrcel-ui-design [R]): hairline rings around Wanheda's mark, leaning toward the pointer. */
 export function EmptyState({ title, body }: { title: string; body?: React.ReactNode }) {
   return (
     <div className="flex flex-1 flex-col items-center justify-center px-8 py-14 text-center">
-      <span aria-hidden className="relative grid size-24 place-items-center">
-        <span className="absolute inset-0 rounded-full ring-1 ring-border dark:ring-glass-border" />
-        <span className="absolute inset-4 rounded-full ring-1 ring-border dark:ring-glass-border" />
-        <span className="grid size-8 place-items-center rounded-full bg-card-nested ring-1 ring-border dark:ring-glass-border">
-          <span className="size-2 rounded-full bg-signal" />
-        </span>
-      </span>
+      <EmptyMark />
       <p className="mt-6 font-display text-xl leading-tight tracking-[-0.01em] text-foreground">{title}</p>
       {body && <div className="mt-2 max-w-xs text-[13px] leading-relaxed text-pretty text-ink-2">{body}</div>}
     </div>

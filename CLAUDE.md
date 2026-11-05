@@ -2,6 +2,8 @@
 
 A personal super-dashboard and mini OS for one owner: money, media, reading, voice, notes and a live-activity island. Web first (Next.js), desktop shell (Electron) in Phase 8. The full requirements live in `D:\Vxrcel\wanheda\FRD.md`, a local-only file kept out of the public repo (worktrees do not have it, so always use that absolute path); decisions in `docs/adr/`; invariants and tasks in `SPEC.md`; domain words in `docs/CONTEXT.md`.
 
+**GOAL: native-app feel.** Wanheda must feel like an installed app, not a website (user, 2026-11-05). Moving between apps is instant: no page skeleton on a hop when the data is already on the device. Show cached data first and refresh it in the background; never block a page on a server read the client already holds. Server reads go behind their own `<Suspense>` or into the client cache, never in front of a page's first paint. Writes are optimistic. Judge every route, cache and loading-state choice against this.
+
 ## Session protocol (read first)
 
 - **Hand-offs:** at every checkpoint, before a risky step, when context runs long, and at the end of a session, write a hand-off doc and update `docs/handoff/LATEST.md`. The full protocol and templates are in `docs/handoff/README.md`.

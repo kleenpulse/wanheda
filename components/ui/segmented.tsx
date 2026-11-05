@@ -17,6 +17,7 @@ export function Segmented<T extends string>({
   onChange,
   disabled,
   className,
+  layoutId,
 }: {
   label: string;
   /** null: nothing pressed yet (a value only the client knows, before hydration). */
@@ -25,8 +26,15 @@ export function Segmented<T extends string>({
   onChange: (value: T) => void;
   disabled?: boolean;
   className?: string;
+  /**
+   * The indicator's shared id. Pass one from a component that outlives this
+   * control when the control remounts in another spot (a view that renders it
+   * in a different branch); a fresh useId would break the slide.
+   */
+  layoutId?: string;
 }) {
-  const indicatorId = React.useId();
+  const ownId = React.useId();
+  const indicatorId = layoutId ?? ownId;
   return (
     <div
       role="group"

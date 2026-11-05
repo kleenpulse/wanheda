@@ -7,6 +7,7 @@ import { create } from "zustand";
 import { deleteNote, saveNote } from "@/actions/notes";
 import { useAccount } from "@/components/shell/account";
 import { toast } from "@/components/ui/toaster";
+import { fetchJson } from "@/lib/fetch-json";
 import {
   isBlank,
   NOTES_KEY,
@@ -49,14 +50,6 @@ const SYNC_MS = 30_000;
 const SNAPSHOT_PAUSE_MS = 2_000;
 const CHANNEL = "wanheda-notes";
 const LOCK = "wanheda-notes-outbox";
-
-async function fetchJson<T>(url: string): Promise<T> {
-  const res = await fetch(url, { cache: "no-store", headers: { accept: "application/json" } });
-  if (!res.ok || !res.headers.get("content-type")?.includes("application/json")) {
-    throw new Error(`${url} answered ${String(res.status)}`);
-  }
-  return (await res.json()) as T;
-}
 
 /** A conflict the owner should hear about: `won` false means their edit went to history. */
 export interface ConflictNote {
