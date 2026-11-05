@@ -22,7 +22,7 @@ Each skin is one CSS block. Swapping it re-tints the app without touching compon
 - **Motion constants** come from the skill's `lib/motion.ts`: `TAB_SPRING` (350/30) for every `layoutId` indicator, `DIALOG_SPRING`, `BANNER_SPRING`, `EASE_OUT`. Jumping or drifting pills are fixed with the `motion-pill-jump` skill.
 - **Separate data palette (Phase 3).** The skill forbids the signal colour for categories. Money categories, charts and sticky-note colours get their own data palette, checked for contrast in both themes with the `dataviz` skill method, and kept apart from the signal hue.
 - **Never run `shadcn init`.** It injects a rival `--color-accent`. Primitives are vendored into `components/ui/` and restyled to tokens.
-- Fonts: Geist, Geist Mono and Instrument Sans via `next/font/google`. Themes via `next-themes`.
+- Fonts: Geist, Geist Mono and Instrument Sans via `next/font/google`. Themes via `next-themes`. (Amended 2026-11-05: Figtree replaces Instrument Sans as the display face, at the user's request.)
 
 ### Amended 2026-11-04 (Phase 1 CP6)
 

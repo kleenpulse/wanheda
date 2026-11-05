@@ -23,7 +23,7 @@
 	--color-foreground: var(--foreground);
 	--font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
 	--font-mono: var(--font-geist-mono), ui-monospace, monospace;
-	--font-display: var(--font-instrument-sans), var(--font-geist-sans), ui-sans-serif, sans-serif;
+	--font-display: var(--font-figtree), var(--font-geist-sans), ui-sans-serif, sans-serif;
 	--font-heading: var(--font-display);
 	/* Readout microtype face (user choice, 2026-11-04; SPEC V15). */
 	--font-label: var(--font-poppins), var(--font-geist-sans), ui-sans-serif, sans-serif;
@@ -596,6 +596,24 @@
 	}
 	::selection { background: color-mix(in oklab, var(--signal) 30%, transparent); }
 	:focus-visible { outline-offset: 2px; }
+	/* Everything you can press shows the hand. Zero specificity, so a cursor-* utility still wins. */
+	:where(
+		button:not(:disabled),
+		a[href],
+		summary,
+		select:not(:disabled),
+		label[for],
+		input:is([type="checkbox"], [type="radio"], [type="color"]):not(:disabled),
+		[role="button"]:not([aria-disabled="true"]),
+		[role="menuitem"]:not([aria-disabled="true"]),
+		[role="menuitemradio"]:not([aria-disabled="true"]),
+		[role="menuitemcheckbox"]:not([aria-disabled="true"]),
+		[role="option"]:not([aria-disabled="true"]),
+		[role="tab"]:not([aria-disabled="true"]),
+		[role="switch"]:not([aria-disabled="true"])
+	) {
+		cursor: pointer;
+	}
 }
 
 @utility font-display { font-family: var(--font-display); }

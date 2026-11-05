@@ -29,6 +29,16 @@ export const STICKY_MARK: Record<NoteColor, string> = {
   violet: "bg-sticky-violet-mark",
 };
 
+/** The selected sticky's ring: its own mark, so selection reads as the note's colour, not the app's signal. */
+export const STICKY_RING: Record<NoteColor, string> = {
+  plain: "ring-sticky-plain-mark dark:ring-sticky-plain-mark",
+  amber: "ring-sticky-amber-mark dark:ring-sticky-amber-mark",
+  rose: "ring-sticky-rose-mark dark:ring-sticky-rose-mark",
+  sky: "ring-sticky-sky-mark dark:ring-sticky-sky-mark",
+  mint: "ring-sticky-mint-mark dark:ring-sticky-mint-mark",
+  violet: "ring-sticky-violet-mark dark:ring-sticky-violet-mark",
+};
+
 export const COLOR_LABEL: Record<NoteColor, string> = {
   plain: "Plain",
   amber: "Amber",

@@ -47,7 +47,7 @@ export function PageFrame({
       <div className={cn(PAGE_COLUMN, "@container/frame pt-6 pb-6")}>
         <header className="entrance flex items-center justify-between gap-4">
           <div className="min-w-0">
-            <h1 className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 font-display text-[22px] leading-tight tracking-[-0.01em] text-foreground">
+            <h1 className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 font-display text-[26px] leading-tight font-black tracking-[0.02em] text-foreground uppercase">
               {title}
             </h1>
             {subtitle ? <p className="truncate text-[13px] text-ink-2">{subtitle}</p> : null}

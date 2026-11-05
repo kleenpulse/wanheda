@@ -43,7 +43,7 @@ export function MenuContent({
 }
 
 const itemClass =
-  "flex h-9 w-full cursor-default items-center gap-2.5 rounded-[12px] px-2.5 text-[13px] outline-none select-none data-[highlighted]:bg-card-nested data-[highlighted]:text-foreground dark:data-[highlighted]:bg-accent [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:text-ink-2";
+  "flex h-9 w-full items-center gap-2.5 rounded-[12px] px-2.5 text-[13px] outline-none select-none transition-colors duration-100 data-[highlighted]:bg-muted data-[highlighted]:text-foreground dark:data-[highlighted]:bg-accent data-[disabled]:cursor-default data-[disabled]:opacity-50 [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:text-ink-2";
 
 export function MenuItem({ className, ...props }: MenuPrimitive.Item.Props) {
   return <MenuPrimitive.Item className={cn(itemClass, className)} {...props} />;
