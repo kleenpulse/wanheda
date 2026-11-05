@@ -5,14 +5,16 @@ import { notification } from "@/lib/db/schema";
 import { NOTICE_LIMIT, isNotificationKind, type NewNotice, type Notice } from "./notifications";
 
 // Notification persistence. Callers pass the owner's id from requireOwner(),
-// never a client-sent one (SPEC V7).
+// never a client-sent one (SPEC V7). A deleted notice keeps its row with
+// `deleted_at` set: its dedupe key still blocks the same alert from being
+// raised again, and it is never read back.
 
 export type LoadedNotices = { kind: "loaded"; notices: Notice[] } | { kind: "failed"; notices: Notice[] };
 
 type Row = typeof notification.$inferSelect;
 
 function toNotice(r: Row): Notice | null {
-  if (!isNotificationKind(r.kind)) return null;
+  if (!isNotificationKind(r.kind) || r.deletedAt !== null) return null;
   return {
     id: r.id,
     kind: r.kind,
@@ -33,7 +35,7 @@ export async function loadNotices(userId: string): Promise<LoadedNotices> {
     const rows = await db
       .select()
       .from(notification)
-      .where(eq(notification.userId, userId))
+      .where(and(eq(notification.userId, userId), isNull(notification.deletedAt)))
       .orderBy(desc(notification.createdAt))
       .limit(NOTICE_LIMIT);
     return { kind: "loaded", notices: rows.flatMap((r) => toNotice(r) ?? []) };
@@ -43,7 +45,7 @@ export async function loadNotices(userId: string): Promise<LoadedNotices> {
   }
 }
 
-/** Inserts an alert once per dedupe key; returns it, or the one already there. */
+/** Inserts an alert once per dedupe key; returns it, or the one already there (null when that one was deleted). */
 export async function addNotice(userId: string, n: NewNotice): Promise<Notice | null> {
   const db = getDb();
   if (!db) return null;
@@ -63,7 +65,8 @@ export async function addNotice(userId: string, n: NewNotice): Promise<Notice | 
 
 /**
  * Inserts several alerts, each once per dedupe key, and returns all of them:
- * the new rows and the ones already there (read or not). Two reads at most.
+ * the new rows and the ones already there (read or not; deleted ones left out).
+ * Two reads at most.
  */
 export async function addNotices(userId: string, list: readonly NewNotice[]): Promise<Notice[]> {
   const db = getDb();
@@ -86,5 +89,16 @@ export async function markNoticesRead(userId: string, ids: readonly string[] | "
   const owned = eq(notification.userId, userId);
   const which = ids === "all" ? owned : and(owned, inArray(notification.id, [...ids]));
   await db.update(notification).set({ readAt: new Date() }).where(and(which, isNull(notification.readAt)));
+  return true;
+}
+
+/** Deletes the given notices (soft: see the top of this file). Only the owner's own rows are touched. */
+export async function deleteNotices(userId: string, ids: readonly string[]): Promise<boolean> {
+  const db = getDb();
+  if (!db) return false;
+  await db
+    .update(notification)
+    .set({ deletedAt: new Date() })
+    .where(and(eq(notification.userId, userId), inArray(notification.id, [...ids]), isNull(notification.deletedAt)));
   return true;
 }

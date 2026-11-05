@@ -1,36 +1,41 @@
 # Latest hand-off
 
-**Newest:** [2026-11-05-phase-3-budgets-fx.md](2026-11-05-phase-3-budgets-fx.md). **Phase 3 CP5 (T38) merged as PR #21 (`ad56c1c`); review nits in a follow-up PR on `phase-3/budgets-fx-nits`; gitleaks allowlist waits on the user**. Was: **PR #21 open** (`phase-3/budgets-fx`, off main `e52e152`, commit `76307c5`, all in one PR with the UI session's edits by the user's choice): daily FX (fawazahmed0, fetched on read) with converted headline totals and an "all in base" analytics mode; budgets with rollover, 80/100 % alerts (centre + island) and the pace-line budget level; rules on entry and import; privacy mode as dots (H, palette, top-bar eye on every page); base currency in Settings; CSV/JSON export; Home widgets (spent today, budgets, pinned billing-cycle card); "Other" → name a real category; stronger dark dock shadow. No new SQL. Vitest 58 files / 690, typecheck, tripwire, build pass; demo browser run done; owner run on Neon not done. SPEC T37 draft applied in the tree; T38 draft in the hand-off.
+**Newest:** [2026-11-05-phase-3-exit.md](2026-11-05-phase-3-exit.md). **Phase 3 exit (T39) built on `phase-3/exit`; PR opened on the user's word.** Also in it: `.gitleaksignore` (CI `rails` fix), the T38 SPEC draft applied, ₦ figures (digits scaled to the system-drawn ₦, baseline-aligned), and notification delete with inline confirm (soft delete; migration `0005_notification_deleted` applied to Neon). Owner check on Neon passed. Typecheck, Vitest 69 files / 779, tripwire, ESLint on touched files and build pass.
 
 Read the hand-off first, then verify it against the repo before trusting it (git, tripwire, typecheck, tests). The Builder and Reviewer prompts below are copied from it.
 
 ### Builder prompt
 
 ```text
-You are the BUILDER session for Wanheda at D:\Vxrcel\wanheda. Lean mode (user, 2026-11-04):
-build features; keep tripwire, forged-commit check and CI; one typecheck + test run before a
-commit; commit, push and PRs only on the user's word; a short hand-off + continuation prompt
-after every PR. No worktrees: branch off main in D:\Vxrcel\wanheda itself. One checkpoint per
-session: after its PR merges, stop and hand over. House goal (CLAUDE.md): native-app feel, V24.
+You are the BUILDER session for Wanheda at D:\Vxrcel\wanheda. Lean mode (user, 2026-11-04,
+tightened 2026-11-05): build features; tests only where they guard real logic or a spec exit
+case; keep tripwire, forged-commit check and CI; one typecheck + test run before a commit;
+commit, push and PRs only on the user's word; a short hand-off + continuation prompt after every
+PR. No worktrees. One checkpoint per session. House goal (CLAUDE.md): native-app feel, V24.
 
-Read docs/handoff/2026-11-05-phase-3-budgets-fx.md first. T38 is PR #21 (phase-3/budgets-fx,
-`76307c5`, with the UI session's edits in the same PR). Start:
-`git fetch`; check new commits with `sh scripts/forged-commits.sh e52e152..origin/main` before
-pulling. If T38 is merged, fast-forward main and, on the user's OK, apply the SPEC draft with the
-spec skill. Then Phase 3 exit T39 (same statement twice ⇒ 0 rows and says so; sub due in 3 d ⇒
-island + notification; month totals = hand count; recurrence from 3 months imported; all of
-lib/money unit-tested; Phase 3 done hand-off with Phase 4 prompts). Never bunx a tool that is not
-pinned in package.json. Any new SQL: generate, show it, apply only on the user's go-ahead.
+Read docs/handoff/2026-11-05-phase-3-exit.md first. If branch phase-3/exit is still uncommitted:
+run `bun run build` + ESLint on the touched files, then on the user's word commit (files staged
+by name, list in the hand-off), push, open the PR. If it is merged: `git fetch`, check
+`sh scripts/forged-commits.sh 88f610c..origin/main`, fast-forward main, apply the SPEC draft on the
+user's OK, then start Phase 4 (Money II: income and SaaS performance, FRD §Phase 4): draft the
+Phase 4 §T tasks with the spec skill first (product, connector, processed_event, billing_event
+append-only, mrr_movement, metric_snapshot, goal; Polar connector first with reconcile();
+MRR engine rebuildable from billing_event; income dashboard; net view; goals; alerts). Exit:
+same webhook 3× changes nothing; refund before its payment handled; rebuild mrr_movement =
+same numbers; Polar MRR matches Polar's dashboard. Any new SQL: generate, show it, apply only
+on the user's go-ahead (`bun --env-file=.env.local run db:migrate`). Never bunx an unpinned tool.
 ```
 
 ### Reviewer prompt
 
 ```text
 You are the REVIEWER session for Wanheda at D:\Vxrcel\wanheda. Use the diff-reviewer skill;
-read-only. Lean mode: review when the user asks, one pass per PR, bugs and edge cases only,
-verdict LGTM / LGTM with nits / FIX, sent to the Builder. Your LGTM is not the user's approval.
-Target: the T38 PR (phase-3/budgets-fx): FX conversion and fetch (lib/money/fx.ts, fx-store.ts),
-budgets + alerts, rules on entry and import, outbox ops (budget/rule/category), privacy masking,
-export (CSV injection), Home widgets. Context: docs/handoff/2026-11-05-phase-3-budgets-fx.md,
-SPEC.md V24–V32.
+read-only. One pass, bugs and edge cases only, verdict LGTM / LGTM with nits / FIX, sent to the
+Builder. Your LGTM is not the user's approval.
+Target: the phase-3/exit PR. Riskiest: notification soft delete (deleted rows never read back in
+loadNotices/addNotice/addNotices; a re-raised alert stays deleted; remove() vs an in-flight save
+re-adding it; Escape inside the confirm vs the dialog's dismiss; focus after delete/cancel with
+flushSync); ₦ figure scaling (FigureText split on ₦, RollingNumber charClassName + items-baseline,
+masked text, SVG tspans, 12 px lines under truncate); lib/db/fake.ts used only by tests;
+.gitleaksignore holds exactly two fingerprints. Context: docs/handoff/2026-11-05-phase-3-exit.md.
 ```

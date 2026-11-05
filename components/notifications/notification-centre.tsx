@@ -1,8 +1,9 @@
 "use client";
 
 import * as React from "react";
+import { flushSync } from "react-dom";
 import { Dialog } from "@base-ui/react/dialog";
-import { Bell, CalendarClock, CheckCheck, Timer as TimerIcon, X } from "lucide-react";
+import { Bell, CalendarClock, Check, CheckCheck, ExternalLink, Timer as TimerIcon, Trash2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import type { Route } from "next";
 import { useNotifications } from "@/components/notifications/notifications-provider";
@@ -24,7 +25,8 @@ type Filter = (typeof FILTERS)[number]["value"];
  * The notification centre (FR-SHELL-6): past alerts, newest first, with
  * read/unread. A side sheet on Base UI's dialog (focus trap, Escape, focus
  * returns to the opener). Opening it doesn't mark anything read: an alert is
- * read when it's opened, or with "Mark all read".
+ * read when it's opened, with its own "Mark read", or with "Mark all read".
+ * Delete asks first, inline: the bin turns into "Delete? ✓ ✕".
  */
 export function NotificationCentre() {
   const { notices, source, unread, open, setOpen, markRead } = useNotifications();
@@ -32,7 +34,18 @@ export function NotificationCentre() {
   const shown = filter === "unread" ? notices.filter((n) => n.readAt === null) : notices;
 
   return (
-    <Dialog.Root open={open} onOpenChange={setOpen}>
+    <Dialog.Root
+      open={open}
+      onOpenChange={(next, details) => {
+        // Escape inside a "Delete?" question cancels the question (NoticeList), not the sheet.
+        const target = details.event.target;
+        if (!next && details.reason === "escape-key" && target instanceof Element && target.closest("[data-confirm-delete]")) {
+          details.cancel();
+          return;
+        }
+        setOpen(next);
+      }}
+    >
       <Dialog.Portal>
         <Dialog.Backdrop className="fixed inset-0 z-50 bg-background/40 backdrop-blur-[2px] transition-opacity duration-150 data-ending-style:opacity-0 data-starting-style:opacity-0" />
         <Dialog.Popup
@@ -95,27 +108,58 @@ export function NotificationCentre() {
 function NoticeList({ notices, onOpen }: { notices: Notice[]; onOpen: (n: Notice) => void }) {
   const now = useNow(60_000);
   const router = useRouter();
-  const { setOpen } = useNotifications();
+  const { setOpen, markRead, remove } = useNotifications();
+  // The one row asking "Delete?", if any.
+  const [confirming, setConfirming] = React.useState<string | null>(null);
+  const listRef = React.useRef<HTMLUListElement>(null);
+
+  const open = (n: Notice) => {
+    onOpen(n);
+    if (n.href) {
+      setOpen(false);
+      router.push(n.href as Route);
+    }
+  };
+
+  // Focus moves in the same task as the commit: the dialog's focus trap sends
+  // focus to the sheet itself as soon as the focused button is gone.
+  const cancel = (id: string) => {
+    flushSync(() => {
+      setConfirming(null);
+    });
+    // Back to the bin it came from.
+    listRef.current?.querySelector<HTMLElement>(`[data-delete="${CSS.escape(id)}"]`)?.focus();
+  };
+
+  const confirmDelete = (id: string) => {
+    const ids = notices.map((n) => n.id);
+    const at = ids.indexOf(id);
+    const next = ids[at + 1] ?? ids[at - 1];
+    flushSync(() => {
+      setConfirming(null);
+      remove([id]);
+    });
+    // The neighbouring row, so the keyboard isn't dropped (the sheet itself when it was the last).
+    if (next) listRef.current?.querySelector<HTMLElement>(`[data-notice="${CSS.escape(next)}"]`)?.focus();
+  };
 
   return (
-    <ul className="flex flex-col gap-1">
+    <ul ref={listRef} className="flex flex-col gap-1">
       {notices.map((n) => {
         const Icon = ICONS[n.kind];
         const unread = n.readAt === null;
+        const asking = confirming === n.id;
         return (
-          <li key={n.id}>
+          <li key={n.id} className="rounded-[16px] transition-colors hover:bg-card-nested focus-within:bg-card-nested">
             <button
               type="button"
+              data-notice={n.id}
               onClick={() => {
-                onOpen(n);
-                if (n.href) {
-                  setOpen(false);
-                  router.push(n.href as Route);
-                }
+                open(n);
               }}
-              className="flex w-full items-start gap-3 rounded-[16px] px-2.5 py-2.5 text-left outline-none hover:bg-card-nested focus-visible:ring-2 focus-visible:ring-ring"
+              className="flex w-full items-start gap-3 rounded-[16px] px-2.5 pt-2.5 pb-1 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
-              <span className="grid size-8 shrink-0 place-items-center rounded-full bg-card-nested text-ink-2 ring-1 ring-border dark:ring-glass-border">
+              <span className="grid size-8 shrink-0 place-items-center rounded-full bg-card-nested text-ink-2">
                 <Icon aria-hidden className="size-4" strokeWidth={1.75} />
               </span>
               <span className="min-w-0 flex-1">
@@ -133,10 +177,105 @@ function NoticeList({ notices, onOpen }: { notices: Notice[]; onOpen: (n: Notice
                 {unread ? <span className="sr-only">Unread</span> : null}
               </span>
             </button>
+
+            <div className="flex h-9 items-center gap-0.5 pr-2.5 pb-1.5 pl-[3.25rem]">
+              {asking ? (
+                <div
+                  role="group"
+                  data-confirm-delete
+                  aria-label={`Delete “${n.title}”?`}
+                  className="flex items-center gap-0.5"
+                  onKeyDown={(e) => {
+                    if (e.key !== "Escape") return;
+                    // Escape cancels the question, not the whole sheet.
+                    e.stopPropagation();
+                    cancel(n.id);
+                  }}
+                  onBlur={(e) => {
+                    if (!e.currentTarget.contains(e.relatedTarget)) setConfirming(null);
+                  }}
+                >
+                  <span className="pr-1.5 text-[12.5px] text-ink-2">Delete?</span>
+                  <RowAction
+                    label="Delete"
+                    tone="danger"
+                    onClick={() => {
+                      confirmDelete(n.id);
+                    }}
+                  >
+                    <Check aria-hidden />
+                  </RowAction>
+                  <RowAction
+                    label="Keep"
+                    autoFocus
+                    onClick={() => {
+                      cancel(n.id);
+                    }}
+                  >
+                    <X aria-hidden />
+                  </RowAction>
+                </div>
+              ) : (
+                <>
+                  {n.href ? (
+                    <RowAction
+                      label="Open"
+                      onClick={() => {
+                        open(n);
+                      }}
+                    >
+                      <ExternalLink aria-hidden />
+                    </RowAction>
+                  ) : null}
+                  {unread ? (
+                    <RowAction
+                      label="Mark read"
+                      onClick={() => {
+                        markRead([n.id]);
+                      }}
+                    >
+                      <CheckCheck aria-hidden />
+                    </RowAction>
+                  ) : null}
+                  <RowAction
+                    label="Delete"
+                    data-delete={n.id}
+                    onClick={() => {
+                      setConfirming(n.id);
+                    }}
+                  >
+                    <Trash2 aria-hidden />
+                  </RowAction>
+                </>
+              )}
+            </div>
           </li>
         );
       })}
     </ul>
+  );
+}
+
+/** A small icon action under a notice. `danger`: the confirming tick, a destructive tint on a same-hue fill. */
+function RowAction({
+  label,
+  tone = "plain",
+  children,
+  ...props
+}: Omit<React.ComponentProps<"button">, "aria-label" | "type"> & { label: string; tone?: "plain" | "danger" }) {
+  return (
+    <button
+      {...props}
+      type="button"
+      aria-label={label}
+      title={label}
+      className={cn(
+        "grid size-7 place-items-center rounded-full outline-none transition-[background-color,color,transform] duration-150 active:scale-90 focus-visible:ring-2 focus-visible:ring-ring [&_svg]:size-3.5",
+        tone === "danger" ? "bg-destructive/12 text-destructive hover:bg-destructive/20" : "text-ink-3 hover:bg-muted hover:text-foreground dark:hover:bg-muted/50",
+      )}
+    >
+      {children}
+    </button>
   );
 }
 

@@ -43,10 +43,13 @@ export function RollingNumber({
 	text,
 	value,
 	className,
+	charClassName,
 }: {
 	text: string;
 	value: number;
 	className?: string;
+	/** A class for one character's slot, e.g. a symbol sized apart from the digits. */
+	charClassName?: (char: string) => string | undefined;
 }) {
 	// MotionConfig "user" reads the OS setting on the client's first render; the
 	// server can't, so wait for hydration or the two trees differ (React #418).
@@ -69,11 +72,27 @@ export function RollingNumber({
 		});
 	}
 
-	if (reduce) return <span className={cn("tabular", className)}>{text}</span>;
+	if (reduce)
+		return (
+			<span className={cn("tabular", className)}>
+				{charClassName
+					? Array.from(graphemes.segment(text), (g, i) => {
+							const c = charClassName(g.segment);
+							return c ? (
+								<span key={String(i)} className={c}>
+									{g.segment}
+								</span>
+							) : (
+								g.segment
+							);
+						})
+					: text}
+			</span>
+		);
 
 	const chars = Array.from(graphemes.segment(text), (g) => g.segment);
 	return (
-		<span className={cn("tabular relative inline-flex", className)}>
+		<span className={cn("tabular relative inline-flex items-baseline", className)}>
 			<span className="sr-only">{text}</span>
 			{chars.map((char, i) => {
 				const place = chars.length - 1 - i;
@@ -81,7 +100,10 @@ export function RollingNumber({
 					<span
 						key={`p${String(place)}`}
 						aria-hidden
-						className="relative -my-[0.15em] inline-flex overflow-hidden py-[0.15em] whitespace-pre"
+						className={cn(
+							"relative -my-[0.15em] inline-flex overflow-hidden py-[0.15em] whitespace-pre",
+							charClassName?.(char),
+						)}
 					>
 						<AnimatePresence
 							mode="popLayout"

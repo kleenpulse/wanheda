@@ -4,7 +4,7 @@ import * as React from "react";
 import { useElementWidth } from "@/hooks/use-element-width";
 import type { Currency } from "@/lib/money/currency";
 import { shortDayLabel, type Day } from "@/lib/money/dates";
-import { MoneyText } from "../money-text";
+import { FigureText, MoneyText } from "../money-text";
 import { useMask } from "../privacy";
 import { axisMoney, ChartCard, ChartTable, ChartTip, ticksFor, TipRow } from "./chart-kit";
 
@@ -140,7 +140,7 @@ export function PaceLine({
               <g key={t}>
                 <line x1={PAD_L} x2={width - PAD_R} y1={y(t)} y2={y(t)} className="stroke-border" strokeWidth={1} shapeRendering="crispEdges" />
                 <text data-money data-masked={mask.hidden || undefined} x={PAD_L - 8} y={y(t)} dy="0.32em" textAnchor="end" className="tabular font-figure fill-ink-3 text-[10.5px]">
-                  {mask.show(axisMoney(t, currency))}
+                  <FigureText svg text={mask.show(axisMoney(t, currency))} />
                 </text>
               </g>
             ))}

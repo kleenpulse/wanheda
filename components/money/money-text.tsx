@@ -20,8 +20,44 @@ export function MoneyText({ value, className, roll = false, ...options }: { valu
   const text = formatMoney(value, options);
   return (
     <span data-money data-masked={mask.hidden || undefined} className={cn("tabular font-figure", className)}>
-      {mask.hidden ? mask.show(text) : roll ? <RollingNumber text={text} value={value.minor} /> : text}
+      {mask.hidden ? (
+        <FigureText text={mask.show(text)} />
+      ) : roll ? (
+        <RollingNumber
+          text={text}
+          value={value.minor}
+          {...(hasOffFontSymbol(text) ? { className: "figure-scaled", charClassName: symbolClass } : {})}
+        />
+      ) : (
+        <FigureText text={text} />
+      )}
     </span>
+  );
+}
+
+/** Currency symbols the figure font has no glyph for (a system font draws them, larger than the digits). */
+const OFF_FONT_SYMBOL = /(₦)/u;
+
+function hasOffFontSymbol(text: string): boolean {
+  return OFF_FONT_SYMBOL.test(text);
+}
+
+function symbolClass(char: string): string | undefined {
+  return hasOffFontSymbol(char) ? "figure-symbol" : undefined;
+}
+
+/**
+ * A figure whose digits are grown to the height of a symbol the figure font
+ * lacks (₦; owner's choice, 2026-11-05). Text without one is returned as is.
+ * `svg`: tspans, for chart axis ticks.
+ */
+export function FigureText({ text, svg = false }: { text: string; svg?: boolean }): React.ReactNode {
+  if (!hasOffFontSymbol(text)) return text;
+  const Part = svg ? "tspan" : "span";
+  return (
+    <Part className="figure-scaled">
+      {text.split(OFF_FONT_SYMBOL).map((part, i) => (i % 2 === 1 ? <Part key={String(i)} className="figure-symbol">{part}</Part> : part))}
+    </Part>
   );
 }
 

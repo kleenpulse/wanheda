@@ -20,6 +20,8 @@ export const notification = pgTable(
     href: text("href"),
     dedupeKey: text("dedupe_key").notNull(),
     readAt: timestamp("read_at", { withTimezone: true }),
+    // Deleted by the owner: hidden, but the row (and its dedupe key) stays, so the same alert is never raised again.
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
     createdAt: createdAt(),
   },
   (table) => [

@@ -3,10 +3,11 @@
 import { z } from "zod";
 import { requireOwner } from "@/lib/auth/owner";
 import { timerDoneNotice, type Notice } from "@/lib/notifications/notifications";
-import { addNotice, markNoticesRead } from "@/lib/notifications/store";
+import { addNotice, deleteNotices, markNoticesRead } from "@/lib/notifications/store";
 
 export type NotifyResult = { ok: true; notice: Notice } | { ok: false; reason: "demo" | "invalid" | "failed" };
 export type MarkReadResult = { ok: true } | { ok: false; reason: "demo" | "invalid" | "failed" };
+export type DeleteNoticesResult = MarkReadResult;
 
 const timerSchema = z
   .object({
@@ -52,6 +53,22 @@ export async function markNotificationsRead(input: unknown): Promise<MarkReadRes
     return (await markNoticesRead(owner.user.id, ids)) ? { ok: true } : { ok: false, reason: "failed" };
   } catch (error) {
     console.error("markNotificationsRead failed", error);
+    return { ok: false, reason: "failed" };
+  }
+}
+
+const deleteSchema = z.object({ ids: z.array(z.uuid()).min(1).max(50) }).strict();
+
+/** Deletes some notices. Only the owner's own rows are touched; a deleted alert is never raised again. */
+export async function deleteNotifications(input: unknown): Promise<DeleteNoticesResult> {
+  const owner = await requireOwner();
+  if (owner.kind === "demo") return { ok: false, reason: "demo" };
+  const parsed = deleteSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, reason: "invalid" };
+  try {
+    return (await deleteNotices(owner.user.id, parsed.data.ids)) ? { ok: true } : { ok: false, reason: "failed" };
+  } catch (error) {
+    console.error("deleteNotifications failed", error);
     return { ok: false, reason: "failed" };
   }
 }
