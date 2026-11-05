@@ -206,6 +206,8 @@
 	animation-delay: var(--draw-delay, 260ms);
 }
 @keyframes ring-sweep { from { stroke-dashoffset: 100; } }
+/* Toast countdown: drains across the toast's life; paused while it is held. */
+@keyframes toast-countdown { from { transform: scaleX(1); } to { transform: scaleX(0); } }
 
 /* Play intro choreography once per session: set data-intro="off" on <html> after the first run. */
 [data-intro="off"] :is(.entrance, .animate-bloom) { animation: none; }

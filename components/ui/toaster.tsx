@@ -70,13 +70,18 @@ export function Toaster() {
 
 function ToastCard({ toast: t }: { toast: Toast }) {
   const [held, setHeld] = React.useState(false);
+  // Time left, kept across holds so the timer and the countdown bar agree:
+  // a hover pauses both, and both resume from where they stopped.
+  const remaining = React.useRef(SHOW_MS);
   React.useEffect(() => {
     if (held) return;
+    const started = Date.now();
     const timer = setTimeout(() => {
       dismissToast(t.id);
-    }, SHOW_MS);
+    }, remaining.current);
     return () => {
       clearTimeout(timer);
+      remaining.current = Math.max(0, remaining.current - (Date.now() - started));
     };
   }, [t.id, held]);
 
@@ -99,8 +104,14 @@ function ToastCard({ toast: t }: { toast: Toast }) {
       onBlur={() => {
         setHeld(false);
       }}
-      className="pointer-events-auto flex w-full max-w-[380px] items-start gap-3 rounded-[18px] bg-card px-4 py-3 text-foreground shadow-lift ring-1 ring-border dark:bg-card-nested dark:ring-glass-border"
+      className="pointer-events-auto relative flex w-full max-w-[380px] items-start gap-3 overflow-hidden rounded-[18px] bg-card px-4 py-3 text-foreground shadow-lift ring-1 ring-border dark:bg-card-nested dark:ring-glass-border"
     >
+      {/* Countdown to auto-dismiss (and, for Undo toasts, to the commit). Hidden under reduced motion. */}
+      <span
+        aria-hidden
+        className="absolute inset-x-0 bottom-0 h-[3px] origin-left bg-foreground/15 motion-reduce:hidden in-data-[motion=reduce]:hidden dark:bg-foreground/20"
+        style={{ animation: `toast-countdown ${String(SHOW_MS)}ms linear forwards`, animationPlayState: held ? "paused" : "running" }}
+      />
       <div className="min-w-0 flex-1">
         <p className="text-[13.5px] font-medium">{t.title}</p>
         {t.body ? <p className="mt-0.5 text-pretty text-[12.5px] leading-snug text-ink-2">{t.body}</p> : null}

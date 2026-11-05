@@ -5,6 +5,7 @@ import { Dialog } from "@base-ui/react/dialog";
 import { Pencil, Plus, Trash2, X } from "lucide-react";
 import { EmptyState, SheetHeading } from "@/components/shell/page-frame";
 import { buttonClass } from "@/components/ui/button";
+import { GrowDialog } from "@/components/ui/grow-dialog";
 import { Tip } from "@/components/ui/tooltip";
 import { dayLabel, startOfMonth, type Day } from "@/lib/money/dates";
 import { byId, categoryPath, totals, type Account, type Category, type MoneyPayload, type Txn } from "@/lib/money/money";
@@ -62,7 +63,7 @@ function MoneyView({ payload }: { payload: MoneyPayload }) {
   // Base currency first, then the rest as they come (no conversion until FX lands, V26).
   const baseFirst = (xs: Totals["spend"]) => [...xs].sort((a, b) => Number(b.currency === base) - Number(a.currency === base));
   const [sheetOpen, setSheetOpen] = React.useState(false);
-  const [editing, setEditing] = React.useState<Txn | null>(null);
+  const [editing, setEditing] = React.useState<Editing | null>(null);
   const stale = payload.source === "load-failed";
 
   return (
@@ -92,7 +93,7 @@ function MoneyView({ payload }: { payload: MoneyPayload }) {
       </div>
 
       <AddSheet payload={payload} today={today} open={sheetOpen} setOpen={setSheetOpen} />
-      <EditDialog payload={payload} today={today} txn={editing} close={() => {
+      <EditDialog payload={payload} today={today} editing={editing} close={() => {
           setEditing(null);
         }} />
     </div>
@@ -100,6 +101,12 @@ function MoneyView({ payload }: { payload: MoneyPayload }) {
 }
 
 type Totals = ReturnType<typeof totals>;
+
+/** A txn being edited, and the pencil it was opened from (the dialog grows out of it). */
+interface Editing {
+  txn: Txn;
+  origin: DOMRect;
+}
 
 function monthName(today: Day): string {
   return new Intl.DateTimeFormat("en-GB", { month: "long", timeZone: "UTC" }).format(new Date(`${startOfMonth(today)}T00:00:00Z`));
@@ -128,7 +135,7 @@ function Recent({
   today: Day;
   categories: ReadonlyMap<string, Category>;
   accounts: ReadonlyMap<string, Account>;
-  onEdit: (txn: Txn) => void;
+  onEdit: (edit: Editing) => void;
 }) {
   const shown = payload.txns.slice(0, RECENT_LIMIT);
   if (shown.length === 0) {
@@ -204,7 +211,7 @@ function TxnRow({
   category: Category | null;
   categories: ReadonlyMap<string, Category>;
   account: Account | undefined;
-  onEdit: (txn: Txn) => void;
+  onEdit: (edit: Editing) => void;
 }) {
   const api = useMoneyApi();
   const title = txn.payee || category?.name || "Untitled";
@@ -229,8 +236,8 @@ function TxnRow({
           render={
             <button
               type="button"
-              onClick={() => {
-                onEdit(txn);
+              onClick={(e) => {
+                onEdit({ txn, origin: e.currentTarget.getBoundingClientRect() });
               }}
               className={buttonClass("ghost", "circle-sm", "size-7 text-ink-3")}
             >
@@ -302,53 +309,38 @@ function AddSheet({ payload, today, open, setOpen }: { payload: MoneyPayload; to
   );
 }
 
-/** Edit one txn: centred on wide screens, a bottom sheet on phones. Delete here is undoable too. */
-function EditDialog({ payload, today, txn, close }: { payload: MoneyPayload; today: Day; txn: Txn | null; close: () => void }) {
+/** Edit one txn in Shadow Garden's grow dialog: it grows out of the row's pencil and shrinks back into it. Delete here is undoable too. */
+function EditDialog({ payload, today, editing, close }: { payload: MoneyPayload; today: Day; editing: Editing | null; close: () => void }) {
   const api = useMoneyApi();
-  // Keep the last txn while the dialog animates out.
-  const [shown, setShown] = React.useState(txn);
-  if (txn && txn !== shown) setShown(txn);
+  // Keep the last txn (and its origin) while the dialog shrinks away.
+  const [shown, setShown] = React.useState(editing);
+  if (editing && editing !== shown) setShown(editing);
   return (
-    <Dialog.Root
-      open={txn !== null}
+    <GrowDialog
+      open={editing !== null}
       onOpenChange={(open) => {
         if (!open) close();
       }}
+      title="Edit"
+      originRect={shown?.origin ?? null}
+      initialFocus="input[inputmode=decimal]"
     >
-      <Dialog.Portal>
-        <Dialog.Backdrop className="fixed inset-0 z-50 bg-background/40 backdrop-blur-[2px] transition-opacity duration-150 data-ending-style:opacity-0 data-starting-style:opacity-0" />
-        <Dialog.Popup
-          className={cn(
-            "glass-window fixed inset-x-2 bottom-2 z-50 flex max-h-[calc(100svh-1rem)] flex-col overflow-y-auto overscroll-contain rounded-card p-5 shadow-lift outline-none",
-            "md:inset-x-auto md:top-1/2 md:bottom-auto md:left-1/2 md:w-[min(440px,calc(100vw-2rem))] md:-translate-x-1/2 md:-translate-y-1/2",
-            "transition-[opacity,translate,scale] duration-200 ease-out-quint data-ending-style:opacity-0 data-starting-style:opacity-0",
-            "max-md:data-ending-style:translate-y-6 max-md:data-starting-style:translate-y-6 md:data-ending-style:scale-[0.97] md:data-starting-style:scale-[0.97]",
-          )}
-        >
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <Dialog.Title className="font-display text-[17px] leading-tight text-foreground">Edit</Dialog.Title>
-            <Dialog.Close aria-label="Close" className={buttonClass("ghost", "circle-sm", "size-8")}>
-              <X aria-hidden />
-            </Dialog.Close>
-          </div>
-          {shown ? (
-            <>
-              <TxnForm key={shown.id} payload={payload} today={today} variant="inline" initial={shown} onSaved={close} />
-              <button
-                type="button"
-                onClick={() => {
-                  api.remove(shown);
-                  close();
-                }}
-                className={buttonClass("ghost", "pill-sm", "mt-3 self-start text-destructive hover:text-destructive")}
-              >
-                <Trash2 aria-hidden />
-                Delete
-              </button>
-            </>
-          ) : null}
-        </Dialog.Popup>
-      </Dialog.Portal>
-    </Dialog.Root>
+      {shown ? (
+        <>
+          <TxnForm key={shown.txn.id} payload={payload} today={today} variant="inline" initial={shown.txn} onSaved={close} />
+          <button
+            type="button"
+            onClick={() => {
+              api.remove(shown.txn);
+              close();
+            }}
+            className={buttonClass("ghost", "pill-sm", "mt-3 self-start text-destructive hover:text-destructive")}
+          >
+            <Trash2 aria-hidden />
+            Delete
+          </button>
+        </>
+      ) : null}
+    </GrowDialog>
   );
 }

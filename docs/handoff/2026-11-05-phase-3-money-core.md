@@ -20,6 +20,8 @@ The user answered FRD open questions 3 and 4: import Nigerian **and** US bank st
 - **Calendar** (user asked for shadcn's): `components/ui/calendar.tsx` `Calendar` + `DatePicker`, shadcn anatomy hand-built on Base UI Popover instead of react-day-picker + date-fns (no new packages under the worm rails). Monday-first, WAI-ARIA date-grid keys, Today/Yesterday/2 days ago presets. Commit 2 on the PR.
 - **Undo for delete** (user rule, also in memory: destructive actions get a confirm dialog or an undo). The row hides at once and the toast offers Undo; the server delete is sent only from the toast's `onDismiss`. `components/ui/toaster.tsx` gains callback actions and `onDismiss` (4 tests). If the tab closes inside the window, nothing is deleted. Not browser-tested by me; it's on the user's dev server via HMR.
 - **Row titles in Figtree** (user).
+- **Grow dialog** (user): Shadow Garden's `grow-dialog` ported to `components/ui/grow-dialog.tsx` for Edit, growing out of the row's pencil. Escape and Tab trap act only while focus is in the panel, so Escape in its Select/Calendar closes the popover, not the dialog.
+- **Toast countdown bar** (user): drains over the 9 s and pauses on hover/focus; the timer keeps the time left across holds.
 - **Edit** (user asked; pulled forward from T35): pencil and bin icons on each row (no ellipsis menu, user) → Edit dialog with the form prefilled (same id, so the write replaces the row; Delete inside is the same undo). The day header total shows only when a day has 2+ spends (with one it repeated the row).
 - **App.** `/money` (three stat tiles, the newest 60 txns by day, a row menu with Delete, the add form beside the list from @4xl, a one-thumb sheet on phones), `actions/money.ts`, `GET /api/money`, palette Money group, `components/money/txn-writer.ts` (per-id write slots), `components/ui/select.tsx` (Base UI, `glass-menu`), `--cat-*` data palette (dataviz validator on all four skins), Money manifest with the `DollarSign` icon (user's choice).
 - **Next 16.4.5** (exact pin; it was `^16.4.3`). The 7-day cooldown was overridden for the Next packages only (`--minimum-release-age-excludes`); `bunfig.toml` is unchanged. Why: a security release with seven advisories, four of them on `use cache` and Cache Components.
@@ -57,6 +59,7 @@ The user answered FRD open questions 3 and 4: import Nigerian **and** US bank st
 - React's `onPointerLeave` is synthesised from `pointerout`; a synthetic `pointerleave` in a test does nothing.
 - An item-level `truncate` (overflow hidden) clips anything that sticks out of the row (rings, badge dots). Truncate the label span only.
 - `ripgrep` isn't on PATH. One ships inside the Antigravity IDE install, and that path has a space in it, so quote it.
+- A `globals.css` edit (new `@keyframes toast-countdown`) can be missed by a running Turbopack dev server; restart it if the countdown bar doesn't animate. Next 16.4.4+ fixes this, but only after the dev server restarts on the new version.
 - gitleaks isn't installed locally (the pre-commit hook warns); CI scans the history.
 
 ## Next steps (in order)
