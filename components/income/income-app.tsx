@@ -28,6 +28,7 @@ import { RevenueByMonth, RevenueByProduct } from "./charts/revenue";
 import { TrendLine } from "./charts/trend-line";
 import { Waterfall } from "./charts/waterfall";
 import { ParityCard } from "./parity";
+import { Dash, Notice, Tile } from "./parts";
 import { useCurrencyParam, useFacts, useIncome, useIncomeNow, useProductParam, useRangeParam } from "./use-income";
 
 // The income dashboard (T42, FRD §12.6): MRR and its movements, customers,
@@ -223,32 +224,6 @@ function newCustomers(facts: readonly { occurredAt: Date; kind: string; customer
     if (f.kind === "new" && t > since && t <= now.getTime()) seen.add(f.customerRef);
   }
   return seen.size;
-}
-
-function Dash() {
-  return (
-    <span className="text-ink-3" title="No denominator yet">
-      —
-    </span>
-  );
-}
-
-function Tile({ label, note, children }: { label: string; note: React.ReactNode; children: React.ReactNode }) {
-  return (
-    <div className="bento flex min-w-0 flex-col gap-2 p-4 @3xl/main:p-5">
-      <h3 className="readout truncate">{label}</h3>
-      <div className="truncate font-display text-[22px] leading-none font-semibold tracking-[-0.01em] text-foreground @3xl/main:text-[28px]">{children}</div>
-      <div className="min-w-0 truncate text-[12px] text-ink-2">{note}</div>
-    </div>
-  );
-}
-
-function Notice({ children }: { children: React.ReactNode }) {
-  return (
-    <p role="status" className="rounded-[14px] bg-card-nested px-3 py-2 text-[13px] text-ink-2">
-      {children}
-    </p>
-  );
 }
 
 function Empty({ payload, owner }: { payload: IncomePayload; owner: boolean }) {

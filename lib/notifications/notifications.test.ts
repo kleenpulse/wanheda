@@ -80,9 +80,9 @@ describe("relativeTime", () => {
 });
 
 describe("demoNotices", () => {
-  it("is labelled sample data, one unread", () => {
+  it("is labelled sample data, two unread (a timer and an income alert for the island, T43)", () => {
     const list = demoNotices(T0);
     expect(list.every((n) => n.body?.startsWith("Sample"))).toBe(true);
-    expect(unreadCount(list)).toBe(1);
+    expect(unreadCount(list)).toBe(2);
   });
 });

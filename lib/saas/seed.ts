@@ -1,4 +1,5 @@
 import type { Product } from "./connectors";
+import type { Goal } from "./goals";
 import { movementsFrom, type EngineEvent, type Movement } from "./mrr";
 
 // Demo mode's income (G4): about eight months of Polar-shaped billing events
@@ -150,4 +151,18 @@ export function demoBillingEvents(today: Date): EngineEvent[] {
 /** Demo mrr_movement rows, from the same engine real data goes through. */
 export function demoMovements(today: Date): Movement[] {
   return movementsFrom(demoBillingEvents(today), { productMap: DEMO_PRODUCT_MAP, asOf: today });
+}
+
+/** Demo goals: an MRR target for every product and a savings target, due in a few months. Edits stay in the tab. */
+export function demoGoals(today: Date): Goal[] {
+  const due = (months: number) => {
+    const d = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() + months + 1, 0));
+    return d.toISOString().slice(0, 10);
+  };
+  const createdAt = Math.floor(today.getTime() / DAY_MS) * DAY_MS - 60 * DAY_MS;
+  return [
+    { id: "00000000-0000-4000-8000-00000000b001", kind: "mrr", title: "MRR $1,000", productId: null, targetMinor: 100_000, currency: "USD", dueOn: due(4), createdAt },
+    { id: "00000000-0000-4000-8000-00000000b002", kind: "mrr", title: "rawstash to $300", productId: RAW, targetMinor: 30_000, currency: "USD", dueOn: due(2), createdAt },
+    { id: "00000000-0000-4000-8000-00000000b003", kind: "save", title: "Emergency fund", productId: null, targetMinor: 1_000_000_000, currency: "NGN", dueOn: due(8), createdAt },
+  ];
 }
