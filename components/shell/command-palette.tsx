@@ -28,6 +28,7 @@ import {
   Timer as TimerIcon,
   DollarSign,
   Download,
+  PlugZap,
   Eye,
   EyeOff,
   Target,
@@ -454,6 +455,15 @@ function PaletteBody({
             title="Export money (CSV, JSON)"
             onSelect={run(() => {
               router.push("/settings?s=money");
+            })}
+          />
+          <Item
+            value="connections"
+            keywords={["polar", "connect", "connector", "webhook", "token", "products", "income", "mrr", "sync"]}
+            icon={PlugZap}
+            title="Open connections (Polar)"
+            onSelect={run(() => {
+              router.push("/settings?s=connections");
             })}
           />
         </Command.Group>

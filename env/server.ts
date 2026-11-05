@@ -3,6 +3,7 @@ import { z } from "zod";
 // Relative import: next.config.ts loads this file, and the `@/` alias is not
 // resolved there.
 import { parseOwnerEmails } from "../lib/auth/allowlist";
+import { sealKeyBytes } from "../lib/saas/seal-key";
 
 // Server environment schema. next.config.ts imports this module, so `next build`
 // and `next start` validate the environment before any route runs.
@@ -50,6 +51,11 @@ export function createServerEnv(runtimeEnv: RuntimeEnv) {
       WEATHER_LATITUDE: z.coerce.number().min(-90).max(90).optional(),
       WEATHER_LONGITUDE: z.coerce.number().min(-180).max(180).optional(),
       WEATHER_PLACE: z.string().min(1).max(60).optional(),
+      // Seals connector secrets (SPEC V33): 32 random bytes, base64.
+      CONNECTOR_SEAL_KEY: z
+        .string()
+        .refine((raw) => sealKeyBytes(raw) !== null, "CONNECTOR_SEAL_KEY must be 32 bytes, base64")
+        .optional(),
     },
     runtimeEnv: {
       VERCEL_ENV: runtimeEnv.VERCEL_ENV,
@@ -63,6 +69,7 @@ export function createServerEnv(runtimeEnv: RuntimeEnv) {
       WEATHER_LATITUDE: runtimeEnv.WEATHER_LATITUDE,
       WEATHER_LONGITUDE: runtimeEnv.WEATHER_LONGITUDE,
       WEATHER_PLACE: runtimeEnv.WEATHER_PLACE,
+      CONNECTOR_SEAL_KEY: runtimeEnv.CONNECTOR_SEAL_KEY,
     },
     emptyStringAsUndefined: true,
   });
