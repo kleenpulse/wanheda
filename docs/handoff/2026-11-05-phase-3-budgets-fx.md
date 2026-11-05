@@ -3,14 +3,14 @@
 | | |
 |---|---|
 | Date | 2026-11-05 |
-| Phase / checkpoint | Phase 3 — CP5 (T38), built, **not committed** |
+| Phase / checkpoint | Phase 3 — CP5 (T38), built; PR #21 open |
 | Branch | `phase-3/budgets-fx` (off main `e52e152`, PR #20 merged) |
-| HEAD | `e52e152` + uncommitted work (see "Staging") |
+| HEAD | `76307c5` feat: budgets, rules, FX and privacy mode (T38), plus this hand-off commit |
 | Previous hand-off | docs/handoff/2026-11-05-phase-3-import.md |
 
 ## State in one paragraph
 
-PR #20 merged as `e52e152` (forged-commit check clean on `3fa1a58..origin/main`, 3 commits, all +0100). The user OK'd the T37 SPEC draft; it is applied in the working tree (T37 → x, V12/V24/V30 notes, B15–B17). T38 is built end to end, plus four user requests made during the session: privacy mode as dots (not blur), the show/hide eye in the app-wide top bar, a stronger dark-mode dock shadow, "Other" → name a real category in the txn form (relayed by the UI session `wanheda-f7`), and the Home billing-cycle card with a pin picker. No new SQL: `budget`, `rule`, `fx_rate`, `user_prefs.base_currency` were all in `0004`. Nothing is committed: waiting for the user's word and their call on the shared files (below).
+PR #20 merged as `e52e152` (forged-commit check clean on `3fa1a58..origin/main`, 3 commits, all +0100). The user OK'd the T37 SPEC draft; it is applied in the working tree (T37 → x, V12/V24/V30 notes, B15–B17). T38 is built end to end, plus four user requests made during the session: privacy mode as dots (not blur), the show/hide eye in the app-wide top bar, a stronger dark-mode dock shadow, "Other" → name a real category in the txn form (relayed by the UI session `wanheda-f7`), and the Home billing-cycle card with a pin picker. No new SQL: `budget`, `rule`, `fx_rate`, `user_prefs.base_currency` were all in `0004`. The user chose one PR with everything in the tree (their words: "All in one, make the PR"): committed as `76307c5` (author = committer TZ +0100, forged-commit check clean, tripwire clean, gitleaks not installed locally so CI scans), pushed, PR #21.
 
 ## Done this session
 
@@ -47,7 +47,7 @@ I ran `bunx prettier` once: prettier is not a project dependency, so bunx fetche
 
 ## Staging (needs the user)
 
-Another session (`wanheda-f7`, gone by the end) left uncommitted UI work in the same tree. Files with **only its** edits: `app/(shell)/layout.tsx`, `components/notes/notes-app.tsx`, `components/shell/dock.tsx`, `components/shell/nav-rail.tsx`, `components/ui/menu.tsx`, `components/ui/select.tsx`, `components/ui/calendar.tsx`, `components/money/subscriptions.tsx`. Files with **both**: `app/globals.css` (its Nebula-flat tokens + `--shadow-dock` / my dock values), `components/money/txn-form.tsx` (its `grouped()` sort + `pl-7` / my Name-it field), `components/money/money-app.tsx` (its `h-10` DatePickers, which need its `calendar.tsx` / my FX work). Everything else in `git status` is mine. Ask the user: one PR with all of it, or mine only (shared files split by hunk with `git apply --cached`).
+Another session (`wanheda-f7`, gone by the end) left uncommitted UI work in the same tree. Files with **only its** edits: `app/(shell)/layout.tsx`, `components/notes/notes-app.tsx`, `components/shell/dock.tsx`, `components/shell/nav-rail.tsx`, `components/ui/menu.tsx`, `components/ui/select.tsx`, `components/ui/calendar.tsx`, `components/money/subscriptions.tsx`. Files with **both**: `app/globals.css` (its Nebula-flat tokens + `--shadow-dock` / my dock values), `components/money/txn-form.tsx` (its `grouped()` sort + `pl-7` / my Name-it field), `components/money/money-app.tsx` (its `h-10` DatePickers, which need its `calendar.tsx` / my FX work). Everything else in `git status` is mine. Resolved: the user chose one PR with all of it; every file was staged by name (72 paths, all under app/, components/, lib/, actions/, docs/ and SPEC.md).
 
 ## Drafted for SPEC (needs the user's OK, then the spec skill applies it)
 
@@ -60,7 +60,7 @@ Another session (`wanheda-f7`, gone by the end) left uncommitted UI work in the 
 
 ## Next steps
 
-1. User: commit go-ahead + staging choice. Then PR `phase-3/budgets-fx`, CI, Reviewer pass (one pass: code + edge cases), user merges.
+1. PR #21 (https://github.com/kleenpulse/wanheda/pull/21): CI, Reviewer pass (one pass: code + edge cases), user merges. Then stop: the next checkpoint starts in a new session.
 2. Owner check on Neon: Analytics in a mixed month (rates fetched, `fx_rate` rows appear), a budget crossing 80 % → notice + island, export downloads.
 3. Apply the SPEC draft on the user's OK.
 4. Next checkpoint: T39 (Phase 3 exit) in a new session.
@@ -75,8 +75,8 @@ commit; commit, push and PRs only on the user's word; a short hand-off + continu
 after every PR. No worktrees: branch off main in D:\Vxrcel\wanheda itself. One checkpoint per
 session: after its PR merges, stop and hand over. House goal (CLAUDE.md): native-app feel, V24.
 
-Read docs/handoff/2026-11-05-phase-3-budgets-fx.md first. T38 was built on phase-3/budgets-fx
-but NOT committed at hand-off; another session's UI edits share the tree (see "Staging"). Start:
+Read docs/handoff/2026-11-05-phase-3-budgets-fx.md first. T38 is PR #21 (phase-3/budgets-fx,
+`76307c5`, with the UI session's edits in the same PR). Start:
 `git fetch`; check new commits with `sh scripts/forged-commits.sh e52e152..origin/main` before
 pulling. If T38 is merged, fast-forward main and, on the user's OK, apply the SPEC draft with the
 spec skill. Then Phase 3 exit T39 (same statement twice ⇒ 0 rows and says so; sub due in 3 d ⇒

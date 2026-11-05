@@ -1,6 +1,6 @@
 # Latest hand-off
 
-**Newest:** [2026-11-05-phase-3-budgets-fx.md](2026-11-05-phase-3-budgets-fx.md). **Phase 3 CP5 (T38) built, not committed** (`phase-3/budgets-fx`, off main `e52e152`): daily FX (fawazahmed0, fetched on read) with converted headline totals and an "all in base" analytics mode; budgets with rollover, 80/100 % alerts (centre + island) and the pace-line budget level; rules on entry and import; privacy mode as dots (H, palette, top-bar eye on every page); base currency in Settings; CSV/JSON export; Home widgets (spent today, budgets, pinned billing-cycle card); "Other" → name a real category; stronger dark dock shadow. No new SQL. Vitest 58 files / 690, typecheck, tripwire, build pass; demo browser run done; owner run on Neon not done. Waiting for the user's commit word and their staging call (another session's UI edits share the tree). SPEC T37 draft applied in the tree; T38 draft in the hand-off.
+**Newest:** [2026-11-05-phase-3-budgets-fx.md](2026-11-05-phase-3-budgets-fx.md). **Phase 3 CP5 (T38) built, PR #21 open** (`phase-3/budgets-fx`, off main `e52e152`, commit `76307c5`, all in one PR with the UI session's edits by the user's choice): daily FX (fawazahmed0, fetched on read) with converted headline totals and an "all in base" analytics mode; budgets with rollover, 80/100 % alerts (centre + island) and the pace-line budget level; rules on entry and import; privacy mode as dots (H, palette, top-bar eye on every page); base currency in Settings; CSV/JSON export; Home widgets (spent today, budgets, pinned billing-cycle card); "Other" → name a real category; stronger dark dock shadow. No new SQL. Vitest 58 files / 690, typecheck, tripwire, build pass; demo browser run done; owner run on Neon not done. SPEC T37 draft applied in the tree; T38 draft in the hand-off.
 
 Read the hand-off first, then verify it against the repo before trusting it (git, tripwire, typecheck, tests). The Builder and Reviewer prompts below are copied from it.
 
@@ -13,8 +13,8 @@ commit; commit, push and PRs only on the user's word; a short hand-off + continu
 after every PR. No worktrees: branch off main in D:\Vxrcel\wanheda itself. One checkpoint per
 session: after its PR merges, stop and hand over. House goal (CLAUDE.md): native-app feel, V24.
 
-Read docs/handoff/2026-11-05-phase-3-budgets-fx.md first. T38 was built on phase-3/budgets-fx
-but NOT committed at hand-off; another session's UI edits share the tree (see "Staging"). Start:
+Read docs/handoff/2026-11-05-phase-3-budgets-fx.md first. T38 is PR #21 (phase-3/budgets-fx,
+`76307c5`, with the UI session's edits in the same PR). Start:
 `git fetch`; check new commits with `sh scripts/forged-commits.sh e52e152..origin/main` before
 pulling. If T38 is merged, fast-forward main and, on the user's OK, apply the SPEC draft with the
 spec skill. Then Phase 3 exit T39 (same statement twice ⇒ 0 rows and says so; sub due in 3 d ⇒
