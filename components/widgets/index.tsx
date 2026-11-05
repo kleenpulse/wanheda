@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { requireOwner } from "@/lib/auth/owner";
 import type { WidgetId } from "@/lib/modules";
 import { ClockWidget } from "./clock-widget";
+import { IncomeMrrWidget, IncomeNetNewWidget } from "./income-widgets";
 import { MoneyBudgetWidget, MoneyRenewalsWidget, MoneyTodayWidget } from "./money-widgets";
 import { PinnedNotesWidget } from "./pinned-notes-widget";
 import { TodayWidget } from "./today-widget";
@@ -28,6 +29,8 @@ export function widgetNodes(): Record<WidgetId, React.ReactNode> {
     "money.today": <MoneyTodayWidget />,
     "money.budget": <MoneyBudgetWidget />,
     "money.renewals": <MoneyRenewalsWidget />,
+    "income.mrr": <IncomeMrrWidget />,
+    "income.net-new": <IncomeNetNewWidget />,
   };
 }
 

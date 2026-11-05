@@ -33,6 +33,7 @@ import {
   Eye,
   EyeOff,
   Target,
+  TrendingUp,
   Wallpaper,
   Wand2,
   X,
@@ -40,7 +41,9 @@ import {
 } from "lucide-react";
 import { signOutOk } from "@/components/auth/account-actions";
 import { rebuildIncome } from "@/actions/connectors";
+import { useIncome } from "@/components/income/use-income";
 import { togglePrivacy, usePrivacy } from "@/components/money/privacy";
+import { replaceUrlParams } from "@/hooks/use-url-param";
 import { lastAccountId, newTxn, useMoney, useMoneyApi, useNewSubscription } from "@/components/money/use-money";
 import { useNoteSearch, useNotesApi } from "@/components/notes/notes-provider";
 import { useNotifications } from "@/components/notifications/notifications-provider";
@@ -179,6 +182,8 @@ function PaletteBody({
   const money = useMoney({ enabled: moneyQuery !== null });
   const moneyApi = useMoneyApi();
   const privacy = usePrivacy();
+  // Cache only: per-product income commands show once Income (or its widget) has loaded.
+  const incomeProducts = useIncome({ enabled: false }).data?.products.filter((p) => !p.archived) ?? [];
   const quick =
     moneyQuery !== null && money.data
       ? parseQuickAdd(moneyQuery, {
@@ -468,6 +473,22 @@ function PaletteBody({
               router.push("/settings?s=connections");
             })}
           />
+          {incomeProducts.length > 1
+            ? incomeProducts.map((p) => (
+                <Item
+                  key={p.id}
+                  value={`income-product-${p.id}`}
+                  keywords={["income", "mrr", "revenue", "churn", "product", p.name]}
+                  icon={TrendingUp}
+                  title={`Open ${p.name} income`}
+                  onSelect={run(() => {
+                    // On /income the view follows the param in place; from elsewhere the hop reads it on mount.
+                    if (pathname === "/income") replaceUrlParams({ product: p.id, currency: null });
+                    else router.push(`/income?product=${encodeURIComponent(p.id)}`);
+                  })}
+                />
+              ))
+            : null}
           <Item
             value="income-rebuild"
             keywords={["rebuild", "recompute", "income", "mrr", "movements", "polar", "metrics"]}
