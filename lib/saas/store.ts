@@ -2,8 +2,9 @@ import "server-only";
 import { createHash } from "node:crypto";
 import { and, asc, eq, gte, inArray, sql } from "drizzle-orm";
 import { getDb } from "@/lib/db";
-import { billingEvent, connector, metricSnapshot, mrrMovement, processedEvent, product } from "@/lib/db/schema";
+import { billingEvent, connector, goal, metricSnapshot, mrrMovement, processedEvent, product } from "@/lib/db/schema";
 import { CATEGORY_COLORS } from "@/lib/money/categories";
+import { isCurrency } from "@/lib/money/currency";
 import {
   parsePolarConfig,
   sealedSecretSchema,
@@ -15,6 +16,7 @@ import {
   type ProductColor,
   type ProductWrite,
 } from "./connectors";
+import type { Goal, GoalWrite } from "./goals";
 import type { IncomeMovement, IncomeProduct, IncomeSnapshot } from "./income";
 import type { EngineEvent, Movement, MovementKind } from "./mrr";
 import type { BillingEventInput } from "./polar/events";
@@ -484,6 +486,7 @@ export interface IncomeFacts {
   snapshots: IncomeSnapshot[];
   /** Order and refund snapshots per connector, for revenueFrom() with that connector's product map. */
   revenueEvents: Map<string, EngineEvent[]>;
+  goals: Goal[];
 }
 
 /**
@@ -495,7 +498,7 @@ export interface IncomeFacts {
 export async function loadIncome(userId: string, sinceDay: string): Promise<IncomeFacts | null> {
   const db = getDb();
   if (!db) return null;
-  const [productRows, connectorRows, movementRows, snapshotRows, eventRows] = await db.batch([
+  const [productRows, connectorRows, movementRows, snapshotRows, eventRows, goalRows] = await db.batch([
     db.select().from(product).where(eq(product.userId, userId)).orderBy(asc(product.createdAt)),
     db.select({ id: connector.id, config: connector.config }).from(connector).where(eq(connector.userId, userId)).orderBy(asc(connector.createdAt)),
     db
@@ -526,6 +529,7 @@ export async function loadIncome(userId: string, sinceDay: string): Promise<Inco
       })
       .from(billingEvent)
       .where(and(eq(billingEvent.userId, userId), inArray(billingEvent.kind, ["order", "refund"]))),
+    db.select().from(goal).where(eq(goal.userId, userId)).orderBy(asc(goal.createdAt)),
   ]);
   const withHistory = new Set(movementRows.map((m) => m.productId));
   const revenueEvents = new Map<string, EngineEvent[]>();
@@ -549,5 +553,42 @@ export async function loadIncome(userId: string, sinceDay: string): Promise<Inco
       otherCurrencies: s.source === "computed" && typeof s.extra === "object" && s.extra !== null && "byCurrency" in s.extra,
     })),
     revenueEvents,
+    goals: goalRows.flatMap(toGoal),
   };
+}
+
+function toGoal(row: typeof goal.$inferSelect): Goal[] {
+  if ((row.kind !== "mrr" && row.kind !== "save") || !isCurrency(row.currency)) return [];
+  return [{ id: row.id, kind: row.kind, title: row.title, productId: row.productId, targetMinor: row.targetMinor, currency: row.currency, dueOn: row.dueOn, createdAt: row.createdAt.getTime() }];
+}
+
+/**
+ * Creates or edits a goal by its client id (a replay is a no-op, V28). An MRR
+ * goal's product must be the owner's; an id that belongs to another user is
+ * never touched. Null without a database.
+ */
+export async function saveGoal(userId: string, w: GoalWrite): Promise<Goal | "not-yours" | null> {
+  const db = getDb();
+  if (!db) return null;
+  if (w.productId) {
+    const owned = await db.select({ id: product.id }).from(product).where(and(eq(product.id, w.productId), eq(product.userId, userId))).limit(1);
+    if (owned.length === 0) return "not-yours";
+  }
+  const values = { kind: w.kind, title: w.title, productId: w.productId, targetMinor: w.targetMinor, currency: w.currency, dueOn: w.dueOn };
+  const rows = await db
+    .insert(goal)
+    .values({ id: w.id, userId, ...values })
+    .onConflictDoUpdate({ target: goal.id, set: { ...values, updatedAt: sql`now()` }, setWhere: eq(goal.userId, userId) })
+    .returning();
+  const row = rows[0];
+  if (!row) return "not-yours";
+  return toGoal(row)[0] ?? null;
+}
+
+/** Deletes one of the owner's goals; deleting one already gone is fine. */
+export async function deleteGoal(userId: string, id: string): Promise<true | null> {
+  const db = getDb();
+  if (!db) return null;
+  await db.delete(goal).where(and(eq(goal.id, id), eq(goal.userId, userId)));
+  return true;
 }

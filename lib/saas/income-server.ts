@@ -3,7 +3,7 @@ import type { Owner } from "@/lib/auth/owner";
 import { connectorSealKey, has } from "@/lib/capabilities";
 import { EMPTY_INCOME, revenueByMonth, type IncomePayload, type IncomeSnapshot } from "./income";
 import { movementsFrom, revenueFrom, type Movement } from "./mrr";
-import { DEMO_PRODUCT_MAP, DEMO_PRODUCTS, demoBillingEvents } from "./seed";
+import { DEMO_PRODUCT_MAP, DEMO_PRODUCTS, demoBillingEvents, demoGoals } from "./seed";
 import { computedSnapshots, snapshotDays, SNAPSHOT_DAYS } from "./snapshots";
 import { loadIncome } from "./store";
 
@@ -37,6 +37,7 @@ export async function incomeFor(owner: Owner, now = new Date()): Promise<IncomeP
     movements: loaded.movements,
     revenue: revenueByMonth(lines),
     snapshots: loaded.snapshots,
+    goals: loaded.goals,
   };
 }
 
@@ -82,5 +83,6 @@ export function demoIncome(now: Date): IncomePayload {
     movements: movements.map(wire),
     revenue: revenueByMonth(revenueFrom(events, DEMO_PRODUCT_MAP)),
     snapshots,
+    goals: demoGoals(now),
   };
 }

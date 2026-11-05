@@ -1,5 +1,6 @@
 import { isCurrency, type Currency } from "@/lib/money/currency";
 import type { Product } from "./connectors";
+import type { Goal } from "./goals";
 import { metrics, type Metrics, type MovementKind, type RevenueLine } from "./mrr";
 
 // The income dashboard's read model (T42), pure: what /api/income sends, and
@@ -60,9 +61,11 @@ export interface IncomePayload {
   revenue: RevenueMonth[];
   /** The last 30 days of metric_snapshot, both sources. */
   snapshots: IncomeSnapshot[];
+  /** MRR and savings goals (T43). */
+  goals: Goal[];
 }
 
-export const EMPTY_INCOME: Omit<IncomePayload, "source"> = { available: false, connectors: 0, products: [], movements: [], revenue: [], snapshots: [] };
+export const EMPTY_INCOME: Omit<IncomePayload, "source"> = { available: false, connectors: 0, products: [], movements: [], revenue: [], snapshots: [], goals: [] };
 
 /** Anything to show: MRR movements or paid orders. One-time sales alone still count (review FIX, T42). */
 export function hasIncome(payload: Pick<IncomePayload, "movements" | "revenue">): boolean {

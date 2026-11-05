@@ -91,6 +91,8 @@ export function demoNotices(now: number, extra: readonly NewNotice[] = []): Noti
   const list: Notice[] = [
     ...extra.map((n) => ({ ...n, id: `demo-${n.dedupeKey}`, createdAt: now - 60 * 60_000, readAt: null })),
     { id: "demo-1", kind: "timer", title: "Timer done", body: "Sample: 25 min focus", href: null, dedupeKey: "timer:demo-1", createdAt: now - 12 * 60_000, readAt: null },
+    // A sample income alert, so the island's saas-alert shows in demo (T43). Key shape per V37.
+    { id: "demo-3", kind: "income", title: "New customer", body: "Sample: rawstash", href: "/income", dedupeKey: "saas:demo:new:demo-customer", createdAt: now - 40 * 60_000, readAt: null },
     {
       id: "demo-2",
       kind: "timer",

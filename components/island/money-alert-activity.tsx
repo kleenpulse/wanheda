@@ -129,7 +129,8 @@ function AlertCard({ alert, today }: { alert: SubAlertView; today: Day }) {
 const ISLAND_BUTTON =
   "inline-flex h-9 items-center gap-1.5 rounded-full px-4 text-sm font-medium outline-none transition-[background-color,transform] duration-150 active:scale-95 focus-visible:ring-2 focus-visible:ring-island-foreground/70";
 
-function IslandButton({ tone = "plain", onClick, children }: { tone?: "plain" | "signal"; onClick: () => void; children: React.ReactNode }) {
+/** The island card's pill button; shared by every alert card. */
+export function IslandButton({ tone = "plain", onClick, children }: { tone?: "plain" | "signal"; onClick: () => void; children: React.ReactNode }) {
   return (
     <button
       type="button"

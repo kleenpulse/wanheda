@@ -29,7 +29,7 @@ export interface WidgetDef {
 }
 
 /** Activity kinds on the bus (FRD 4.3). Phase 1 publishes timers only. */
-export type ActivityKind = "media" | "speech" | "timer" | "transfer" | "sync" | "money-alert" | "agent" | "pomodoro";
+export type ActivityKind = "media" | "speech" | "timer" | "transfer" | "sync" | "money-alert" | "saas-alert" | "agent" | "pomodoro";
 
 /** Size of a mini window in px. The layer clamps it to the screen. */
 export interface WindowSize {
@@ -175,6 +175,7 @@ const INCOME = {
     },
   ],
   windows: [],
+  activities: ["saas-alert"],
 } as const satisfies ModuleManifest;
 
 /** The apps, in rail order. */

@@ -490,6 +490,24 @@ function PaletteBody({
               ))
             : null}
           <Item
+            value="income-net"
+            keywords={["net", "income", "spending", "savings", "rate", "runway", "cash", "burn"]}
+            icon={TrendingUp}
+            title="Open net income and runway"
+            onSelect={run(() => {
+              router.push("/income/net");
+            })}
+          />
+          <Item
+            value="income-goals"
+            keywords={["goal", "goals", "target", "mrr", "save", "savings", "projection", "on track"]}
+            icon={Target}
+            title="Open goals"
+            onSelect={run(() => {
+              router.push("/income/goals");
+            })}
+          />
+          <Item
             value="income-rebuild"
             keywords={["rebuild", "recompute", "income", "mrr", "movements", "polar", "metrics"]}
             icon={RefreshCcw}
