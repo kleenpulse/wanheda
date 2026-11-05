@@ -8,14 +8,16 @@ import { TAB_SPRING } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import { usePeriodParam } from "./use-period";
 
-// Entries, analytics and subscriptions are three pages of one app. The links carry the period
+// Entries, analytics, budgets, subscriptions and rules are pages of one app. The links carry the period
 // (`?p=`), so a hop keeps it, and live in the money layout, so the pill
 // slides between them like the house Segmented.
 
 const TABS = [
   { href: "/money", label: "Entries" },
   { href: "/money/analytics", label: "Analytics" },
+  { href: "/money/budgets", label: "Budgets" },
   { href: "/money/subscriptions", label: "Subscriptions" },
+  { href: "/money/rules", label: "Rules" },
 ] as const;
 
 export function MoneyTabs() {
@@ -24,7 +26,7 @@ export function MoneyTabs() {
   return (
     <nav
       aria-label="Money pages"
-      className="flex w-fit max-w-full items-center rounded-pill bg-sheet p-1 ring-1 ring-border dark:bg-background/40 dark:ring-glass-border"
+      className="flex w-fit max-w-full items-center overflow-x-auto rounded-pill bg-sheet p-1 ring-1 ring-border dark:bg-background/40 dark:ring-glass-border"
     >
       {TABS.map((t) => {
         const active = pathname === t.href;

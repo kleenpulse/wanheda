@@ -4,6 +4,7 @@ import * as React from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAccount } from "@/components/shell/account";
 import { createMoneyRuntime, useMoneyLocal, type MoneyRuntime } from "./money-runtime";
+import { usePrivacyShortcut } from "./privacy";
 
 // The money runtime for the whole shell (see money-runtime.ts): one outbox
 // per tab, draining from any page, so the palette's quick-add is sent even
@@ -16,6 +17,8 @@ export function MoneyProvider({ children }: { children: React.ReactNode }) {
   const demo = useAccount().kind !== "owner";
   const runtime = React.useMemo(() => createMoneyRuntime(qc, demo), [qc, demo]);
   React.useEffect(() => runtime.start(), [runtime]);
+  // Privacy mode's shortcut works on every page, like the palette's.
+  usePrivacyShortcut();
   return <Ctx.Provider value={runtime}>{children}</Ctx.Provider>;
 }
 

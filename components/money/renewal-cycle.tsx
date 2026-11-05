@@ -1,6 +1,8 @@
 "use client";
 
 import * as React from "react";
+import { Pin } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAnimationLoop, type Metrics } from "@/hooks/use-animation-loop";
 import { useReducedMotion } from "@/hooks/use-reduced-motion";
 import type { CategoryColor } from "@/lib/money/categories";
@@ -69,6 +71,75 @@ export function RenewalCycle({ subscriptions, today, base }: { subscriptions: re
   );
 }
 
+const PIN_KEY = "wanheda-home-cycle";
+const pinListeners = new Set<() => void>();
+
+function readPin(): string | null {
+  try {
+    return localStorage.getItem(PIN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function subscribePin(listener: () => void) {
+  pinListeners.add(listener);
+  const onStorage = (e: StorageEvent) => {
+    if (e.key === PIN_KEY) listener();
+  };
+  window.addEventListener("storage", onStorage);
+  return () => {
+    pinListeners.delete(listener);
+    window.removeEventListener("storage", onStorage);
+  };
+}
+
+function writePin(id: string) {
+  try {
+    localStorage.setItem(PIN_KEY, id);
+  } catch {
+    // Private mode: the pick lasts until the page reloads.
+  }
+  for (const l of pinListeners) l();
+}
+
+/**
+ * Home's billing cycle (user 2026-11-05): the liquid card for one active
+ * subscription. With several, the owner pins the one to show (this device;
+ * the most expensive first until they pick), from a picker on the card.
+ * Null when nothing is active.
+ */
+export function PinnedCycle({ subscriptions, today, base }: { subscriptions: readonly Subscription[]; today: Day; base: Currency }) {
+  const active = React.useMemo(() => byMonthlyCost(subscriptions, base), [subscriptions, base]);
+  const pinned = React.useSyncExternalStore(subscribePin, readPin, () => null);
+  const headingId = React.useId();
+  const sub = active.find((s) => s.id === pinned) ?? active[0];
+  if (!sub) return null;
+  const controls =
+    active.length > 1 ? (
+      <Select
+        items={active.map((s) => ({ value: s.id, label: s.name }))}
+        value={sub.id}
+        onValueChange={(v) => {
+          if (v) writePin(v);
+        }}
+      >
+        <SelectTrigger aria-label="Subscription shown on Home" className="h-7 max-w-36 rounded-pill bg-sheet pr-2 pl-3 text-[12px] text-foreground shadow-sm">
+          <Pin aria-hidden className="size-3 shrink-0 text-signal" />
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent align="end">
+          {active.map((s) => (
+            <SelectItem key={s.id} value={s.id}>
+              {s.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    ) : undefined;
+  return <LiquidCard cycle={cycleOf(sub, today)} today={today} headingId={headingId} fill controls={controls} />;
+}
+
 /** Linear mix of two colours, t of the way from a to b. */
 const mix = (a: Rgb, b: Rgb, t: number): Rgb => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
 
@@ -93,17 +164,34 @@ function useOnScreen(ref: React.RefObject<HTMLElement | null>): boolean {
  * The card's words, uncoloured: each copy takes its colour from its wrapper.
  * Only the first copy carries the heading id and is read out.
  */
-function LiquidFace({ cycle, today, className, copy }: { cycle: Cycle; today: Day; className: string; copy: boolean }) {
+function LiquidFace({
+  cycle,
+  today,
+  className,
+  copy,
+  headingId,
+  fill,
+  hideCycle,
+}: {
+  cycle: Cycle;
+  today: Day;
+  className: string;
+  copy: boolean;
+  headingId: string;
+  fill: boolean;
+  /** Controls sit where the cycle label would (Home's pin picker). */
+  hideCycle: boolean;
+}) {
   const { sub, from, next, progress } = cycle;
   const used = daysBetween(from, today);
   const length = daysBetween(from, next);
   return (
-    <div aria-hidden={copy || undefined} className={cn("flex flex-col gap-3 p-5", className)}>
-      <header className="flex items-center justify-between gap-3">
-        <h2 id={copy ? undefined : "subs-cycle"} className="font-display text-[17px] leading-tight">
+    <div aria-hidden={copy || undefined} className={cn("flex flex-col gap-3 p-5", fill && "h-full", className)}>
+      <header className="flex min-h-7 items-center justify-between gap-3">
+        <h2 id={copy ? undefined : headingId} className="font-display text-[17px] leading-tight">
           Billing cycle
         </h2>
-        <span className="tabular [font-family:var(--font-label)] text-[11px] tracking-[0.06em] uppercase">{cycleLabel(sub)}</span>
+        {hideCycle ? null : <span className="tabular [font-family:var(--font-label)] text-[11px] tracking-[0.06em] uppercase">{cycleLabel(sub)}</span>}
       </header>
       <div className="flex items-center justify-between gap-3">
         <span className="min-w-0 truncate text-[14px] font-medium">{sub.name}</span>
@@ -111,10 +199,11 @@ function LiquidFace({ cycle, today, className, copy }: { cycle: Cycle; today: Da
           {used} / {length} days
         </span>
       </div>
-      <div className="grid place-items-center py-5">
-        <span className="tabular font-display text-[56px] leading-none font-semibold tracking-[-0.02em]">
+      <div className={cn("grid place-items-center py-5", fill && "flex-1")}>
+        {/* Home's widget has the room: the figure goes bigger there (user 2026-11-05). */}
+        <span className={cn("tabular font-display leading-none font-black tracking-[-0.03em]", fill ? "text-[124px]" : "text-[84px]")}>
           {Math.round(progress * 100)}
-          <span className="text-[26px]">%</span>
+          <span className={fill ? "text-[52px]" : "text-[36px]"}>%</span>
         </span>
       </div>
       <div className="flex items-baseline justify-between gap-3 text-[12.5px]">
@@ -140,7 +229,21 @@ function LiquidFace({ cycle, today, className, copy }: { cycle: Cycle; today: Da
  * gives the same split in pure colours at any size.) A duo-tone: the signal
  * hue over its soft tint.
  */
-function LiquidCard({ cycle, today }: { cycle: Cycle; today: Day }) {
+function LiquidCard({
+  cycle,
+  today,
+  headingId = "subs-cycle",
+  fill = false,
+  controls,
+}: {
+  cycle: Cycle;
+  today: Day;
+  headingId?: string;
+  /** Fill the parent's height (a Home widget). */
+  fill?: boolean;
+  /** Drawn above both copies of the words, at the header's right. */
+  controls?: React.ReactNode;
+}) {
   const reduced = useReducedMotion();
   const colors = useCanvasColors();
   const { sub, from, next, progress } = cycle;
@@ -237,8 +340,8 @@ function LiquidCard({ cycle, today }: { cycle: Cycle; today: Day }) {
   return (
     <section
       ref={containerRef}
-      aria-labelledby="subs-cycle"
-      className="relative isolate min-w-0 overflow-hidden rounded-card bg-signal-soft shadow-(--shadow-card)"
+      aria-labelledby={headingId}
+      className={cn("relative isolate min-w-0 overflow-hidden rounded-card bg-signal-soft shadow-(--shadow-card)", fill && "h-full")}
     >
       <canvas ref={canvasRef} aria-hidden className="absolute inset-0 -z-10 size-full" />
       <div
@@ -250,12 +353,13 @@ function LiquidCard({ cycle, today }: { cycle: Cycle; today: Day }) {
         className="sr-only"
       />
       {/* The box fills the card (no padding on the section), so the clip's px match the canvas's. */}
-      <div className="relative">
-        <LiquidFace cycle={cycle} today={today} copy={false} className="text-foreground" />
+      <div className={cn("relative", fill && "h-full")}>
+        <LiquidFace cycle={cycle} today={today} copy={false} className="text-foreground" headingId={headingId} fill={fill} hideCycle={controls !== undefined} />
         <div ref={wetRef} aria-hidden className="absolute inset-0 text-inverse-foreground" style={{ clipPath: "inset(100% 0 0 0)" }}>
-          <LiquidFace cycle={cycle} today={today} copy className="" />
+          <LiquidFace cycle={cycle} today={today} copy className="" headingId={headingId} fill={fill} hideCycle={controls !== undefined} />
         </div>
       </div>
+      {controls ? <div className="absolute top-4 right-4 z-10">{controls}</div> : null}
     </section>
   );
 }

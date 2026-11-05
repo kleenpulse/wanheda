@@ -2,13 +2,14 @@
 
 import { z } from "zod";
 import { requireOwner } from "@/lib/auth/owner";
-import { accountWriteSchema, txnWriteSchema } from "@/lib/money/money";
-import { raiseMoneyAlerts } from "@/lib/money/alerts";
-import type { AccountWriteResult, SubDeleteResult, SubSaveResult, TxnDeleteResult, TxnSaveResult } from "@/lib/money/outbox";
+import { accountWriteSchema, categoryWriteSchema, txnWriteSchema } from "@/lib/money/money";
+import { raiseBudgetAlerts, raiseMoneyAlerts } from "@/lib/money/alerts";
+import type { AccountWriteResult, CategorySaveResult, SubDeleteResult, SubSaveResult, TxnDeleteResult, TxnSaveResult } from "@/lib/money/outbox";
 import {
   deleteSubscription as deleteStoredSubscription,
   deleteTxn as deleteStoredTxn,
   removeCategory as removeStoredCategory,
+  saveCategory as saveStoredCategory,
   saveAccount as saveStoredAccount,
   saveSubscription as saveStoredSubscription,
   saveTxn as saveStoredTxn,
@@ -26,7 +27,7 @@ export type DoneResult = TxnDeleteResult;
 export type AccountResult = AccountWriteResult;
 export type RemoveCategoryResult = { ok: true; kind: "archived" | "deleted" | "missing" } | { ok: false; reason: "demo" | "invalid" | "failed" };
 
-/** Creates or edits one txn. The server sets its currency from the account. */
+/** Creates or edits one txn. The server sets its currency from the account. Budget alerts it makes due come back with it (V31). */
 export async function saveTxn(input: unknown): Promise<SaveTxnResult> {
   const owner = await requireOwner();
   if (owner.kind === "demo") return { ok: false, reason: "demo" };
@@ -37,7 +38,7 @@ export async function saveTxn(input: unknown): Promise<SaveTxnResult> {
     if (!outcome) return { ok: false, reason: "failed" };
     if (outcome.kind === "not-yours") return { ok: false, reason: "invalid" };
     if (outcome.kind === "archived-account") return { ok: false, reason: "archived-account" };
-    return { ok: true, txn: outcome.txn };
+    return { ok: true, txn: outcome.txn, notices: await raiseBudgetAlerts(owner.user.id) };
   } catch (error) {
     console.error("saveTxn failed", error);
     return { ok: false, reason: "failed" };
@@ -56,6 +57,22 @@ export async function deleteTxn(input: unknown): Promise<DoneResult> {
     return (await deleteStoredTxn(owner.user.id, parsed.data.id)) ? { ok: true } : { ok: false, reason: "failed" };
   } catch (error) {
     console.error("deleteTxn failed", error);
+    return { ok: false, reason: "failed" };
+  }
+}
+
+/** Creates or renames a category the owner made (a name typed for "Other" in the form). */
+export async function saveCategory(input: unknown): Promise<CategorySaveResult> {
+  const owner = await requireOwner();
+  if (owner.kind === "demo") return { ok: false, reason: "demo" };
+  const parsed = categoryWriteSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, reason: "invalid" };
+  try {
+    const saved = await saveStoredCategory(owner.user.id, parsed.data);
+    if (saved === null) return { ok: false, reason: "failed" };
+    return saved === "not-yours" ? { ok: false, reason: "invalid" } : { ok: true, category: saved };
+  } catch (error) {
+    console.error("saveCategory failed", error);
     return { ok: false, reason: "failed" };
   }
 }

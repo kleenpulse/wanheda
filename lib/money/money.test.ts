@@ -1,5 +1,20 @@
 import { describe, expect, it } from "vitest";
-import { applyPending, byId, compareTxns, defaultAccount, flowOf, removeTxn, totals, txnWriteSchema, upsertTxn, type Txn } from "./money";
+import {
+  applyPending,
+  applyPendingCategories,
+  byId,
+  categoryWriteSchema,
+  compareTxns,
+  defaultAccount,
+  findCategoryByName,
+  flowOf,
+  newCategory,
+  removeTxn,
+  totals,
+  txnWriteSchema,
+  upsertTxn,
+  type Txn,
+} from "./money";
 import { DEMO_ACCOUNTS, demoCategories, demoCategoryId, seedMoney } from "./seed";
 import type { Account } from "./money";
 
@@ -130,5 +145,45 @@ describe("seedMoney", () => {
     const known = byId(a.categories);
     expect(a.txns.every((t) => t.categoryId === null || known.has(t.categoryId))).toBe(true);
     expect(a.categories.every((c) => c.parentId === null || known.get(c.parentId)?.parentId === null)).toBe(true);
+  });
+});
+
+describe("categories named in the form", () => {
+  const list = demoCategories();
+
+  it("finds a live one of the same kind, case and spacing ignored", () => {
+    expect(findCategoryByName(list, "  groceries ", "expense")?.slug).toBe("groceries");
+    expect(findCategoryByName(list, "EATING   OUT", "expense")?.slug).toBe("food-out");
+    // Same name, other kind: not a match.
+    expect(findCategoryByName(list, "Groceries", "income")).toBeNull();
+    // An archived one is not reused: a fresh category is made instead.
+    expect(findCategoryByName(list.map((c) => (c.slug === "groceries" ? { ...c, archived: true } : c)), "Groceries", "expense")).toBeNull();
+    expect(findCategoryByName(list, "   ", "expense")).toBeNull();
+  });
+
+  it("makes a top-level, slug-less category, trimmed and capped", () => {
+    const c = newCategory("00000000-0000-4000-8000-0000000000aa", `  Gym ${"x".repeat(60)}`, "expense");
+    expect(c).toMatchObject({ slug: null, parentId: null, kind: "expense", archived: false });
+    expect(c.name.length).toBe(40);
+    expect(c.name.startsWith("Gym x")).toBe(true);
+  });
+
+  it("the write schema refuses blank, long, transfer and extra keys", () => {
+    const ok = { id: crypto.randomUUID(), name: " Gym ", kind: "expense", emoji: "🏷️", color: "slate" };
+    const parsed = categoryWriteSchema.safeParse(ok);
+    expect(parsed.success && parsed.data.name).toBe("Gym");
+    expect(categoryWriteSchema.safeParse({ ...ok, name: "   " }).success).toBe(false);
+    expect(categoryWriteSchema.safeParse({ ...ok, name: "x".repeat(41) }).success).toBe(false);
+    expect(categoryWriteSchema.safeParse({ ...ok, kind: "transfer" }).success).toBe(false);
+    expect(categoryWriteSchema.safeParse({ ...ok, slug: "gym" }).success).toBe(false);
+    expect(categoryWriteSchema.safeParse({ ...ok, color: "#ff0000" }).success).toBe(false);
+  });
+
+  it("a pending one shows in the payload until the server has it", () => {
+    const payload = seedMoney("2026-11-05");
+    const gym = newCategory("00000000-0000-4000-8000-0000000000bb", "Gym", "expense");
+    const shown = applyPendingCategories(payload, { [gym.id]: gym });
+    expect(shown.categories.at(-1)).toEqual(gym);
+    expect(applyPendingCategories(shown, { [gym.id]: { ...gym, name: "Gym & pool" } }).categories.filter((c) => c.id === gym.id)).toHaveLength(1);
   });
 });

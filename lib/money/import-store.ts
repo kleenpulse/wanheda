@@ -5,7 +5,9 @@ import { importBatch, importMapping, moneyAccount, txn } from "@/lib/db/schema";
 import { assertMinor, isCurrency } from "./currency";
 import type { Txn } from "./money";
 import type { ImportBatchInfo, ImportCheck, ImportSetup, ImportWrite } from "./import/write";
-import { present, toTxn } from "./store";
+import { loadRules } from "./plans-store";
+import { applyRules } from "./rules";
+import { loadCategories, present, toTxn } from "./store";
 
 // Statement imports (SPEC V12, V32). Callers pass the owner's id from
 // requireOwner() (V7). The batch row, the saved mapping and every txn land in
@@ -74,6 +76,11 @@ export async function importStatement(userId: string, w: ImportWrite): Promise<I
   const before = await batchByKey(db, userId, w.fileKey);
   if (before) return settled(db, userId, w, before);
 
+  // Rules (FR-MONEY-13) set each row's category and tags. A rule whose category is archived only adds tags.
+  const [rules, categories] = await Promise.all([loadRules(userId), loadCategories(userId)]);
+  const open = new Set(categories.filter((c) => !c.archived).map((c) => c.id));
+  const ruled = (payee: string) => applyRules<{ payee: string; categoryId: string | null; tags: string[] }>({ payee, categoryId: null, tags: [] }, rules, (id) => open.has(id));
+
   const mapping = w.mapping;
   const statements = [];
   if (mapping) {
@@ -106,17 +113,22 @@ export async function importStatement(userId: string, w: ImportWrite): Promise<I
       db
         .insert(txn)
         .values(
-          w.rows.slice(i, i + INSERT_CHUNK).map((r) => ({
-            userId,
-            accountId: w.accountId,
-            postedOn: r.postedOn,
-            amountMinor: assertMinor(r.amountMinor),
-            currency: account.currency,
-            payee: r.payee,
-            source: "import",
-            externalId: r.key,
-            importBatchId: w.batchId,
-          })),
+          w.rows.slice(i, i + INSERT_CHUNK).map((r) => {
+            const { categoryId, tags } = ruled(r.payee);
+            return {
+              userId,
+              accountId: w.accountId,
+              postedOn: r.postedOn,
+              amountMinor: assertMinor(r.amountMinor),
+              currency: account.currency,
+              payee: r.payee,
+              categoryId,
+              tags,
+              source: "import",
+              externalId: r.key,
+              importBatchId: w.batchId,
+            };
+          }),
         )
         .onConflictDoNothing({ target: [txn.accountId, txn.source, txn.externalId] })
         .returning(),

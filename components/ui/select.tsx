@@ -70,7 +70,7 @@ export function SelectContent({
           <SelectPrimitive.ScrollUpArrow className="absolute inset-x-0 top-0 z-10 flex h-7 items-center justify-center text-ink-2">
             <ChevronUp aria-hidden className="size-4" />
           </SelectPrimitive.ScrollUpArrow>
-          <SelectPrimitive.List className="max-h-[inherit] scroll-py-2 overflow-y-auto overscroll-contain p-1.5">{children}</SelectPrimitive.List>
+          <SelectPrimitive.List className="max-h-[inherit] scroll-py-2 overflow-x-hidden overflow-y-auto overscroll-contain p-1.5">{children}</SelectPrimitive.List>
           <SelectPrimitive.ScrollDownArrow className="absolute inset-x-0 bottom-0 z-10 flex h-7 items-center justify-center text-ink-2">
             <ChevronDown aria-hidden className="size-4" />
           </SelectPrimitive.ScrollDownArrow>

@@ -6,7 +6,7 @@ import { PageFrame } from "@/components/shell/page-frame";
 import { MONEY_KEY } from "@/lib/money/money";
 import { moneyFor } from "@/lib/money/server";
 
-// Money (FRD 6.3): entries, analytics and subscriptions, pages over one cache. The
+// Money (FRD 6.3): entries, analytics, budgets, subscriptions and rules, pages over one cache. The
 // layout awaits nothing, so a hop here or between them paints at once from
 // the client cache; the ledger window streams in beside it and refreshes the
 // cache (SPEC V24). It stays mounted across the pages, so the tab pill

@@ -8,7 +8,7 @@ import { Segmented } from "@/components/ui/segmented";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { exponentOf, formatMoney, parseAmount, toInputString } from "@/lib/money/currency";
 import { addDays, isDay, type Day } from "@/lib/money/dates";
-import { PAYEE_MAX, byId, defaultAccount, type Category, type MoneyPayload, type Txn } from "@/lib/money/money";
+import { CATEGORY_NAME_MAX, PAYEE_MAX, byId, defaultAccount, findCategoryByName, newCategory, type Category, type MoneyPayload, type Txn } from "@/lib/money/money";
 import { cn } from "@/lib/utils";
 import { CategoryMark } from "./money-text";
 import { lastAccountId, newTxn, useMoneyApi } from "./use-money";
@@ -29,9 +29,13 @@ const FIELD =
 const LABEL = "readout mb-1.5 block";
 
 /** Categories for the picker: parents, each followed by its children, per kind. */
+/** The seeded catch-alls ("Other", "Other income"): listed last, after every named category. */
+const CATCH_ALL = new Set(["other", "income-other"]);
+
 export function grouped(categories: readonly Category[], kind: Category["kind"]) {
   const live = categories.filter((c) => !c.archived && c.kind === kind);
-  const tops = live.filter((c) => !c.parentId);
+  const isCatchAll = (c: Category) => c.slug !== null && CATCH_ALL.has(c.slug);
+  const tops = live.filter((c) => !c.parentId).sort((a, b) => Number(isCatchAll(a)) - Number(isCatchAll(b)));
   return tops.flatMap((p) => [{ c: p, child: false }, ...live.filter((c) => c.parentId === p.id).map((c) => ({ c, child: true }))]);
 }
 
@@ -70,6 +74,8 @@ export function TxnForm({
   const [accountId, setAccountId] = React.useState<string>(() => initial?.accountId ?? defaultAccount(payload.accounts, lastAccountId())?.id ?? "");
   const [day, setDay] = React.useState<Day>(initial?.postedOn ?? today);
   const [tried, setTried] = React.useState(false);
+  // Naming "Other" makes a real category for next time (user 2026-11-05).
+  const [newName, setNewName] = React.useState("");
   const amountRef = React.useRef<HTMLInputElement>(null);
   const formId = React.useId();
 
@@ -84,8 +90,12 @@ export function TxnForm({
   const categoryItems = [{ value: null, label: "No category" }, ...options.map(({ c }) => ({ value: c.id, label: c.name }))];
   const accountItems = openAccounts.map((a) => ({ value: a.id, label: `${a.name} · ${a.currency}` }));
 
+  const picked = categories.get(categoryId);
+  const naming = picked?.slug != null && CATCH_ALL.has(picked.slug);
+
   const pickCategory = (id: string) => {
     setCategoryId(id);
+    setNewName("");
     const c = categories.get(id);
     if (c?.kind === "income") setDirection("in");
     else if (c?.kind === "expense") setDirection("out");
@@ -95,13 +105,25 @@ export function TxnForm({
     e.preventDefault();
     setTried(true);
     if (!account || minor === null || minor === 0 || !isDay(day)) return;
+    // A name typed for "Other": reuse a live category of that name, else make one, queued ahead of the txn.
+    let chosen = categoryId || null;
+    const typed = naming ? newName.trim() : "";
+    if (typed !== "") {
+      const existing = findCategoryByName(payload.categories, typed, kind);
+      if (existing) chosen = existing.id;
+      else {
+        const made = newCategory(crypto.randomUUID(), typed, kind);
+        api.saveCategory(made);
+        chosen = made.id;
+      }
+    }
     const fields = {
       accountId: account.id,
       postedOn: day,
       amountMinor: direction === "in" ? minor : -minor,
       currency: account.currency,
       payee: payee.trim().slice(0, PAYEE_MAX),
-      categoryId: categoryId || null,
+      categoryId: chosen,
     };
     api.save(initial ? { ...initial, ...fields } : newTxn({ ...fields, tags: [] }));
     if (initial) {
@@ -111,6 +133,7 @@ export function TxnForm({
     setAmount("");
     setPayee("");
     setCategoryId("");
+    setNewName("");
     setTried(false);
     onSaved?.();
     amountRef.current?.focus();
@@ -212,13 +235,40 @@ export function TxnForm({
                 <span>No category</span>
               </SelectItem>
               {options.map(({ c, child }) => (
-                <SelectItem key={c.id} value={c.id} className={child ? "ml-5 before:absolute before:inset-y-1 before:-left-2 before:w-px before:bg-border dark:before:bg-glass-border" : undefined}>
+                <SelectItem key={c.id} value={c.id} className={child ? "pl-7 before:absolute before:inset-y-1 before:left-3 before:w-px before:bg-border" : undefined}>
                   <CategoryMark category={c} className="size-7 text-[14px]" />
                   <span>{c.name}</span>
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
+          {naming ? (
+            <div className="mt-2">
+              <label htmlFor={`${formId}-new-category`} className="sr-only">
+                Name a new category
+              </label>
+              <input
+                id={`${formId}-new-category`}
+                value={newName}
+                maxLength={CATEGORY_NAME_MAX}
+                autoComplete="off"
+                enterKeyHint="done"
+                onChange={(e) => {
+                  setNewName(e.target.value);
+                }}
+                placeholder={kind === "income" ? "Name it: Rent in, Bonus… (optional)" : "Name it: Gym, Gifts… (optional)"}
+                aria-describedby={`${formId}-new-category-note`}
+                className={FIELD}
+              />
+              <p id={`${formId}-new-category-note`} className="mt-1 text-[12px] text-ink-2">
+                {newName.trim() === ""
+                  ? `Leave empty to keep ${picked.name}.`
+                  : findCategoryByName(payload.categories, newName, kind)
+                    ? "Uses the category you already have with this name."
+                    : "Saved as a new category, ready next time."}
+              </p>
+            </div>
+          ) : null}
         </div>
         <div>
           <label htmlFor={`${formId}-payee`} className={LABEL}>

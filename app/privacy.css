@@ -1,0 +1,15 @@
+/*
+  Privacy mode (T38, lib/money/privacy.ts): every money figure carries
+  `data-money` (SPEC V25: figures only show through <MoneyText>; chart axis
+  ticks carry it too) and shows as dots once React knows the mode
+  (`data-masked`). Until then (the first paint after a reload, before
+  hydration) an unmasked figure is invisible, so the boot script's attribute
+  means a real amount never flashes. Visibility, not display: the layout holds.
+*/
+html[data-privacy] [data-money]:not([data-masked]) {
+  visibility: hidden;
+}
+
+html[data-privacy] [data-money] {
+  user-select: none;
+}

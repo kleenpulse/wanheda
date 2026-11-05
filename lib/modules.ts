@@ -1,4 +1,4 @@
-import { CloudSun, Clock, DollarSign, House, NotebookPen, Pin, Settings, Sunrise, Timer, type LucideIcon } from "lucide-react";
+import { CalendarClock, CloudSun, Clock, DollarSign, House, NotebookPen, Pin, Settings, Sunrise, Target, Timer, Wallet, type LucideIcon } from "lucide-react";
 import type { Route } from "next";
 
 // The module registry (FRD 4.2). The shell builds the rail, the tab bar, the
@@ -75,7 +75,6 @@ const HOME = {
   blurb: "Your board",
   pinned: true,
   windows: [],
-  // "today" is a placeholder: it grows spend and renewals with Money.
   widgets: [
     {
       id: "home.clock",
@@ -125,7 +124,30 @@ const MONEY = {
   icon: DollarSign,
   route: "/money",
   blurb: "Spending, income and subscriptions",
-  widgets: [],
+  widgets: [
+    {
+      id: "money.today",
+      title: "Spent today",
+      blurb: "Today's spend and the month so far, with a quick add",
+      icon: Wallet,
+      size: { w: 4, h: 2, minW: 3, minH: 2, maxH: 3 },
+    },
+    {
+      id: "money.budget",
+      title: "Budgets",
+      blurb: "This month's budgets and how much is used",
+      icon: Target,
+      size: { w: 4, h: 4, minW: 3, minH: 2 },
+    },
+    {
+      // The id predates the billing-cycle card and is stored in layouts, so it stays.
+      id: "money.renewals",
+      title: "Billing cycle",
+      blurb: "Where a subscription is in its cycle; pin the one to show",
+      icon: CalendarClock,
+      size: { w: 4, h: 4, minW: 3, minH: 2 },
+    },
+  ],
   windows: [],
   activities: ["money-alert"],
 } as const satisfies ModuleManifest;
@@ -155,7 +177,7 @@ export const SYSTEM_PAGES: readonly ModuleManifest[] = [
 export type WidgetId = (typeof MODULES)[number]["widgets"][number]["id"];
 
 /** Every widget on offer, in picker order. */
-export const WIDGETS: readonly (WidgetDef & { id: WidgetId })[] = MODULES.flatMap((m) => m.widgets);
+export const WIDGETS: readonly (WidgetDef & { id: WidgetId })[] = MODULES.flatMap((m): readonly (WidgetDef & { id: WidgetId })[] => m.widgets);
 
 const WIDGET_IDS: ReadonlySet<string> = new Set(WIDGETS.map((w) => w.id));
 

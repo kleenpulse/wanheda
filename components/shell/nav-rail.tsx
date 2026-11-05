@@ -78,7 +78,7 @@ export function NavRail({
       className={cn(
         "sticky top-0 z-20 h-svh shrink-0 flex-col gap-4 overflow-x-hidden overflow-y-auto bg-band px-5 py-5 [scrollbar-width:none]",
         "transition-[width] duration-300 ease-out-quint motion-reduce:transition-none",
-        "dark:border-r dark:border-glass-border",
+        "dark:border-r dark:border-rail-border",
         expanded ? "w-[232px]" : "w-[84px]",
         className,
       )}
@@ -95,7 +95,7 @@ export function NavRail({
           </span>
         </Link>
 
-        <div className="-mx-1.5 mt-2 flex flex-col gap-1.5 rounded-[28px] bg-sheet p-1.5 ring-1 ring-border dark:bg-card-nested dark:ring-glass-border">
+        <div className="-mx-1.5 mt-2 flex flex-col gap-1.5 rounded-[28px] bg-sheet p-1.5 ring-1 ring-border dark:bg-card-nested dark:ring-rail-border">
           {MODULES.map(link)}
         </div>
 

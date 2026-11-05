@@ -189,8 +189,11 @@ export function DatePicker({
   min,
   max,
   presets = [],
+  className,
 }: {
   id?: string;
+  /** For the trigger, e.g. a height that matches the row it sits in. */
+  className?: string;
   value: Day;
   onChange: (day: Day) => void;
   today: Day;
@@ -206,7 +209,7 @@ export function DatePicker({
   };
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
-      <Popover.Trigger id={id} className={TRIGGER} aria-label={`Day: ${longDayLabel(value)}`}>
+      <Popover.Trigger id={id} className={cn(TRIGGER, className)}aria-label={`Day: ${longDayLabel(value)}`}>
         <CalendarDays aria-hidden className="size-4 shrink-0 text-ink-2" strokeWidth={1.75} />
         <span className="tabular min-w-0 flex-1 truncate">{dayLabel(value, today)}</span>
         {value === today || value === addDays(today, -1) ? <span className="readout tabular shrink-0">{shortDayLabel(value)}</span> : null}

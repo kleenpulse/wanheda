@@ -67,7 +67,7 @@ function ShellFallback() {
       <div
         aria-hidden
         data-rail-skeleton
-        className="sticky top-0 hidden h-svh w-[84px] shrink-0 bg-band px-5 py-5 md:block dark:border-r dark:border-glass-border [html[data-rail=open]_&]:w-[232px]"
+        className="sticky top-0 hidden h-svh w-[84px] shrink-0 bg-band px-5 py-5 md:block dark:border-r dark:border-rail-border [html[data-rail=open]_&]:w-[232px]"
       >
         <div className="size-11 rounded-full bg-card-nested" />
       </div>

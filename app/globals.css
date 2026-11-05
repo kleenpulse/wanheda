@@ -72,6 +72,7 @@
 	--color-inverse-foreground: var(--inverse-foreground);
 	--color-glass: var(--glass);
 	--color-glass-border: var(--glass-border);
+	--color-rail-border: var(--rail-border);
 	--color-glow: var(--glow);
 	--color-critical: var(--critical);
 	--color-orb-1: var(--orb-1);
@@ -120,6 +121,8 @@
 
 	--shadow-card: var(--shadow-card-value);
 	--shadow-lift: var(--shadow-lift-value);
+	/* The dock floats at the screen's foot, where a long low lift shadow falls off-screen. */
+	--shadow-dock: var(--shadow-dock-value, var(--shadow-lift-value));
 	--shadow-glow: var(--shadow-glow-value);
 }
 
@@ -348,7 +351,9 @@
 	--inverse-foreground: #0b1616;
 	--glass: rgb(13 30 31 / 0.8);
 	--glass-thin: rgb(13 30 31 / 0.52);
-	--glass-border: rgb(160 220 215 / 0.14);
+	/* Flat like Ember (user 2026-11-05): no edges on cards, controls or glass. Only the rail keeps one. */
+	--glass-border: transparent;
+	--rail-border: rgb(160 220 215 / 0.14);
 	--glass-frost: rgb(13 30 31 / 0.46);
 	--glass-sheen: rgb(160 220 215 / 0.13);
 	--glass-edge: rgb(160 220 215 / 0.24);
@@ -396,8 +401,14 @@
 	--heat-3: oklch(from var(--signal) 0.76 c h);
 	--heat-4: oklch(from var(--signal) 0.88 c h);
 
-	--shadow-card-value: inset 0 1px 0 rgb(255 255 255 / 0.05), 0 24px 60px -32px rgb(0 0 0 / 0.75);
-	--shadow-lift-value: inset 0 1px 0 rgb(255 255 255 / 0.07), 0 26px 50px -24px rgb(0 0 0 / 0.85);
+	/* Cards sit flat; only things that float (menus, dialogs, a hovered card) cast a shadow, as in Ember. */
+	--shadow-card-value: none;
+	--shadow-lift-value: 0 26px 50px -24px rgb(0 0 0 / 0.85);
+	/* Nebula has no edges, so the dock needs a close, visible drop to lift off the page. */
+	/* Black alone vanishes on a near-black page: a faint top highlight catches light,
+	   a tight contact shadow seats it, a wide halo lifts it (user 2026-11-05: "looks flat"). */
+	--shadow-dock-value: inset 0 1px 0 rgb(255 255 255 / 0.08), 0 2px 6px rgb(0 0 0 / 0.5), 0 14px 32px -6px rgb(0 0 0 / 0.85),
+		0 32px 72px -12px rgb(0 0 0 / 0.9);
 	--shadow-glow-value: 0 0 0 1px rgb(230 194 122 / 0.5), 0 0 34px -6px rgb(230 194 122 / 0.45);
 
 	--background: #050a0b;
@@ -531,6 +542,7 @@
 	--glass: rgb(16 18 21 / 0.82);
 	--glass-thin: rgb(16 18 21 / 0.55);
 	--glass-border: rgb(226 230 233 / 0.09);
+	--rail-border: rgb(226 230 233 / 0.09);
 	--glass-frost: rgb(16 18 21 / 0.5);
 	--glass-sheen: rgb(226 230 233 / 0.06);
 	--glass-edge: rgb(226 230 233 / 0.12);
@@ -555,6 +567,8 @@
 
 	--shadow-card-value: none;
 	--shadow-lift-value: 0 22px 44px -22px rgb(0 0 0 / 0.8);
+	--shadow-dock-value: inset 0 1px 0 rgb(255 255 255 / 0.07), 0 2px 6px rgb(0 0 0 / 0.5), 0 14px 32px -6px rgb(0 0 0 / 0.85),
+		0 32px 72px -12px rgb(0 0 0 / 0.9);
 	--shadow-glow-value: 0 0 0 1px rgb(168 85 247 / 0.45), 0 0 30px -8px rgb(168 85 247 / 0.45);
 
 	--background: #0a0b0c;
@@ -687,7 +701,7 @@
 	font-feature-settings: "tnum";
 }
 
-/* Bento card: flat paper in Ember, lit glass in Nebula. */
+/* Bento card: flat paper in Ember, flat lit glass in Nebula; only Bench dark draws an edge. */
 @utility bento {
 	border-radius: var(--radius-card);
 	background: var(--card);
@@ -695,8 +709,10 @@
 	box-shadow: var(--shadow-card);
 	border: 1px solid transparent;
 	.dark & {
-		border-color: var(--border);
 		background-image: linear-gradient(160deg, rgb(255 255 255 / 0.035), transparent 42%);
+	}
+	[data-skin="bench"].dark & {
+		border-color: var(--border);
 	}
 }
 

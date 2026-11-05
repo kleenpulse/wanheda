@@ -19,9 +19,9 @@ function status(t: Timer, now: number): string {
 }
 
 /**
- * Today, Phase 1 cut: the date and what's running on the activity bus. Spend
- * and renewals join it with Money. The island owns the live countdown, so this
- * only refreshes every few seconds.
+ * Today: the date and what's running on the activity bus. Spend, budgets and
+ * renewals are Money's own widgets (T38). The island owns the live countdown,
+ * so this only refreshes every few seconds.
  */
 export function TodayWidget() {
   const now = useNow(5 * SECOND);
@@ -62,8 +62,6 @@ export function TodayWidget() {
           </ul>
         )}
 
-        <p className="readout mt-5">Coming</p>
-        <p className="mt-2 text-[13px] text-pretty text-ink-3">Today's spend and the next renewals show here once Money arrives.</p>
       </div>
     </WidgetCard>
   );
