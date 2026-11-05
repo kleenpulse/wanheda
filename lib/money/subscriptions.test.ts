@@ -17,6 +17,7 @@ import {
   parseAlertKey,
   renewalsAround,
   renewalsBetween,
+  subscriptionWriteOf,
   subscriptionWriteSchema,
   upcoming,
   type Subscription,
@@ -257,6 +258,14 @@ describe("subscriptionWriteSchema", () => {
 
   it("accepts a good write and trims the name", () => {
     expect(subscriptionWriteSchema.parse(ok).name).toBe("Netflix");
+  });
+
+  it("carries the charge a suggestion came from only when there is one (T37)", () => {
+    const sub = { ...blankSubscription("2026-11-05", "USD"), id: ok.id, name: "Netflix", amountMinor: 1_549, createdAt: 1 };
+    expect(subscriptionWriteOf(sub)).not.toHaveProperty("fromTxn");
+    const from = "0b9e1c4e-6f0a-4c39-9a51-2f8d7c3b1a99";
+    expect(subscriptionWriteSchema.parse(subscriptionWriteOf({ ...sub, fromTxn: from })).fromTxn).toBe(from);
+    expect(subscriptionWriteSchema.safeParse({ ...ok, fromTxn: "t1" }).success).toBe(false);
   });
 
   it.each([
