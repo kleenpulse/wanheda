@@ -3,10 +3,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const requireOwner = vi.fn();
 const addNotice = vi.fn();
 const markNoticesRead = vi.fn();
+const deleteNotices = vi.fn();
 vi.mock("@/lib/auth/owner", () => ({ requireOwner }));
-vi.mock("@/lib/notifications/store", () => ({ addNotice, markNoticesRead }));
+vi.mock("@/lib/notifications/store", () => ({ addNotice, deleteNotices, markNoticesRead }));
 
-const { markNotificationsRead, notifyTimerDone } = await import("./notifications");
+const { deleteNotifications, markNotificationsRead, notifyTimerDone } = await import("./notifications");
 
 const owner = { kind: "owner", user: { id: "user-1", email: "o@example.test", name: "O" } };
 const NOW = 1_800_000_000_000;
@@ -18,6 +19,7 @@ beforeEach(() => {
   requireOwner.mockReset();
   addNotice.mockReset();
   markNoticesRead.mockReset();
+  deleteNotices.mockReset();
 });
 
 afterEach(() => {
@@ -70,5 +72,33 @@ describe("markNotificationsRead", () => {
       expect(await markNotificationsRead(bad)).toEqual({ ok: false, reason: "invalid" });
     }
     expect(markNoticesRead).not.toHaveBeenCalled();
+  });
+});
+
+describe("deleteNotifications", () => {
+  it("deletes nothing in demo", async () => {
+    requireOwner.mockResolvedValue({ kind: "demo" });
+    expect(await deleteNotifications({ ids: [UUID] })).toEqual({ ok: false, reason: "demo" });
+    expect(deleteNotices).not.toHaveBeenCalled();
+  });
+
+  it("refuses an empty list, a non-uuid, too many ids and extra keys", async () => {
+    requireOwner.mockResolvedValue(owner);
+    for (const input of [{ ids: [] }, { ids: ["nope"] }, { ids: Array.from({ length: 51 }, () => UUID) }, { ids: [UUID], all: true }, null]) {
+      expect(await deleteNotifications(input)).toEqual({ ok: false, reason: "invalid" });
+    }
+    expect(deleteNotices).not.toHaveBeenCalled();
+  });
+
+  it("deletes as the session's owner, and reports a failed write", async () => {
+    requireOwner.mockResolvedValue(owner);
+    deleteNotices.mockResolvedValueOnce(true);
+    expect(await deleteNotifications({ ids: [UUID] })).toEqual({ ok: true });
+    expect(deleteNotices).toHaveBeenCalledWith("user-1", [UUID]);
+    deleteNotices.mockResolvedValueOnce(false);
+    expect(await deleteNotifications({ ids: [UUID] })).toEqual({ ok: false, reason: "failed" });
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    deleteNotices.mockRejectedValueOnce(new Error("down"));
+    expect(await deleteNotifications({ ids: [UUID] })).toEqual({ ok: false, reason: "failed" });
   });
 });

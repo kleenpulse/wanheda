@@ -1,13 +1,13 @@
 "use client";
 
 import * as React from "react";
-import { markNotificationsRead, notifyTimerDone } from "@/actions/notifications";
+import { deleteNotifications, markNotificationsRead, notifyTimerDone } from "@/actions/notifications";
 import { useActivity } from "@/lib/activity/store";
 import { isRunning, type Timer } from "@/lib/activity/timer";
 import { DEFAULT_TIME_ZONE, todayIn } from "@/lib/money/dates";
 import { demoMoneyAlerts } from "@/lib/money/seed";
 import { onNotices } from "@/lib/notifications/inbox";
-import { addNotice, demoNotices, markRead, mergeNotices, timerDoneNotice, unreadCount, type Notice } from "@/lib/notifications/notifications";
+import { addNotice, demoNotices, markRead, mergeNotices, removeNotices, timerDoneNotice, unreadCount, type Notice } from "@/lib/notifications/notifications";
 
 /** owner: saved alerts. demo: sample alerts, never saved. load-failed: the list could not be read. */
 export type NoticesSource = "owner" | "demo" | "load-failed";
@@ -19,6 +19,8 @@ interface NotificationsContext {
   open: boolean;
   setOpen: (open: boolean) => void;
   markRead: (ids: readonly string[] | "all") => void;
+  /** Deletes notices (after the owner confirmed). Optimistic; a deleted alert is never raised again. */
+  remove: (ids: readonly string[]) => void;
 }
 
 const Ctx = React.createContext<NotificationsContext | null>(null);
@@ -50,6 +52,8 @@ export function NotificationsProvider({
   const [open, setOpen] = React.useState(false);
   const timers = useActivity((s) => s.timers);
   const raised = React.useRef(new Set<string>());
+  // Deleted in this tab: an alert a save sends back before the delete lands stays gone.
+  const removed = React.useRef(new Set<string>());
 
   React.useEffect(() => {
     const raise = (t: Timer) => {
@@ -95,7 +99,7 @@ export function NotificationsProvider({
   React.useEffect(
     () =>
       onNotices((list) => {
-        setNotices((current) => mergeNotices(current, list));
+        setNotices((current) => mergeNotices(current, list.filter((n) => !removed.current.has(n.id))));
       }),
     [],
   );
@@ -111,9 +115,22 @@ export function NotificationsProvider({
     [source],
   );
 
+  const remove = React.useCallback(
+    (ids: readonly string[]) => {
+      if (ids.length === 0) return;
+      for (const id of ids) removed.current.add(id);
+      setNotices((list) => removeNotices(list, ids));
+      if (source === "demo") return;
+      void deleteNotifications({ ids: [...ids] }).catch(() => {
+        // The list hides them; the next load shows them again if the delete failed.
+      });
+    },
+    [source],
+  );
+
   const value = React.useMemo(
-    () => ({ notices, source, unread: unreadCount(notices), open, setOpen, markRead: read }),
-    [notices, source, open, read],
+    () => ({ notices, source, unread: unreadCount(notices), open, setOpen, markRead: read, remove }),
+    [notices, source, open, read, remove],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

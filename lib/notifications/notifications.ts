@@ -54,6 +54,12 @@ export function markRead(list: readonly Notice[], ids: readonly string[] | "all"
   return list.map((n) => (n.readAt === null && (pick === null || pick.has(n.id)) ? { ...n, readAt: now } : n));
 }
 
+/** The list without the given ids (deleted by the owner). */
+export function removeNotices(list: readonly Notice[], ids: readonly string[]): Notice[] {
+  const drop = new Set(ids);
+  return list.filter((n) => !drop.has(n.id));
+}
+
 /** Newest first, capped. A notice already present (same id) is not added twice. */
 export function addNotice(list: readonly Notice[], notice: Notice): Notice[] {
   if (list.some((n) => n.id === notice.id)) return [...list];

@@ -688,6 +688,15 @@
 	}
 }
 
+/*
+  ₦ has no glyph in JetBrains Mono or Geist Mono, so a system font draws it,
+  about 1.32x the digits' height. The owner chose to grow the digits to it
+  (2026-11-05): `figure-scaled` scales the whole figure, `figure-symbol`
+  takes the symbol back to the figure's own size. `<FigureText>` applies both.
+*/
+@utility figure-scaled { font-size: calc(1em * var(--figure-digit-scale, 1.32)); }
+@utility figure-symbol { font-size: calc(1em / var(--figure-digit-scale, 1.32)); }
+
 @utility font-display { font-family: var(--font-display); }
 
 /* Uppercase microtype: section labels, metadata keys, provider lines. */

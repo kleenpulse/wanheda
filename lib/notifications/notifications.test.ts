@@ -6,6 +6,7 @@ import {
   demoNotices,
   markRead,
   relativeTime,
+  removeNotices,
   timerDoneNotice,
   unreadCount,
   type Notice,
@@ -57,6 +58,15 @@ describe("addNotice", () => {
     expect(addNotice(list, notice("a", T0 + 9))).toHaveLength(1);
     const full = Array.from({ length: NOTICE_LIMIT }, (_, i) => notice(String(i), T0 - i));
     expect(addNotice(full, notice("new", T0 + 1))).toHaveLength(NOTICE_LIMIT);
+  });
+});
+
+describe("removeNotices", () => {
+  it("drops the given ids and keeps the order of the rest", () => {
+    const list = [notice("c", T0 + 2), notice("b", T0 + 1), notice("a", T0)];
+    expect(removeNotices(list, ["b"]).map((n) => n.id)).toEqual(["c", "a"]);
+    expect(removeNotices(list, ["zz"]).map((n) => n.id)).toEqual(["c", "b", "a"]);
+    expect(removeNotices(list, [])).toEqual(list);
   });
 });
 

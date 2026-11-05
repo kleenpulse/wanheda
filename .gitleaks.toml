@@ -1,4 +1,6 @@
-# gitleaks config: the default rule set, nothing allowlisted.
+# gitleaks config: the default rule set, no rule allowlists. `.gitleaksignore`
+# lists exact finding fingerprints (one commit, file, rule, line) judged false
+# positives by the owner; nothing broader is ever ignored.
 # Test fixtures never hold real-looking secrets; the CI canary builds its fake
 # token at runtime in a temp dir outside the repo.
 title = "wanheda"

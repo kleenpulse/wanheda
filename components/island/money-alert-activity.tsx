@@ -8,23 +8,15 @@ import { MoneyText } from "@/components/money/money-text";
 import { useMoney } from "@/components/money/use-money";
 import { useNotifications } from "@/components/notifications/notifications-provider";
 import { useNow } from "@/hooks/use-now";
-import { BUDGETS_HREF, budgetName, parseBudgetAlertKey, type Budget } from "@/lib/money/budgets";
-import { daysBetween, DEFAULT_TIME_ZONE, shortDayLabel, todayIn, type Day } from "@/lib/money/dates";
-import { byId, type Category } from "@/lib/money/money";
-import { dueLabel, parseAlertKey, SUBSCRIPTIONS_HREF, type SubEventKind, type Subscription } from "@/lib/money/subscriptions";
-import type { Notice } from "@/lib/notifications/notifications";
+import { BUDGETS_HREF } from "@/lib/money/budgets";
+import { DEFAULT_TIME_ZONE, shortDayLabel, todayIn, type Day } from "@/lib/money/dates";
+import { moneyAlertsFrom, shortDue, type MoneyAlert } from "@/lib/money/money-alerts";
+import { dueLabel, SUBSCRIPTIONS_HREF } from "@/lib/money/subscriptions";
 import { cn } from "@/lib/utils";
 
-// The island's `money-alert` (V31): derived from the same facts as the
-// notification centre, the unread money notices, so the two never disagree.
-// A subscription reminder stays until it is dismissed (marked read) or its
-// day passes; a budget alert until it is dismissed or its month ends. When
-// the money cache is on the device, a subscription since paused, cancelled or
-// deleted drops out (as does a deleted budget), and the card can show more.
-
-export type MoneyAlert =
-  | { type: "sub"; notice: Notice; on: Day; kind: SubEventKind; sub: Subscription | undefined }
-  | { type: "budget"; notice: Notice; month: string; level: 80 | 100; budget: Budget | undefined; name: string };
+// The island's `money-alert` (V31). Which notices become alerts is decided by
+// `moneyAlertsFrom` (lib/money/money-alerts.ts), from the same unread money
+// notices the centre shows, so the two never disagree.
 
 export function useMoneyAlerts(): { alerts: MoneyAlert[]; today: Day } {
   const { notices } = useNotifications();
@@ -32,32 +24,10 @@ export function useMoneyAlerts(): { alerts: MoneyAlert[]; today: Day } {
   const { data } = useMoney({ enabled: false });
   const now = useNow(60_000);
   const today = todayIn(data?.timeZone ?? DEFAULT_TIME_ZONE, now === null ? new Date() : new Date(now));
-  const subs = data?.subscriptions;
+  const subscriptions = data?.subscriptions;
   const budgets = data?.budgets;
   const categories = data?.categories;
-  const alerts = React.useMemo(() => {
-    const out: MoneyAlert[] = [];
-    const cats: ReadonlyMap<string, Category> = byId(categories ?? []);
-    for (const notice of notices) {
-      if (notice.kind !== "money" || notice.readAt !== null) continue;
-      const key = parseAlertKey(notice.dedupeKey);
-      if (key) {
-        if (key.on < today) continue;
-        const sub = subs?.find((s) => s.id === key.subId);
-        if (subs && (!sub || sub.status !== "active")) continue;
-        out.push({ type: "sub", notice, on: key.on, kind: key.kind, sub });
-        continue;
-      }
-      const b = parseBudgetAlertKey(notice.dedupeKey);
-      if (!b || b.month !== today.slice(0, 7)) continue;
-      const budget = budgets?.find((x) => (b.target === "all" ? x.categoryId === null : x.id === b.target));
-      if (budgets && !budget) continue;
-      out.push({ type: "budget", notice, month: b.month, level: b.level, budget, name: budget ? budgetName(budget, cats) : notice.title });
-    }
-    // Renewals by date first, then budgets (fullest first).
-    const at = (a: MoneyAlert) => (a.type === "sub" ? a.on : "9999");
-    return out.sort((a, b) => (at(a) < at(b) ? -1 : at(a) > at(b) ? 1 : a.type === "budget" && b.type === "budget" ? b.level - a.level : 0));
-  }, [notices, subs, budgets, categories, today]);
+  const alerts = React.useMemo(() => moneyAlertsFrom(notices, { subscriptions, budgets, categories }, today), [notices, subscriptions, budgets, categories, today]);
   return { alerts, today };
 }
 
@@ -169,12 +139,6 @@ function IslandButton({ tone = "plain", onClick, children }: { tone?: "plain" | 
       {children}
     </button>
   );
-}
-
-/** "Today" or "3d": the one figure worth a glance on the pill. */
-function shortDue(on: Day, today: Day): string {
-  const n = daysBetween(today, on);
-  return n <= 0 ? "Today" : `${String(n)}d`;
 }
 
 export function moneyAlertActivity(alert: MoneyAlert, today: Day): IslandActivity {

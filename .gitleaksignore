@@ -1,0 +1,3 @@
+# Fake test UUIDs in a test fixture, flagged by generic-api-key (not secrets).
+2094b0f5e2c7a5f95f357e5a1e7c978947c0e8da:lib/money/list-filter.test.ts:generic-api-key:7
+2094b0f5e2c7a5f95f357e5a1e7c978947c0e8da:lib/money/list-filter.test.ts:generic-api-key:9
