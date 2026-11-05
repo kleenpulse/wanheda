@@ -3,7 +3,7 @@ import { z } from "zod";
 // Polar's REST API through plain fetch (T40: no SDK, we read a handful of
 // fields). An Organization Access Token is scoped to one organization, so no
 // organization_id is sent. Needed scopes: products:read, subscriptions:read,
-// orders:read, refunds:read (metrics:read from T41).
+// orders:read, refunds:read, metrics:read (T41: Polar's own daily figures).
 
 export const POLAR_SERVERS = ["production", "sandbox"] as const;
 export type PolarServer = (typeof POLAR_SERVERS)[number];
@@ -38,7 +38,7 @@ export function describePolarError(error: unknown): string {
     case "unauthorized":
       return "Polar refused the token. It may be revoked or expired.";
     case "forbidden":
-      return "The token is missing a scope (products, subscriptions, orders or refunds read).";
+      return "The token is missing a scope (products, subscriptions, orders, refunds or metrics read).";
     case "rate-limited":
       return "Polar asked us to slow down. Try again in a minute.";
     case "server":
@@ -66,19 +66,33 @@ export type PolarProduct = z.infer<typeof polarProduct>;
 
 export type ListPath = "/v1/products/" | "/v1/subscriptions/" | "/v1/orders/" | "/v1/refunds/";
 
+/** The figures we keep from Polar's metrics, per day. Money in USD cents (Polar converts). */
+export const METRIC_SLUGS = ["monthly_recurring_revenue", "active_subscriptions", "average_revenue_per_user", "committed_monthly_recurring_revenue"] as const;
+
+const metricsBody = z.object({
+  periods: z.array(z.looseObject({ timestamp: z.string() })),
+});
+
+export interface PolarMetricDay {
+  /** YYYY-MM-DD (UTC). */
+  day: string;
+  values: Record<string, number>;
+}
+
 export interface PolarClient {
   /** Every item of one list, all pages. */
   listAll(path: ListPath): Promise<unknown[]>;
   products(): Promise<PolarProduct[]>;
+  /** `GET /v1/metrics/` by day, for the whole organization or some of its products. */
+  metrics(opts: { startDate: string; endDate: string; productIds?: readonly string[] }): Promise<PolarMetricDay[]>;
 }
 
 export function polarClient(opts: { server: PolarServer; token: string; fetch?: typeof fetch }): PolarClient {
   const doFetch = opts.fetch ?? fetch;
 
-  const get = async (path: ListPath, page: number): Promise<z.infer<typeof listPage>> => {
+  const getJson = async (path: string, params: URLSearchParams): Promise<{ status: number; body: unknown }> => {
     const url = new URL(path, BASE[opts.server]);
-    url.searchParams.set("page", String(page));
-    url.searchParams.set("limit", String(PAGE_SIZE));
+    url.search = params.toString();
     let res: Response;
     try {
       res = await doFetch(url, {
@@ -93,8 +107,13 @@ export function polarClient(opts: { server: PolarServer; token: string; fetch?: 
     if (res.status === 403) throw new PolarError("forbidden", 403, `GET ${path} → 403`);
     if (res.status === 429) throw new PolarError("rate-limited", 429, `GET ${path} → 429`);
     if (!res.ok) throw new PolarError("server", res.status, `GET ${path} → ${res.status}`);
-    const parsed = listPage.safeParse(await res.json().catch(() => null));
-    if (!parsed.success) throw new PolarError("shape", res.status, `GET ${path}: unexpected body`);
+    return { status: res.status, body: await res.json().catch(() => null) };
+  };
+
+  const get = async (path: ListPath, page: number): Promise<z.infer<typeof listPage>> => {
+    const { status, body } = await getJson(path, new URLSearchParams({ page: String(page), limit: String(PAGE_SIZE) }));
+    const parsed = listPage.safeParse(body);
+    if (!parsed.success) throw new PolarError("shape", status, `GET ${path}: unexpected body`);
     return parsed.data;
   };
 
@@ -116,6 +135,18 @@ export function polarClient(opts: { server: PolarServer; token: string; fetch?: 
         const p = polarProduct.safeParse(item);
         return p.success ? [p.data] : [];
       });
+    },
+    async metrics({ startDate, endDate, productIds = [] }) {
+      const params = new URLSearchParams({ start_date: startDate, end_date: endDate, interval: "day", timezone: "UTC" });
+      for (const id of productIds) params.append("product_id", id);
+      for (const slug of METRIC_SLUGS) params.append("metrics", slug);
+      const { status, body } = await getJson("/v1/metrics/", params);
+      const parsed = metricsBody.safeParse(body);
+      if (!parsed.success) throw new PolarError("shape", status, "GET /v1/metrics/: unexpected body");
+      return parsed.data.periods.map((p) => ({
+        day: p.timestamp.slice(0, 10),
+        values: Object.fromEntries(METRIC_SLUGS.flatMap((slug) => (typeof p[slug] === "number" ? [[slug, p[slug]]] : []))),
+      }));
     },
   };
 }

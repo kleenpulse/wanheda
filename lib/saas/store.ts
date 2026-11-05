@@ -1,7 +1,8 @@
 import "server-only";
-import { and, asc, eq, sql } from "drizzle-orm";
+import { createHash } from "node:crypto";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { getDb } from "@/lib/db";
-import { billingEvent, connector, processedEvent, product } from "@/lib/db/schema";
+import { billingEvent, connector, metricSnapshot, mrrMovement, processedEvent, product } from "@/lib/db/schema";
 import { CATEGORY_COLORS } from "@/lib/money/categories";
 import {
   parsePolarConfig,
@@ -14,6 +15,7 @@ import {
   type ProductColor,
   type ProductWrite,
 } from "./connectors";
+import type { Movement } from "./mrr";
 import type { BillingEventInput } from "./polar/events";
 import { seal, unseal } from "./seal";
 
@@ -208,6 +210,14 @@ export async function setProductMap(userId: string, id: string, edit: Record<str
   return { kind: "saved", productMap: parsePolarConfig(updated[0]?.config ?? row.config).productMap };
 }
 
+/** The owner's connector ids, oldest first. */
+export async function connectorIds(userId: string): Promise<string[] | null> {
+  const db = getDb();
+  if (!db) return null;
+  const rows = await db.select({ id: connector.id }).from(connector).where(eq(connector.userId, userId)).orderBy(asc(connector.createdAt));
+  return rows.map((r) => r.id);
+}
+
 /** Its billing events and processed deliveries go with it (cascade). */
 export async function deleteConnector(userId: string, id: string): Promise<true | null> {
   const db = getDb();
@@ -299,7 +309,9 @@ export async function insertEvents(c: Pick<OpenConnector, "id" | "userId">, even
 /** After a test call or a sync: what Polar listed, and how it went. */
 export async function markConnector(
   id: string,
-  outcome: { ok: true; products?: PolarConfig["products"]; organizationId?: string | null; synced: boolean } | { ok: false; error: string },
+  outcome:
+    | { ok: true; products?: PolarConfig["products"]; organizationId?: string | null; synced: boolean; warning?: string }
+    | { ok: false; error: string },
 ): Promise<void> {
   const db = getDb();
   if (!db) return;
@@ -315,7 +327,7 @@ export async function markConnector(
   await db
     .update(connector)
     .set({
-      lastError: null,
+      lastError: outcome.warning ?? null,
       ...(outcome.synced ? { lastSyncedAt: new Date() } : {}),
       config: sql`${connector.config} || ${JSON.stringify(patch)}::jsonb`,
     })
@@ -345,4 +357,121 @@ export async function loadEvents(connectorId: string): Promise<StoredBillingEven
     orderRef: r.orderRef,
     payload: (r.payload ?? {}) as Record<string, unknown>,
   }));
+}
+
+export interface ReconcileFacts {
+  userId: string;
+  config: PolarConfig;
+  /** Every product of the owner, archived ones too (their history stays, V35). */
+  products: { id: string; name: string; archived: boolean }[];
+}
+
+/** What reconcile() needs besides the log: whose connector it is, its product map, and the products. */
+export async function loadReconcileFacts(connectorId: string): Promise<ReconcileFacts | null> {
+  const db = getDb();
+  if (!db) return null;
+  const rows = await db.select({ userId: connector.userId, config: connector.config }).from(connector).where(eq(connector.id, connectorId)).limit(1);
+  const row = rows[0];
+  if (!row) return null;
+  const products = await db
+    .select({ id: product.id, name: product.name, archived: product.archived })
+    .from(product)
+    .where(eq(product.userId, row.userId))
+    .orderBy(asc(product.createdAt));
+  return { userId: row.userId, config: parsePolarConfig(row.config), products };
+}
+
+/** A stable uuid for a movement key, so a rebuild writes the same ids (V35). */
+export function movementId(key: string): string {
+  const h = createHash("sha256").update(key).digest("hex");
+  // RFC 9562 version 8 (custom), variant 10.
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-8${h.slice(13, 16)}-${((Number.parseInt(h.slice(16, 18), 16) & 0x3f) | 0x80).toString(16)}${h.slice(18, 20)}-${h.slice(20, 32)}`;
+}
+
+export interface SnapshotWrite {
+  productId: string | null;
+  onDate: string;
+  source: "polar" | "computed";
+  currency: string;
+  mrrMinor: number;
+  customers: number;
+  arpaMinor: number | null;
+  extra: Record<string, unknown>;
+}
+
+const snapshotUpsert = {
+  target: [metricSnapshot.userId, metricSnapshot.productId, metricSnapshot.onDate, metricSnapshot.source],
+  set: {
+    currency: sql`excluded.currency`,
+    mrrMinor: sql`excluded.mrr_minor`,
+    customers: sql`excluded.customers`,
+    arpaMinor: sql`excluded.arpa_minor`,
+    extra: sql`excluded.extra`,
+    updatedAt: sql`now()`,
+  },
+};
+
+/** One row per (product, day, source); a later figure for the same day replaces the earlier one. */
+export async function upsertSnapshots(userId: string, rows: readonly SnapshotWrite[]): Promise<void> {
+  const db = getDb();
+  if (!db || rows.length === 0) return;
+  for (let i = 0; i < rows.length; i += INSERT_CHUNK) {
+    await db
+      .insert(metricSnapshot)
+      .values(rows.slice(i, i + INSERT_CHUNK).map((r) => ({ userId, ...r })))
+      .onConflictDoUpdate(snapshotUpsert);
+  }
+}
+
+/**
+ * Writes everything reconcile() derives from one connector's log, in one
+ * transaction (neon-http batch), V35: every movement of the connector is
+ * replaced and the computed snapshots upserted. The first statement takes a
+ * per-connector advisory lock, so two runs never interleave (a burst of
+ * webhooks queues one run each): the second one's delete sees the first one's
+ * rows. Which run lands last is up to the caller (reconcile re-checks the log).
+ */
+export async function writeDerived(connectorId: string, userId: string, movements: readonly Movement[], snapshots: readonly SnapshotWrite[]): Promise<boolean> {
+  const db = getDb();
+  if (!db) return false;
+  const lock = db.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`reconcile:${connectorId}`}, 0))`);
+  const remove = db
+    .delete(mrrMovement)
+    .where(inArray(mrrMovement.billingEventId, db.select({ id: billingEvent.id }).from(billingEvent).where(eq(billingEvent.connectorId, connectorId))));
+  const writes = [];
+  for (let i = 0; i < movements.length; i += INSERT_CHUNK) {
+    writes.push(
+      db.insert(mrrMovement).values(
+        movements.slice(i, i + INSERT_CHUNK).map((m) => ({
+          id: movementId(m.key),
+          userId,
+          productId: m.productId,
+          occurredAt: m.occurredAt,
+          customerRef: m.customerRef,
+          kind: m.kind,
+          deltaMrrMinor: m.deltaMrrMinor,
+          currency: m.currency,
+          billingEventId: m.billingEventId,
+        })),
+      ),
+    );
+  }
+  for (let i = 0; i < snapshots.length; i += INSERT_CHUNK) {
+    writes.push(
+      db
+        .insert(metricSnapshot)
+        .values(snapshots.slice(i, i + INSERT_CHUNK).map((r) => ({ userId, ...r })))
+        .onConflictDoUpdate(snapshotUpsert),
+    );
+  }
+  await db.batch([lock, remove, ...writes]);
+  return true;
+}
+
+/** How many events one connector's log holds: append-only, so a bigger count means a newer log. */
+export async function countEvents(connectorId: string): Promise<number | null> {
+  const db = getDb();
+  if (!db) return null;
+  const rows = await db.select({ n: sql<number>`count(*)::int` }).from(billingEvent).where(eq(billingEvent.connectorId, connectorId));
+  return rows[0]?.n ?? 0;
 }

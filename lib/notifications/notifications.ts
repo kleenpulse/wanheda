@@ -4,7 +4,7 @@ import { formatDuration } from "@/lib/activity/timer";
 // plain objects with epoch-ms times, so the server and the demo seed share
 // one shape.
 
-export const NOTIFICATION_KINDS = ["timer", "money"] as const;
+export const NOTIFICATION_KINDS = ["timer", "money", "income"] as const;
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
 
 export interface Notice {

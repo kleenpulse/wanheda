@@ -34,7 +34,10 @@ function db(secret = { token: fakeSecret("polar_oat", "a"), webhookSecret: fakeS
   let sealed = seal(JSON.stringify(secret), ID, KEY);
   const f = fakeDb((q: FakeQuery) => {
     if (q.op === "select" && q.table === "connector") return [{ id: ID, userId: OWNER, sealedSecret: sealed, config: { server: "sandbox", productMap: {} } }];
-    if (q.op === "select" && q.table === "billing_event") return [];
+    if (q.op === "select" && (q.table === "billing_event" || q.table === "product")) return [];
+    if (q.op === "execute") return [];
+    // reconcile()'s derived writes (T41): the pure engine has its own tests.
+    if ((q.op === "delete" && q.table === "mrr_movement") || (q.op === "insert" && (q.table === "metric_snapshot" || q.table === "notification"))) return [];
     if (q.op === "insert" && q.table === "billing_event") {
       return (q.values as { eventId: string }[]).flatMap((v) => (billing.has(v.eventId) ? [] : (billing.add(v.eventId), [{ id: v.eventId }])));
     }
@@ -48,11 +51,12 @@ function db(secret = { token: fakeSecret("polar_oat", "a"), webhookSecret: fakeS
   return Object.assign(f, { sealed: () => sealed, billing });
 }
 
-function client(over: Partial<Record<string, unknown[]>> = {}): PolarClient {
+function client(over: Partial<Record<string, unknown[]>> = {}, metrics: PolarClient["metrics"] = () => Promise.resolve([])): PolarClient {
   const lists: Record<string, unknown[]> = { "/v1/subscriptions/": [SUB], "/v1/orders/": [ORDER, { junk: true }], "/v1/refunds/": [], ...over };
   return {
     listAll: (path) => Promise.resolve(lists[path] ?? []),
     products: () => Promise.resolve([{ id: "p1", name: "Pro", is_recurring: true, is_archived: false, organization_id: "org_1" }]),
+    metrics,
   };
 }
 
@@ -86,11 +90,20 @@ describe("syncConnector", () => {
 
   it("records Polar's refusal on the connector without the token in it", async () => {
     fake = db();
-    const failing: PolarClient = { listAll: () => Promise.reject(new PolarError("unauthorized", 401, "x")), products: () => Promise.reject(new PolarError("unauthorized", 401, "x")) };
+    const refuse = () => Promise.reject(new PolarError("unauthorized", 401, "x"));
+    const failing: PolarClient = { listAll: refuse, products: refuse, metrics: refuse };
     const result = await syncConnector(OWNER, ID, () => failing);
     expect(result).toEqual({ ok: false, reason: "polar", error: "Polar refused the token. It may be revoked or expired." });
     const update = fake.queries.find((q) => q.op === "update");
     expect(JSON.stringify(update?.set)).not.toContain("polar_oat");
+  });
+
+  it("still syncs when Polar's metrics can't be read, and says so on the connector", async () => {
+    fake = db();
+    const result = await syncConnector(OWNER, ID, () => client({}, () => Promise.reject(new PolarError("forbidden", 403, "x"))));
+    expect(result).toMatchObject({ ok: true, added: 2 });
+    const update = fake.queries.filter((q) => q.op === "update" && q.table === "connector").at(-1);
+    expect((update?.set as { lastError?: string }).lastError).toMatch(/^Synced, but Polar's own figures couldn't be read: The token is missing a scope/);
   });
 
   it("is off without a seal key", async () => {
