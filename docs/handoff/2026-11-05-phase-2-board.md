@@ -4,7 +4,7 @@
 |---|---|
 | Date | 2026-11-05 |
 | Phase / tasks | Phase 2, SPEC T31 (`~` until merged and run as owner); T30 still `~` (owner offline check not done yet, user chose to run it later) |
-| Branch / PR | `phase-2/board`, built in `D:\Vxrcel\wanheda`; not committed yet (waiting on the user's go-ahead) |
+| Branch / PR | `phase-2/board`, built in `D:\Vxrcel\wanheda`; commit `98779df`, pushed and PR #12 opened 2026-11-05 on the user's go-ahead |
 | Main | `167e302` — Merge pull request #11 (`phase-2/offline`) |
 | Previous hand-off | docs/handoff/2026-11-05-phase-2-offline.md |
 
@@ -29,7 +29,7 @@ Notes now have a board. `/notes?view=board` is a pannable, zoomable canvas porte
 
 ## Next steps
 
-1. User: go-ahead to commit, push and open the PR (files listed by `git status`; stage explicitly).
+1. User merges PR #12.
 2. Owner checks after merge: **T30** (offline edit → chip "Offline · 1 waiting" → back online → second device). **T31**: on the board drag a sticky and resize one, reload on another device and see both; recolour one; pin one and see it on Home; open the note window from the palette and edit there.
 3. Then T32, the Phase 2 exit.
 
