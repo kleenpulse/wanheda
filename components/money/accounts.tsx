@@ -81,7 +81,7 @@ export function AccountsCard({ payload }: { payload: MoneyPayload }) {
               <button
                 type="button"
                 onClick={() => {
-                  void api.setArchived(a, !a.archived);
+                  api.setArchived(a, !a.archived);
                 }}
                 className={buttonClass("ghost", "circle-sm", "size-7 text-ink-3")}
               >
@@ -152,7 +152,7 @@ export function AccountsCard({ payload }: { payload: MoneyPayload }) {
             baseCurrency={payload.baseCurrency}
             onDone={(account) => {
               setEditing(null);
-              void api.save(account);
+              api.save(account);
             }}
           />
         ) : null}

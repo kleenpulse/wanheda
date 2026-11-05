@@ -95,7 +95,8 @@ export interface BreakdownRow {
 
 export const NONE = "";
 
-const normalPayee = (payee: string) => payee.trim().replace(/\s+/g, " ").toLowerCase();
+/** A payee as the breakdown groups it: trimmed, spaces collapsed, lower case. */
+export const normalPayee = (payee: string) => payee.trim().replace(/\s+/g, " ").toLowerCase();
 
 function sortRows(rows: BreakdownRow[]): BreakdownRow[] {
   return rows.sort((a, b) => b.minor - a.minor || b.prevMinor - a.prevMinor || (a.label < b.label ? -1 : a.label > b.label ? 1 : 0));

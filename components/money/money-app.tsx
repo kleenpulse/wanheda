@@ -1,6 +1,8 @@
 "use client";
 
 import * as React from "react";
+import type { Route } from "next";
+import { useRouter } from "next/navigation";
 import { Dialog } from "@base-ui/react/dialog";
 import { ChevronLeft, ChevronRight, Plus, Trash2, X } from "lucide-react";
 import { buttonClass } from "@/components/ui/button";
@@ -11,7 +13,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tip } from "@/components/ui/tooltip";
 import { sumByCurrency, type Currency, type Money } from "@/lib/money/currency";
 import { addDays, type Day } from "@/lib/money/dates";
-import { byId, totals, TXN_LIST_LIMIT, type MoneyPayload } from "@/lib/money/money";
+import type { MoneyFilter } from "@/lib/money/list-filter";
+import { byId, totals, TXN_LIST_LIMIT, type Account, type Category, type MoneyPayload, type Txn } from "@/lib/money/money";
 import {
   bucketsOf,
   bucketSizeOf,
@@ -28,10 +31,10 @@ import {
   type Period,
   type PeriodKind,
 } from "@/lib/money/periods";
-import { breakdown, bucketTotals, cumulative, currenciesIn, dailyTotals, type GroupBy, type Side } from "@/lib/money/reports";
+import { breakdown, bucketTotals, cumulative, currenciesIn, dailyTotals, NONE, normalPayee, type GroupBy, type Side } from "@/lib/money/reports";
 import { cn } from "@/lib/utils";
 import { AccountsCard } from "./accounts";
-import { Breakdown, type ListFilter } from "./breakdown";
+import { Breakdown } from "./breakdown";
 import { Delta } from "./charts/chart-kit";
 import { PaceLine } from "./charts/pace-line";
 import { SpendBars } from "./charts/spend-bars";
@@ -40,15 +43,18 @@ import { MoneyStack } from "./money-text";
 import { TxnForm } from "./txn-form";
 import { TxnList, type Editing } from "./txn-list";
 import { useLedger, useMoney, useMoneyApi, useToday } from "./use-money";
-import { usePeriod } from "./use-period";
+import { entriesHref, useListFilter, usePeriod } from "./use-period";
 
 // Money (FRD 6.3): a period (day, week, month or custom, in `?p=`) set
-// against the one before it, with totals, charts, the period's entries and
-// the accounts. Paints from the cache at once; the page's Prefetch refreshes
-// it (SPEC V24). Every figure is one currency's integers (V25); periods are
-// calendar days in the owner's zone (V27).
+// against the one before it, with totals, the period's entries (first: the
+// ledger is what the owner opens this for), charts and the accounts. Paints
+// from the cache at once; the page's Prefetch refreshes it (SPEC V24). Every
+// figure is one currency's integers (V25); periods are calendar days in the
+// owner's zone (V27).
 
-export function MoneyApp() {
+export type MoneyPage = "entries" | "analytics";
+
+export function MoneyApp({ view }: { view: MoneyPage }) {
   const { data, failed, refetch } = useMoney();
   if (!data) {
     if (failed) {
@@ -64,17 +70,17 @@ export function MoneyApp() {
     }
     return <MoneySkeleton />;
   }
-  return <MoneyView payload={data} />;
+  return <MoneyView payload={data} view={view} />;
 }
 
 function MoneySkeleton() {
   return (
     <div className="flex flex-col gap-4" aria-busy aria-label="Loading money">
       <div className="h-10 w-80 max-w-full rounded-pill bg-card-nested" />
-      <div className="grid grid-cols-1 gap-4 @xl:grid-cols-3">
-        <div className="h-[132px] rounded-card bg-card-nested" />
-        <div className="h-[132px] rounded-card bg-card-nested" />
-        <div className="h-[132px] rounded-card bg-card-nested" />
+      <div className="grid grid-cols-1 gap-2.5 @xl:grid-cols-3 @xl:gap-4">
+        <div className="h-16 rounded-card bg-card-nested @xl:h-[132px]" />
+        <div className="h-16 rounded-card bg-card-nested @xl:h-[132px]" />
+        <div className="h-16 rounded-card bg-card-nested @xl:h-[132px]" />
       </div>
       <div className="h-[420px] rounded-card bg-card-nested" />
     </div>
@@ -88,7 +94,24 @@ const KIND_OPTIONS: readonly { value: PeriodKind; label: string }[] = [
   { value: "custom", label: "Custom" },
 ];
 
-function MoneyView({ payload }: { payload: MoneyPayload }) {
+interface Scope {
+  payload: MoneyPayload;
+  today: Day;
+  period: Period;
+  previous: Period;
+  compare: ReturnType<typeof comparisonOf>;
+  /** Every txn the period and the one before it need, pending writes laid over. */
+  txns: Txn[];
+  categories: ReadonlyMap<string, Category>;
+  accounts: ReadonlyMap<string, Account>;
+  currency: Currency;
+  against: string;
+  /** Older entries are still loading. */
+  dim: boolean;
+}
+
+/** The period, the txns it needs and the totals both pages head with. */
+function MoneyView({ payload, view }: { payload: MoneyPayload; view: MoneyPage }) {
   const today = useToday(payload.timeZone);
   const [period, setPeriod] = usePeriod(today);
   const categories = React.useMemo(() => byId(payload.categories), [payload.categories]);
@@ -112,36 +135,14 @@ function MoneyView({ payload }: { payload: MoneyPayload }) {
   const net = sumByCurrency([...cur.income, ...cur.spend.map((m) => ({ ...m, minor: -m.minor }))]);
   const compareTitle = periodTitle(compare, today);
   const against = period.kind === "day" ? `vs ${compareTitle === "Yesterday" ? "yesterday" : compareTitle}` : `vs ${rangeLabel(compare.from, compare.to, today)}`;
-
-  const [by, setBy] = React.useState<GroupBy>("category");
-  const [side, setSide] = React.useState<Side>("spend");
-  const [filter, setFilter] = React.useState<ListFilter | null>(null);
-  const [editing, setEditing] = React.useState<Editing | null>(null);
-  const [sheetOpen, setSheetOpen] = React.useState(false);
-
-  const rows = React.useMemo(
-    () => breakdown({ txns, categories, range: period, prev: compare, currency, side, by }),
-    [txns, categories, period, compare.from, compare.to, currency, side, by], // eslint-disable-line react-hooks/exhaustive-deps
-  );
-  const periodTxns = React.useMemo(() => txns.filter((t) => t.postedOn >= period.from && t.postedOn <= period.to), [txns, period]);
-
-  const size = bucketSizeOf(period);
-  /** The bucket size when the period has charts: more than one day, and not all in the future. */
-  const charts = size !== null && period.from <= today ? size : null;
-  const daily = React.useMemo(() => dailyTotals(txns, categories, period, currency, "spend"), [txns, categories, period, currency]);
-  const prevDaily = React.useMemo(() => dailyTotals(txns, categories, previous, currency, "spend"), [txns, categories, previous.from, previous.to, currency]); // eslint-disable-line react-hooks/exhaustive-deps
-  const dim = ledger.loadingOlder;
   const zero = { minor: 0, currency };
   const stale = payload.source === "load-failed";
 
-  const changePeriod = (p: Period) => {
-    setFilter(null);
-    setPeriod(p);
-  };
+  const scope: Scope = { payload, today, period, previous, compare, txns, categories, accounts, currency, against, dim: ledger.loadingOlder };
 
   return (
     <div className="flex flex-col gap-6">
-      <PeriodBar period={period} onChange={changePeriod} today={today} currencies={currencies} currency={currency} onCurrency={setPicked} />
+      <PeriodBar period={period} onChange={setPeriod} today={today} currencies={currencies} currency={currency} onCurrency={setPicked} />
 
       {payload.source === "demo" ? null : stale ? (
         <Notice>Showing what this device last loaded. The server didn&apos;t answer.</Notice>
@@ -156,7 +157,7 @@ function MoneyView({ payload }: { payload: MoneyPayload }) {
         <Notice>This range holds more entries than one read returns, so its older totals are short. Pick a shorter range.</Notice>
       ) : null}
 
-      <section aria-label="Totals" className="grid grid-cols-1 gap-4 @xl:grid-cols-3">
+      <section aria-label="Totals" className="grid grid-cols-1 gap-2.5 @xl:grid-cols-3 @xl:gap-4">
         <Stat label="Spent" note={rangeLabel(period.from, period.to, today)} values={baseFirst(cur.spend)} zero={zero}>
           <Delta cur={minorIn(cur.spend)} prev={minorIn(was.spend)} goodWhenUp={false} against={against} />
         </Stat>
@@ -168,74 +169,56 @@ function MoneyView({ payload }: { payload: MoneyPayload }) {
         </Stat>
       </section>
 
-      <div className="grid grid-cols-1 items-start gap-6 @4xl:grid-cols-[minmax(0,1fr)_minmax(320px,400px)]">
-        <div className="@container/main flex min-w-0 flex-col gap-4">
-          {charts ? (
-            <div className="grid grid-cols-1 gap-4 @xl/main:grid-cols-2">
-              <SpendBars buckets={bucketsOf(period)} values={bucketTotals(daily, bucketsOf(period))} size={charts} currency={currency} today={today} dim={dim} note={`Per ${charts}`} />
-              <PaceLine
-                current={cumulative(daily, period.from, endSoFar(period, today))}
-                previous={cumulative(prevDaily, previous.from, previous.to)}
-                currentDays={daysOf(period.from, period.to)}
-                previousDays={daysOf(previous.from, previous.to)}
-                currency={currency}
-                dim={dim}
-                note={`Against ${rangeLabel(previous.from, previous.to, today)}`}
-              />
-            </div>
-          ) : null}
-          <div className={cn("grid grid-cols-1 items-start gap-4", charts && "@xl/main:grid-cols-2")}>
-            {charts ? <SpendHeatmap from={period.from} to={period.to} today={today} daily={daily} currency={currency} dim={dim} note="Darker is more" /> : null}
-            <Breakdown
-              rows={rows}
-              by={by}
-              onBy={setBy}
-              side={side}
-              onSide={setSide}
-              categories={categories}
-              accounts={accounts}
-              currency={currency}
-              against={against}
-              picked={filter}
-              onPick={setFilter}
-            />
-          </div>
+      {view === "entries" ? <EntriesView scope={scope} /> : <AnalyticsView scope={scope} />}
+    </div>
+  );
+}
 
-          <section aria-labelledby="money-entries" className="mt-2 flex min-w-0 flex-col gap-3">
-            <h2 id="money-entries" className="font-display text-[17px] leading-tight text-foreground">
-              Entries · {periodTitle(period, today)}
-            </h2>
-            <TxnList
-              txns={periodTxns}
-              today={today}
-              categories={categories}
-              accounts={accounts}
-              filter={filter}
-              onClearFilter={() => {
-                setFilter(null);
-              }}
-              onEdit={setEditing}
-              emptyHint={
-                payload.txns.length === 0 ? (
-                  <>
-                    Type <span className="tabular font-medium text-foreground">4500 food jollof</span> into the palette (Ctrl K), or use the form.
-                  </>
-                ) : (
-                  "Pick another period, or add one with the form."
-                )
-              }
-            />
-          </section>
-        </div>
+/** The ledger: the period's entries first (what the page is opened for), the add form and accounts beside them. */
+function EntriesView({ scope }: { scope: Scope }) {
+  const { payload, today, period, txns, categories, accounts } = scope;
+  const [filterKey, clearFilter] = useListFilter();
+  const [editing, setEditing] = React.useState<Editing | null>(null);
+  const [sheetOpen, setSheetOpen] = React.useState(false);
+  const periodTxns = React.useMemo(() => txns.filter((t) => t.postedOn >= period.from && t.postedOn <= period.to), [txns, period]);
+  const filter = React.useMemo(
+    () => (filterKey ? { ...filterKey, label: filterLabel(filterKey, categories, accounts, periodTxns) } : null),
+    [filterKey, categories, accounts, periodTxns],
+  );
 
-        <aside aria-label="Add and accounts" className="flex min-w-0 flex-col gap-6">
-          <section aria-label="Add a transaction" className="bento hidden p-5 @4xl:block">
-            <h2 className="mb-4 font-display text-[17px] leading-tight text-foreground">Add</h2>
-            <TxnForm payload={payload} today={today} variant="inline" />
-          </section>
-          <AccountsCard payload={payload} />
-        </aside>
-      </div>
+  return (
+    <div className="grid grid-cols-1 items-start gap-6 @4xl:grid-cols-[minmax(0,1fr)_minmax(320px,400px)]">
+      <section aria-labelledby="money-entries" className="flex min-w-0 flex-col gap-3">
+        <h2 id="money-entries" className="font-display text-[17px] leading-tight text-foreground">
+          Entries · {periodTitle(period, today)}
+        </h2>
+        <TxnList
+          txns={periodTxns}
+          today={today}
+          categories={categories}
+          accounts={accounts}
+          filter={filter}
+          onClearFilter={clearFilter}
+          onEdit={setEditing}
+          emptyHint={
+            payload.txns.length === 0 ? (
+              <>
+                Type <span className="tabular font-medium text-foreground">4500 food jollof</span> into the palette (Ctrl K), or use the form.
+              </>
+            ) : (
+              "Pick another period, or add one with the form."
+            )
+          }
+        />
+      </section>
+
+      <aside aria-label="Add and accounts" className="flex min-w-0 flex-col gap-6">
+        <section aria-label="Add a transaction" className="bento hidden p-5 @4xl:block">
+          <h2 className="mb-4 font-display text-[17px] leading-tight text-foreground">Add</h2>
+          <TxnForm payload={payload} today={today} variant="inline" />
+        </section>
+        <AccountsCard payload={payload} />
+      </aside>
 
       <AddSheet payload={payload} today={today} open={sheetOpen} setOpen={setSheetOpen} />
       <EditDialog
@@ -248,6 +231,75 @@ function MoneyView({ payload }: { payload: MoneyPayload }) {
       />
     </div>
   );
+}
+
+/** The period's charts and breakdown. A breakdown row opens the entries page filtered to it. */
+function AnalyticsView({ scope }: { scope: Scope }) {
+  const { today, period, previous, compare, txns, categories, accounts, currency, against, dim } = scope;
+  const router = useRouter();
+  const [by, setBy] = React.useState<GroupBy>("category");
+  const [side, setSide] = React.useState<Side>("spend");
+
+  const rows = React.useMemo(
+    () => breakdown({ txns, categories, range: period, prev: compare, currency, side, by }),
+    [txns, categories, period, compare.from, compare.to, currency, side, by], // eslint-disable-line react-hooks/exhaustive-deps
+  );
+  const size = bucketSizeOf(period);
+  /** The bucket size when the period has charts: more than one day, and not all in the future. */
+  const charts = size !== null && period.from <= today ? size : null;
+  const daily = React.useMemo(() => dailyTotals(txns, categories, period, currency, "spend"), [txns, categories, period, currency]);
+  const prevDaily = React.useMemo(() => dailyTotals(txns, categories, previous, currency, "spend"), [txns, categories, previous.from, previous.to, currency]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <div className="@container/main flex min-w-0 flex-col gap-4">
+      {charts ? (
+        <div className="grid grid-cols-1 gap-4 @xl/main:grid-cols-2">
+          <SpendBars buckets={bucketsOf(period)} values={bucketTotals(daily, bucketsOf(period))} size={charts} currency={currency} today={today} dim={dim} note={`Per ${charts}`} />
+          <PaceLine
+            current={cumulative(daily, period.from, endSoFar(period, today))}
+            previous={cumulative(prevDaily, previous.from, previous.to)}
+            currentDays={daysOf(period.from, period.to)}
+            previousDays={daysOf(previous.from, previous.to)}
+            currency={currency}
+            dim={dim}
+            note={`Against ${rangeLabel(previous.from, previous.to, today)}`}
+          />
+        </div>
+      ) : period.kind === "day" ? (
+        <Notice>Charts need more than one day. Pick Week, Month or Custom above.</Notice>
+      ) : null}
+      <div className={cn("grid grid-cols-1 items-start gap-4", charts && "@xl/main:grid-cols-2")}>
+        {charts ? <SpendHeatmap from={period.from} to={period.to} today={today} daily={daily} currency={currency} dim={dim} note="Darker is more" /> : null}
+        <Breakdown
+          rows={rows}
+          by={by}
+          onBy={setBy}
+          side={side}
+          onSide={setSide}
+          categories={categories}
+          accounts={accounts}
+          currency={currency}
+          against={against}
+          picked={null}
+          onPick={(f) => {
+            if (f) router.push(entriesHref(period, today, { by: f.by, key: f.key }) as Route);
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
+/** What the filter chip says: the row's name as the breakdown shows it. */
+function filterLabel(f: MoneyFilter, categories: ReadonlyMap<string, Category>, accounts: ReadonlyMap<string, Account>, txns: readonly Txn[]): string {
+  if (f.by === "account") return accounts.get(f.key)?.name ?? "Unknown account";
+  if (f.by === "payee") {
+    if (f.key === NONE) return "No payee";
+    // Newest first, so this is the latest spelling, as in the breakdown.
+    return txns.find((t) => normalPayee(t.payee) === f.key)?.payee.trim() ?? f.key;
+  }
+  if (f.key === NONE) return "No category";
+  return categories.get(f.key)?.name ?? "Unknown category";
 }
 
 function Notice({ children }: { children: React.ReactNode }) {
@@ -395,15 +447,25 @@ function PeriodBar({
   );
 }
 
+/**
+ * One totals tile. Narrow (a phone): a short row, label and change left,
+ * figure right, so the entries start on the first screen. The period note is
+ * dropped there; the period bar above already says it.
+ */
 function Stat({ label, note, values, zero, children }: { label: string; note: string; values: readonly Money[]; zero: Money; children: React.ReactNode }) {
   return (
-    <div className="bento flex min-w-0 flex-col gap-3 p-5">
-      <div className="flex items-center justify-between gap-3">
+    <div className="bento grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 px-4 py-3 @xl:flex @xl:flex-col @xl:items-stretch @xl:gap-3 @xl:p-5">
+      <div className="flex min-w-0 items-center justify-between gap-3">
         <h3 className="readout">{label}</h3>
-        <span className="readout tabular truncate">{note}</span>
+        <span className="readout tabular hidden truncate @xl:inline">{note}</span>
       </div>
-      <MoneyStack roll values={values} fallback={zero} className="font-display text-[30px] leading-none font-semibold tracking-[-0.01em] text-foreground" />
-      {children}
+      <MoneyStack
+        roll
+        values={values}
+        fallback={zero}
+        className="col-start-2 row-span-2 row-start-1 items-end text-right font-display text-[22px] leading-none font-semibold tracking-[-0.01em] text-foreground @xl:items-start @xl:text-left @xl:text-[30px]"
+      />
+      <div className="min-w-0">{children}</div>
     </div>
   );
 }

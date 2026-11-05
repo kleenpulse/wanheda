@@ -2,7 +2,8 @@
 
 import { z } from "zod";
 import { requireOwner } from "@/lib/auth/owner";
-import { accountWriteSchema, txnWriteSchema, type Account, type Txn } from "@/lib/money/money";
+import { accountWriteSchema, txnWriteSchema } from "@/lib/money/money";
+import type { AccountWriteResult, TxnDeleteResult, TxnSaveResult } from "@/lib/money/outbox";
 import {
   deleteTxn as deleteStoredTxn,
   removeCategory as removeStoredCategory,
@@ -15,9 +16,10 @@ import {
 // from the session and every id in the input is checked against it in the
 // store (SPEC V7, V28); demo writes stay on the device.
 
-export type SaveTxnResult = { ok: true; txn: Txn } | { ok: false; reason: "demo" | "invalid" | "archived-account" | "failed" };
-export type DoneResult = { ok: true } | { ok: false; reason: "demo" | "invalid" | "failed" };
-export type AccountResult = { ok: true; account: Account } | { ok: false; reason: "demo" | "invalid" | "failed" };
+// The result shapes live with the outbox that sends these (lib/money/outbox.ts).
+export type SaveTxnResult = TxnSaveResult;
+export type DoneResult = TxnDeleteResult;
+export type AccountResult = AccountWriteResult;
 export type RemoveCategoryResult = { ok: true; kind: "archived" | "deleted" | "missing" } | { ok: false; reason: "demo" | "invalid" | "failed" };
 
 /** Creates or edits one txn. The server sets its currency from the account. */

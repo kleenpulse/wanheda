@@ -1,6 +1,6 @@
 # Latest hand-off
 
-**Newest:** [2026-11-05-phase-3-periods.md](2026-11-05-phase-3-periods.md) — **Phase 3 CP2 periods and charts built** (T35 `x`). Branch `phase-3/periods`, PR #16: day|week|month|custom periods in `?p=` with previous-period compare, bars, cumulative line, daily heatmap, ranked breakdown, virtualised list, accounts with balances. No new SQL. Money outbox decided yes as T35b. Reviewer `wanheda-ad`: 1 FIX (B14, fixed) + 1 nit (taken), then LGTM. Next: user merges PR #16, then T35b in a fresh session.
+**Newest:** [2026-11-05-phase-3-money-outbox.md](2026-11-05-phase-3-money-outbox.md) — **Phase 3 CP2b money outbox built** (T35b `x`) **+ `/money/analytics` split.** Branch `phase-3/money-outbox`, PR #17: analytics split, day cards back, and the outbox (Dexie queue for txn and account writes, B13 races ported, SyncChip counts money). No new SQL. Owner-mode check not done. Next: user's owner check (4 steps in the hand-off), optional Reviewer pass, merge, then T36 in a fresh session.
 
 Read the hand-off first, then verify it against the repo before trusting it (git, tripwire, typecheck, tests). The Builder and Reviewer prompts below are copied from it.
 
@@ -13,18 +13,16 @@ commit; commit, push and PRs only on the user's word; a short hand-off + continu
 after every PR. No worktrees: branch off main in D:\Vxrcel\wanheda itself. One checkpoint per
 session: after its PR merges, stop and hand over. House goal (CLAUDE.md): native-app feel, V24.
 
-Phase 3 CP2b: the money outbox (SPEC T35b). Read docs/handoff/2026-11-05-phase-3-periods.md,
-SPEC.md V23, V24, V28 and B13, ADR-0008, lib/notes/outbox.ts + local-store.ts (the notes
-outbox to mirror) and components/money/txn-writer.ts (+ its race tests). Money is integer
-minor units + ISO currency (V25); figures only through <MoneyText>.
+Phase 3 CP3: subscriptions (SPEC T36). Read docs/handoff/2026-11-05-phase-3-money-outbox.md,
+SPEC.md T36, V24-V31, ADR-0008 (money writes go through the outbox: components/money/money-runtime.ts,
+lib/money/outbox.ts), and the money layout (app/(shell)/money/layout.tsx: Entries | Analytics
+tabs). Money is integer minor units + ISO currency (V25); figures only through <MoneyText>.
 
-Start: `git fetch`; check new commits with `sh scripts/forged-commits.sh <T35 merge>..origin/main`
-before pulling; fast-forward main. Then `git switch -c phase-3/money-outbox` and move txn
-save/delete and account save/archive onto a Dexie outbox: persisted per-id queue, newer write
-supersedes an unsent older one, a delete waits for the call in flight, replay is a no-op (client
-ids). Undo-delete stays toast-gated (queued only on expire). Port the B13 race tests; SyncChip
-counts money ops. Amend ADR-0008 (money joins notes and capture offline). Any new SQL: generate,
-show it, apply only on the user's go-ahead.
+Start: `git fetch`; check new commits with `sh scripts/forged-commits.sh cef4d98..origin/main`
+before pulling; fast-forward main. Then `git switch -c phase-3/subscriptions`. Subscription
+writes join the money outbox as new op kinds (same queue, so a subscription on a new account
+lands after it). Decide where subscriptions live in the money tabs. Any new SQL: generate, show
+it, apply only on the user's go-ahead.
 ```
 
 ### Reviewer prompt
@@ -33,8 +31,9 @@ show it, apply only on the user's go-ahead.
 You are the REVIEWER session for Wanheda at D:\Vxrcel\wanheda. Use the diff-reviewer skill;
 read-only. Lean mode: review when the user asks, one pass per PR, bugs and edge cases only,
 verdict LGTM / LGTM with nits / FIX, sent to the Builder. Your LGTM is not the user's approval.
-Context: docs/handoff/2026-11-05-phase-3-periods.md, SPEC.md V23, V24, V28, B13, ADR-0008.
-Look hardest at: a write queued offline then superseded or deleted before it is sent; a delete
-racing a save still in flight (B13); replay after a reload; two tabs sharing the queue; undo
-inside the toast window never reaching the server.
+Context: docs/handoff/2026-11-05-phase-3-money-outbox.md, SPEC.md V24, V28, B13, ADR-0008.
+Look hardest at: lib/money/outbox.ts supersede rule and drain loop; lib/money/local-store.ts
+transactions and the persisted inFlight marker after a tab dies mid-send; money-runtime.ts
+overlay settling (settleTxn, unhideTxn) against the undo toast; cross-tab BroadcastChannel
+messages; the /money/analytics split (?p= and ?f= handling, Back).
 ```

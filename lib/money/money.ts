@@ -257,6 +257,16 @@ export function removeTxn(payload: MoneyPayload, id: string): MoneyPayload {
 /** Writes still on their way: a txn to show, or null for one being deleted. */
 export type PendingTxns = Readonly<Record<string, Txn | null>>;
 
+/** Account writes still on their way, by id. */
+export type PendingAccounts = Readonly<Record<string, Account>>;
+
+/** The payload with this device's unconfirmed account writes laid over it (V24). */
+export function applyPendingAccounts(payload: MoneyPayload, pending: PendingAccounts): MoneyPayload {
+  let next = payload;
+  for (const account of Object.values(pending)) next = upsertAccount(next, account);
+  return next;
+}
+
 /**
  * The payload as the owner should see it: the server's rows with this
  * device's unconfirmed writes laid over them, so a refetch that lands before

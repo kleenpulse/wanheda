@@ -283,7 +283,7 @@ function PaletteBody({
                 hint="Enter"
                 onSelect={run(() => {
                   const d = quick.draft;
-                  void moneyApi.save(newTxn(d));
+                  moneyApi.save(newTxn(d));
                   toast({
                     title: `Added ${quickTitle(d, money.data, false)}`,
                     ...(pathname === "/money" ? {} : { action: { label: "Open Money", href: "/money" } }),
