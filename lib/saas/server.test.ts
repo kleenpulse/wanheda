@@ -4,6 +4,9 @@ import { fakeDb, type FakeDb, type FakeQuery } from "@/lib/db/fake";
 import type { PolarClient } from "./polar/client";
 import { PolarError } from "./polar/client";
 
+/** A fake secret built at runtime and low in entropy, so secret scanners never see a real-looking literal. */
+const fakeSecret = (prefix: string, fill: string) => `${prefix}_${fill.repeat(12)}`;
+
 vi.mock("server-only", () => ({}));
 let fake: FakeDb | null = null;
 vi.mock("@/lib/db", () => ({ getDb: () => fake?.db ?? null }));
@@ -26,7 +29,7 @@ const SUB = { id: "sub_1", created_at: "2026-10-01T00:00:00Z", modified_at: "202
 const ORDER = { id: "ord_1", created_at: "2026-10-01T00:00:01Z", modified_at: null, status: "paid", currency: "usd", customer_id: "cus_1", product_id: "p1", subscription_id: "sub_1" };
 
 /** A db with the connector row and billing_event's unique key, the way Postgres keeps it. */
-function db(secret = { token: "polar_oat_abcdefgh1234", webhookSecret: "whsec_one" as string | null }) {
+function db(secret = { token: fakeSecret("polar_oat", "a"), webhookSecret: fakeSecret("whsec", "1") as string | null }) {
   const billing = new Set<string>();
   let sealed = seal(JSON.stringify(secret), ID, KEY);
   const f = fakeDb((q: FakeQuery) => {
@@ -101,18 +104,18 @@ describe("patchConnectorSecret", () => {
   it("replacing one half keeps the other, still sealed to this row", async () => {
     const d = db();
     fake = d;
-    expect(await patchConnectorSecret(OWNER, ID, { webhookSecret: "whsec_two" }, KEY)).toBe("saved");
-    expect(JSON.parse(must(unseal(d.sealed(), ID, KEY)))).toEqual({ token: "polar_oat_abcdefgh1234", webhookSecret: "whsec_two" });
-    expect(await patchConnectorSecret(OWNER, ID, { token: "polar_oat_new_token_99" }, KEY)).toBe("saved");
-    expect(JSON.parse(must(unseal(d.sealed(), ID, KEY)))).toEqual({ token: "polar_oat_new_token_99", webhookSecret: "whsec_two" });
+    expect(await patchConnectorSecret(OWNER, ID, { webhookSecret: fakeSecret("whsec", "2") }, KEY)).toBe("saved");
+    expect(JSON.parse(must(unseal(d.sealed(), ID, KEY)))).toEqual({ token: fakeSecret("polar_oat", "a"), webhookSecret: fakeSecret("whsec", "2") });
+    expect(await patchConnectorSecret(OWNER, ID, { token: fakeSecret("polar_oat", "n") }, KEY)).toBe("saved");
+    expect(JSON.parse(must(unseal(d.sealed(), ID, KEY)))).toEqual({ token: fakeSecret("polar_oat", "n"), webhookSecret: fakeSecret("whsec", "2") });
   });
 
   it("a blob that won't open takes a new token but not a lone webhook secret", async () => {
     const d = db();
     fake = d;
     const otherKey = randomBytes(32);
-    expect(await patchConnectorSecret(OWNER, ID, { webhookSecret: "whsec_two" }, otherKey)).toBe("broken");
-    expect(await patchConnectorSecret(OWNER, ID, { token: "polar_oat_fresh_token" }, otherKey)).toBe("saved");
-    expect(JSON.parse(must(unseal(d.sealed(), ID, otherKey)))).toEqual({ token: "polar_oat_fresh_token", webhookSecret: null });
+    expect(await patchConnectorSecret(OWNER, ID, { webhookSecret: fakeSecret("whsec", "2") }, otherKey)).toBe("broken");
+    expect(await patchConnectorSecret(OWNER, ID, { token: fakeSecret("polar_oat", "f") }, otherKey)).toBe("saved");
+    expect(JSON.parse(must(unseal(d.sealed(), ID, otherKey)))).toEqual({ token: fakeSecret("polar_oat", "f"), webhookSecret: null });
   });
 });

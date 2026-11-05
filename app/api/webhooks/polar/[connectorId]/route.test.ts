@@ -2,6 +2,9 @@ import { randomBytes } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fakeDb, type FakeDb, type FakeQuery } from "@/lib/db/fake";
 
+/** A fake secret built at runtime and low in entropy, so secret scanners never see a real-looking literal. */
+const fakeSecret = (prefix: string, fill: string) => `${prefix}_${fill.repeat(12)}`;
+
 // T44 exit case, end to end through the real route, store and seal: the same
 // delivery 3× stores one billing_event and schedules one reconcile. The fake
 // db enforces the two unique keys the way Postgres does (on conflict do nothing).
@@ -27,7 +30,7 @@ function must<T>(value: T | null | undefined): T {
 
 const KEY = randomBytes(32);
 const CONNECTOR = "3f1c2d4e-5a6b-4c7d-8e9f-0a1b2c3d4e5f";
-const SECRET = "whsec_test_secret_value";
+const SECRET = fakeSecret("whsec", "s");
 
 const SUB = {
   id: "sub_1",
@@ -42,7 +45,7 @@ const SUB = {
   product_id: "prod_1",
 };
 
-function db(secret: { token: string; webhookSecret: string | null } = { token: "polar_oat_xxxxxxxx", webhookSecret: SECRET }) {
+function db(secret: { token: string; webhookSecret: string | null } = { token: fakeSecret("polar_oat", "t"), webhookSecret: SECRET }) {
   const processed = new Set<string>();
   const billing = new Set<string>();
   const sealed = seal(JSON.stringify(secret), CONNECTOR, KEY);
@@ -115,7 +118,7 @@ describe("POST /api/webhooks/polar/[connectorId]", () => {
 
   it("refuses a bad signature before touching a row", async () => {
     fake = db();
-    const res = await POST(delivery("msg_1", JSON.stringify({ type: "subscription.created", data: SUB }), { secret: "whsec_wrong_secret" }), ctx());
+    const res = await POST(delivery("msg_1", JSON.stringify({ type: "subscription.created", data: SUB }), { secret: fakeSecret("whsec", "x") }), ctx());
     expect(res.status).toBe(401);
     expect(fake.queries.filter((q) => q.op !== "select")).toEqual([]);
   });
@@ -151,7 +154,7 @@ describe("POST /api/webhooks/polar/[connectorId]", () => {
   });
 
   it("503s while the webhook secret isn't set, so Polar retries", async () => {
-    fake = db({ token: "polar_oat_xxxxxxxx", webhookSecret: null });
+    fake = db({ token: fakeSecret("polar_oat", "t"), webhookSecret: null });
     const res = await POST(delivery("msg_1", "{}"), ctx());
     expect(res.status).toBe(503);
   });
