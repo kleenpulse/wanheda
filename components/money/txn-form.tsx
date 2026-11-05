@@ -103,7 +103,7 @@ export function TxnForm({
       payee: payee.trim().slice(0, PAYEE_MAX),
       categoryId: categoryId || null,
     };
-    void api.save(initial ? { ...initial, ...fields } : newTxn({ ...fields, tags: [] }));
+    api.save(initial ? { ...initial, ...fields } : newTxn({ ...fields, tags: [] }));
     if (initial) {
       onSaved?.();
       return;

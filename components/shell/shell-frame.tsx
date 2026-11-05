@@ -3,6 +3,7 @@
 import * as React from "react";
 import { AccountProvider } from "@/components/shell/account";
 import { Island } from "@/components/island/island";
+import { MoneyProvider } from "@/components/money/money-provider";
 import { NotesProvider } from "@/components/notes/notes-provider";
 import { QueryProvider } from "@/components/providers/query-provider";
 import { NotificationCentre } from "@/components/notifications/notification-centre";
@@ -88,6 +89,7 @@ export function ShellFrame({
     <AccountProvider account={account}>
       <QueryProvider>
       <NotesProvider>
+      <MoneyProvider>
       <PrefsProvider initial={prefs.initial} source={prefs.source}>
       <NotificationsProvider initial={notices.initial} source={notices.source}>
       <div
@@ -110,6 +112,7 @@ export function ShellFrame({
       </div>
       </NotificationsProvider>
       </PrefsProvider>
+      </MoneyProvider>
       </NotesProvider>
       </QueryProvider>
     </AccountProvider>

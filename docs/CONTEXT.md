@@ -72,7 +72,7 @@ Domain terms used in `FRD.md`, `SPEC.md`, the ADRs and the code. Alphabetical. W
 
 **MRR movement.** One change to MRR for one customer: new, expansion, contraction, churn or reactivation. Movements are derived from billing events in `mrr_movement` and can be rebuilt from scratch.
 
-**Outbox.** The IndexedDB queue (Dexie) where note and quick-capture writes wait while offline. It flushes when the connection comes back.
+**Outbox.** An IndexedDB queue (Dexie) where writes wait until the server has them: one for notes and quick capture, one for money (transactions and accounts). It flushes when the connection comes back, and nothing leaves it until the server answers.
 
 **Palette.** The command palette (Ctrl/⌘+K). It opens apps, runs module commands, searches, and does quick actions like "add expense 4500 food".
 

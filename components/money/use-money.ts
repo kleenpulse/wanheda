@@ -1,50 +1,22 @@
 "use client";
 
 import * as React from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { create } from "zustand";
-import { archiveAccount, deleteTxn, saveAccount, saveTxn, type AccountResult } from "@/actions/money";
+import { useQuery } from "@tanstack/react-query";
 import { useAccount } from "@/components/shell/account";
 import { toast } from "@/components/ui/toaster";
 import { useNow } from "@/hooks/use-now";
-import { createTxnWriter } from "./txn-writer";
 import { fetchJson } from "@/lib/fetch-json";
-import { formatMoney } from "@/lib/money/currency";
 import { todayIn, type Day } from "@/lib/money/dates";
 import { olderRange } from "@/lib/money/periods";
-import {
-  MONEY_KEY,
-  MONEY_RANGE_KEY,
-  applyPending,
-  removeTxn,
-  upsertAccount,
-  upsertTxn,
-  type Account,
-  type MoneyPayload,
-  type PendingTxns,
-  type Txn,
-  type TxnRangePayload,
-} from "@/lib/money/money";
+import { MONEY_KEY, MONEY_RANGE_KEY, applyPending, applyPendingAccounts, type Account, type MoneyPayload, type Txn, type TxnRangePayload } from "@/lib/money/money";
+import { useMoneyRuntime } from "./money-provider";
+import { describeTxn, useMoneyLocal } from "./money-runtime";
 
 // The money cache (V24): every money view reads one TanStack Query entry,
 // filled by the page's Prefetch or by /api/money, with this device's
-// unconfirmed writes laid over it. Writes show at once; a write the server
-// cannot take yet is retried a few times, then reported and dropped. Writes
-// to one id never race: see txn-writer.ts.
-// Nothing here is queued across reloads yet: the money outbox is its own checkpoint (SPEC T35b).
-
-const usePending = create<{ pending: PendingTxns }>(() => ({ pending: {} }));
-
-function setPending(id: string, txn: Txn | null) {
-  usePending.setState((s) => ({ pending: { ...s.pending, [id]: txn } }));
-}
-
-function clearPending(id: string) {
-  usePending.setState((s) => {
-    const { [id]: _gone, ...rest } = s.pending;
-    return { pending: rest };
-  });
-}
+// unconfirmed writes laid over it. Writes show at once and go through the
+// device outbox, which keeps them until the server has them, across reloads
+// and dead zones (money-runtime.ts, SPEC V28).
 
 const LAST_ACCOUNT_KEY = "wanheda-money-account";
 
@@ -74,8 +46,12 @@ export function useMoney(options: { enabled?: boolean } = {}) {
     staleTime: demo ? Infinity : 30_000,
     enabled: options.enabled ?? true,
   });
-  const pending = usePending((s) => s.pending);
-  const data = React.useMemo(() => (query.data ? applyPending(query.data, pending) : null), [query.data, pending]);
+  const pending = useMoneyLocal((s) => s.txns);
+  const accounts = useMoneyLocal((s) => s.accounts);
+  const data = React.useMemo(
+    () => (query.data ? applyPendingAccounts(applyPending(query.data, pending), accounts) : null),
+    [query.data, pending, accounts],
+  );
   return { data, failed: query.isError && !query.data, refetch: query.refetch };
 }
 
@@ -108,7 +84,7 @@ export function useLedger(payload: MoneyPayload, from: Day, to: Day): Ledger {
     enabled: needOlder,
     staleTime: 60_000,
   });
-  const pending = usePending((s) => s.pending);
+  const pending = useMoneyLocal((s) => s.txns);
   const older = query.data;
   const txns = React.useMemo(() => {
     const inWindow = payload.txns.filter((t) => t.postedOn >= since);
@@ -136,187 +112,81 @@ export function newTxn(fields: Pick<Txn, "accountId" | "postedOn" | "amountMinor
   return { ...fields, id: crypto.randomUUID(), note: "", source: "manual", transferId: null, createdAt: Date.now() };
 }
 
-const writer = createTxnWriter({
-  saveTxn,
-  deleteTxn,
-  setPending,
-  clearPending,
-  wait: (ms) => new Promise((r) => setTimeout(r, ms)),
-  retryMs: [2_000, 6_000, 15_000],
-});
-
-function describe(t: Txn): string {
-  const amount = formatMoney({ minor: t.amountMinor, currency: t.currency }, { sign: "never" });
-  return t.payee ? `${amount} · ${t.payee}` : amount;
-}
-
 export function useMoneyApi() {
-  const qc = useQueryClient();
-  const demo = useAccount().kind !== "owner";
+  const runtime = useMoneyRuntime();
 
-  const writeCache = React.useCallback(
-    (fn: (p: MoneyPayload) => MoneyPayload) => {
-      const main = qc.getQueryData<MoneyPayload>(MONEY_KEY);
-      qc.setQueryData<MoneyPayload>(MONEY_KEY, (prev) => (prev ? fn(prev) : prev));
-      // Older periods' caches take the same write (an upsert or a remove touches txns only).
-      if (main) {
-        qc.setQueriesData<TxnRangePayload>({ queryKey: [MONEY_RANGE_KEY] }, (prev) => (prev ? { ...prev, txns: fn({ ...main, txns: prev.txns }).txns } : prev));
-      }
-    },
-    [qc],
-  );
-
-  /**
-   * Whether a write moves money before the window, whose per-account sums the
-   * server holds: then the window is refetched so balances stay true.
-   */
-  const touchesPrior = React.useCallback(
-    (txn: Txn) => {
-      const since = qc.getQueryData<MoneyPayload>(MONEY_KEY)?.since;
-      if (!since) return false;
-      if (txn.postedOn < since) return true;
-      return qc
-        .getQueriesData<TxnRangePayload>({ queryKey: [MONEY_RANGE_KEY] })
-        .some(([, d]) => d?.txns.some((t) => t.id === txn.id && t.postedOn < since) ?? false);
-    },
-    [qc],
-  );
-
-  /** Shows at once; the server write runs behind it (V24). A newer write to the same id takes over. */
+  /** Shows at once; the outbox sends it when it can (V24, V28). A newer write to the same id takes over. */
   const save = React.useCallback(
-    async (txn: Txn): Promise<boolean> => {
+    (txn: Txn) => {
       rememberAccount(txn.accountId);
-      if (demo) {
-        writeCache((p) => upsertTxn(p, txn));
-        return true;
-      }
-      const prior = touchesPrior(txn);
-      const outcome = await writer.save(txn, writeCache);
-      if (outcome.ok && prior) void qc.invalidateQueries({ queryKey: MONEY_KEY, exact: true });
-      if (!outcome.ok && outcome.reason !== "superseded") {
-        toast({
-          title: `Not saved: ${describe(txn)}`,
-          body:
-            outcome.reason === "archived-account"
-              ? "That account is archived. Pick another one."
-              : outcome.reason === "failed"
-                ? "The server didn't answer. Add it again when you're back online."
-                : "The server refused it. Reload and try again.",
-        });
-      }
-      return outcome.ok;
+      runtime.saveTxn(txn);
     },
-    [demo, writeCache, touchesPrior, qc],
+    [runtime],
   );
 
   /**
    * Deletes with an undo (user 2026-11-05: destructive actions get a confirm
    * or an undo). The row hides at once; Undo or × brings it back, and the
-   * delete is sent only when the toast runs out (timed out or pushed out), so
-   * nothing on the server ever has to be resurrected.
+   * delete is queued only when the toast runs out (timed out or pushed out),
+   * so nothing on the server ever has to be resurrected.
    */
   const remove = React.useCallback(
     (txn: Txn) => {
-      setPending(txn.id, null);
+      const before = runtime.hideTxn(txn.id);
       const cancel = () => {
-        clearPending(txn.id);
+        runtime.unhideTxn(txn.id, before);
       };
       toast({
         id: `undo-delete:${txn.id}`,
-        title: `Deleted ${describe(txn)}`,
+        title: `Deleted ${describeTxn(txn)}`,
         action: { label: "Undo", onClick: cancel },
         // Closing the toast cancels too: only running out commits (user 2026-11-05).
         onClose: cancel,
         closeLabel: "Cancel delete",
         onExpire: () => {
-          if (demo) {
-            writeCache((p) => removeTxn(p, txn.id));
-            clearPending(txn.id);
-            return;
-          }
-          const prior = touchesPrior(txn);
-          void writer.remove(txn, writeCache).then((outcome) => {
-            if (outcome.ok && prior) void qc.invalidateQueries({ queryKey: MONEY_KEY, exact: true });
-            if (!outcome.ok && outcome.reason !== "superseded") toast({ title: `Not deleted: ${describe(txn)}`, body: "The server didn't answer. Try again." });
-          });
+          runtime.deleteTxn(txn);
         },
       });
     },
-    [demo, writeCache, touchesPrior, qc],
+    [runtime],
   );
 
   return { save, remove };
 }
 
 /**
- * Account writes (FR-MONEY-1): shown at once, then sent. A failure says so and
- * refetches, which puts back what the server holds. Accounts change rarely,
- * so they skip the per-id writer txns need; a refetch in flight is cancelled
- * first so it cannot land over the optimistic row.
+ * Account writes (FR-MONEY-1): shown at once, then queued behind every money
+ * write before them, so a txn on a new account always lands after it.
  */
 export function useAccountApi() {
-  const qc = useQueryClient();
-  const demo = useAccount().kind !== "owner";
-
-  const put = React.useCallback(
-    (account: Account) => {
-      qc.setQueryData<MoneyPayload>(MONEY_KEY, (prev) => (prev ? upsertAccount(prev, account) : prev));
-    },
-    [qc],
-  );
-
-  const send = React.useCallback(
-    async (account: Account, run: () => Promise<AccountResult>, failTitle: string): Promise<boolean> => {
-      await qc.cancelQueries({ queryKey: MONEY_KEY, exact: true });
-      put(account);
-      if (demo) return true;
-      const result: AccountResult = await run().catch(() => ({ ok: false, reason: "failed" }));
-      if (result.ok) {
-        put(result.account);
-        return true;
-      }
-      toast({
-        title: failTitle,
-        body: result.reason === "failed" ? "The server didn't answer. Try again when you're back online." : "The server refused it. Reload and try again.",
-      });
-      void qc.invalidateQueries({ queryKey: MONEY_KEY, exact: true });
-      return false;
-    },
-    [qc, put, demo],
-  );
+  const runtime = useMoneyRuntime();
 
   /** Creates or edits an account. The currency is only used on create. */
   const save = React.useCallback(
-    (account: Account) =>
-      send(
-        account,
-        () => saveAccount({ id: account.id, name: account.name, kind: account.kind, currency: account.currency, openingMinor: account.openingMinor }),
-        `Not saved: ${account.name}`,
-      ),
-    [send],
+    (account: Account) => {
+      runtime.saveAccount(account);
+    },
+    [runtime],
   );
 
   /** Archives at once, with an Undo (user rule: anything that takes a thing away gets an undo). */
   const setArchived = React.useCallback(
-    async (account: Account, archived: boolean) => {
-      const verb = archived ? "archived" : "restored";
-      const ok = await send({ ...account, archived }, () => archiveAccount({ id: account.id, archived }), `Not ${verb}: ${account.name}`);
-      if (ok && archived) {
-        toast({
-          id: `undo-archive:${account.id}`,
-          title: `Archived ${account.name}`,
-          body: "Its entries and balance stay. New entries can't use it.",
-          action: {
-            label: "Undo",
-            onClick: () => {
-              void send({ ...account, archived: false }, () => archiveAccount({ id: account.id, archived: false }), `Not restored: ${account.name}`);
-            },
+    (account: Account, archived: boolean) => {
+      runtime.archiveAccount({ ...account, archived });
+      if (!archived) return;
+      toast({
+        id: `undo-archive:${account.id}`,
+        title: `Archived ${account.name}`,
+        body: "Its entries and balance stay. New entries can't use it.",
+        action: {
+          label: "Undo",
+          onClick: () => {
+            runtime.archiveAccount({ ...account, archived: false });
           },
-        });
-      }
-      return ok;
+        },
+      });
     },
-    [send],
+    [runtime],
   );
 
   return { save, setArchived };
