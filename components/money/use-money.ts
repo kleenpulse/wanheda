@@ -137,23 +137,24 @@ export function useMoneyApi() {
 
   /**
    * Deletes with an undo (user 2026-11-05: destructive actions get a confirm
-   * or an undo). The row hides at once; the delete is sent only when the
-   * toast leaves without Undo (timed out, closed or pushed out), so Undo never
-   * has to resurrect anything on the server.
+   * or an undo). The row hides at once; Undo or × brings it back, and the
+   * delete is sent only when the toast runs out (timed out or pushed out), so
+   * nothing on the server ever has to be resurrected.
    */
   const remove = React.useCallback(
     (txn: Txn) => {
       setPending(txn.id, null);
+      const cancel = () => {
+        clearPending(txn.id);
+      };
       toast({
         id: `undo-delete:${txn.id}`,
         title: `Deleted ${describe(txn)}`,
-        action: {
-          label: "Undo",
-          onClick: () => {
-            clearPending(txn.id);
-          },
-        },
-        onDismiss: () => {
+        action: { label: "Undo", onClick: cancel },
+        // Closing the toast cancels too: only running out commits (user 2026-11-05).
+        onClose: cancel,
+        closeLabel: "Cancel delete",
+        onExpire: () => {
           if (demo) {
             writeCache((p) => removeTxn(p, txn.id));
             clearPending(txn.id);

@@ -1,44 +1,59 @@
 import { describe, expect, it, vi } from "vitest";
 import { dismissToast, toast } from "./toaster";
 
-// Undoable actions commit in onDismiss, so it must run exactly once for every
-// way a toast leaves, and never when its action (Undo) was used.
+// Undoable actions commit in onExpire and cancel in onClose, so each must run
+// exactly once for its own exits and never for the others (user 2026-11-05:
+// Undo and × both cancel a delete; only running out commits it).
 
-describe("toast onDismiss", () => {
-  it("runs once on close, never twice", () => {
-    const onDismiss = vi.fn();
-    toast({ id: "a", title: "A", onDismiss });
-    dismissToast("a");
-    dismissToast("a");
-    expect(onDismiss).toHaveBeenCalledTimes(1);
+const hooks = () => ({ onExpire: vi.fn(), onClose: vi.fn() });
+
+describe("toast exits", () => {
+  it("× runs onClose once, never onExpire", () => {
+    const h = hooks();
+    toast({ id: "a", title: "A", ...h });
+    dismissToast("a", "close");
+    dismissToast("a", "close");
+    expect(h.onClose).toHaveBeenCalledTimes(1);
+    expect(h.onExpire).not.toHaveBeenCalled();
   });
 
-  it("does not run when the action was used", () => {
-    const onDismiss = vi.fn();
-    toast({ id: "b", title: "B", action: { label: "Undo", onClick: () => undefined }, onDismiss });
-    dismissToast("b", true);
-    expect(onDismiss).not.toHaveBeenCalled();
+  it("timing out runs onExpire once, never onClose", () => {
+    const h = hooks();
+    toast({ id: "b", title: "B", ...h });
+    dismissToast("b", "expire");
+    dismissToast("b", "expire");
+    expect(h.onExpire).toHaveBeenCalledTimes(1);
+    expect(h.onClose).not.toHaveBeenCalled();
   });
 
-  it("runs for a toast replaced by one with the same id", () => {
-    const first = vi.fn();
-    const second = vi.fn();
-    toast({ id: "c", title: "C", onDismiss: first });
-    toast({ id: "c", title: "C again", onDismiss: second });
-    expect(first).toHaveBeenCalledTimes(1);
-    expect(second).not.toHaveBeenCalled();
-    dismissToast("c");
-    expect(second).toHaveBeenCalledTimes(1);
+  it("using the action runs neither", () => {
+    const h = hooks();
+    toast({ id: "c", title: "C", action: { label: "Undo", onClick: () => undefined }, ...h });
+    dismissToast("c", "action");
+    expect(h.onExpire).not.toHaveBeenCalled();
+    expect(h.onClose).not.toHaveBeenCalled();
   });
 
-  it("runs for toasts pushed out by newer ones", () => {
-    const oldest = vi.fn();
-    toast({ id: "d1", title: "1", onDismiss: oldest });
-    toast({ id: "d2", title: "2" });
-    toast({ id: "d3", title: "3" });
-    expect(oldest).not.toHaveBeenCalled();
-    toast({ id: "d4", title: "4" });
-    expect(oldest).toHaveBeenCalledTimes(1);
-    for (const id of ["d2", "d3", "d4"]) dismissToast(id);
+  it("a toast replaced by one with the same id expires", () => {
+    const first = hooks();
+    const second = hooks();
+    toast({ id: "d", title: "D", ...first });
+    toast({ id: "d", title: "D again", ...second });
+    expect(first.onExpire).toHaveBeenCalledTimes(1);
+    expect(second.onExpire).not.toHaveBeenCalled();
+    dismissToast("d", "close");
+    expect(second.onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("toasts pushed out by newer ones expire", () => {
+    const oldest = hooks();
+    toast({ id: "e1", title: "1", ...oldest });
+    toast({ id: "e2", title: "2" });
+    toast({ id: "e3", title: "3" });
+    expect(oldest.onExpire).not.toHaveBeenCalled();
+    toast({ id: "e4", title: "4" });
+    expect(oldest.onExpire).toHaveBeenCalledTimes(1);
+    expect(oldest.onClose).not.toHaveBeenCalled();
+    for (const id of ["e2", "e3", "e4"]) dismissToast(id);
   });
 });
