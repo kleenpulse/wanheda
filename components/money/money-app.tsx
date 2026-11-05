@@ -119,7 +119,7 @@ function Stat({ label, note, values, zero }: { label: string; note: string; valu
         <h3 className="readout">{label}</h3>
         <span className="readout tabular truncate">{note}</span>
       </div>
-      <MoneyStack values={values} fallback={zero} className="font-display text-[30px] leading-none font-semibold tracking-[-0.01em] text-foreground" />
+      <MoneyStack roll values={values} fallback={zero} className="font-display text-[30px] leading-none font-semibold tracking-[-0.01em] text-foreground" />
     </div>
   );
 }
@@ -171,7 +171,7 @@ function Recent({
                 <span className="readout flex gap-2">
                   Spent
                   {dayTotals.spend.map((m) => (
-                    <MoneyText key={m.currency} value={m} />
+                    <MoneyText roll key={m.currency} value={m} />
                   ))}
                 </span>
               ) : null}
@@ -225,6 +225,7 @@ function TxnRow({
         <p className="truncate text-[12.5px] text-ink-2">{sub}</p>
       </div>
       <MoneyText
+        roll
         value={{ minor: txn.amountMinor, currency: txn.currency }}
         sign={income ? "always" : "auto"}
         className={cn("shrink-0 text-[14px] font-medium", income ? "text-ok" : "text-foreground")}

@@ -1,3 +1,4 @@
+import { RollingNumber } from "@/components/ui/rolling-number";
 import { formatMoney, type FormatOptions, type Money } from "@/lib/money/currency";
 import type { Category } from "@/lib/money/money";
 import type { CategoryColor } from "@/lib/money/categories";
@@ -6,28 +7,30 @@ import { cn } from "@/lib/utils";
 /**
  * Every money figure on screen goes through here (SPEC V25): one exact
  * formatter, tabular digits, and a `data-money` hook so privacy mode (T38)
- * can blur them all at once.
+ * can blur them all at once. `roll` animates changes: the changed digits
+ * roll up when the amount rises and down when it falls.
  */
-export function MoneyText({ value, className, ...options }: { value: Money; className?: string } & FormatOptions) {
+export function MoneyText({ value, className, roll = false, ...options }: { value: Money; className?: string; roll?: boolean } & FormatOptions) {
+  const text = formatMoney(value, options);
   return (
     <span data-money className={cn("tabular", className)}>
-      {formatMoney(value, options)}
+      {roll ? <RollingNumber text={text} value={value.minor} /> : text}
     </span>
   );
 }
 
 /** Totals in several currencies: the first one large, the rest on a quiet line under it. */
-export function MoneyStack({ values, fallback, className }: { values: readonly Money[]; fallback: Money; className?: string }) {
+export function MoneyStack({ values, fallback, className, roll = false }: { values: readonly Money[]; fallback: Money; className?: string; roll?: boolean }) {
   const [first = fallback, ...rest] = values;
   return (
     <span className={cn("flex min-w-0 flex-col", className)}>
-      <MoneyText value={first} className="truncate" />
+      <MoneyText value={first} roll={roll} className="truncate" />
       {rest.length > 0 ? (
         <span className="truncate text-[12px] font-normal tracking-normal text-ink-2">
           {rest.map((m, i) => (
             <span key={m.currency}>
               {i > 0 ? " · " : "and "}
-              <MoneyText value={m} />
+              <MoneyText value={m} roll={roll} />
             </span>
           ))}
         </span>

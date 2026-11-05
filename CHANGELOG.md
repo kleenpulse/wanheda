@@ -28,6 +28,7 @@ All notable user-visible changes. Shipped in-app as "What's New" (FR-SHELL-10).
 - The palette reaches every command: edit the board (from any page), skin, accent, wallpaper and repeat timers (type "skin", "accent" and so on), mark all notifications read, and sign out.
 - Money: a new app (the $ on the rail) for spending and income. It shows what you spent today and this month and what came in, and lists the newest entries by day, each with its category's emoji and colour. Amounts are stored as whole kobo or cents, never rounded.
 - Log spending from anywhere: type `4500 food jollof` into the palette and press Enter. `+50000 salary` logs income, `$12 netflix` uses your dollar account, `@bank` picks an account, `yesterday` backdates it and `#work` tags it.
+- Money totals and amounts roll when they change: the digits that changed roll up when the amount rises and down when it falls. Reduced motion shows the new figure at once.
 - An add form beside the list (Enter saves and it's ready for the next one), and on phones an Add button that opens a one-thumb sheet with your most-used categories as big buttons.
 - Dropdowns in the Money form are frosted glass in every skin, each category with its emoji and colour, with keyboard and type-to-find.
 - Edit any entry with the pencil on its row (the editor grows out of the pencil): amount, direction, category, payee, account and day.
