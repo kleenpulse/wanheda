@@ -78,7 +78,7 @@ function toCategory(r: CategoryRow): Category {
   };
 }
 
-function toTxn(r: TxnRow): Txn | null {
+export function toTxn(r: TxnRow): Txn | null {
   // A currency this build does not know is skipped, not guessed (V26).
   if (!isCurrency(r.currency)) return null;
   return {
@@ -119,7 +119,7 @@ function toSubscription(r: SubscriptionRow): Subscription | null {
   };
 }
 
-const present = <T,>(x: T | null): x is T => x !== null;
+export const present = <T,>(x: T | null): x is T => x !== null;
 
 /** A bigint sum read as text: exact, or a MoneyError past 2^53 (V25). */
 export function minorFromText(text: string): number {
@@ -393,13 +393,14 @@ const NO_ID = "00000000-0000-0000-0000-000000000000";
  * Creates or edits one subscription (FR-MONEY-8, V28). Its account and
  * category, when set, must be the owner's. The id comes from the client, so a
  * create sent twice lands once; another user's id never matches the upsert's
- * WHERE. `detectedFromTxn` is never taken from the client (T37 sets it).
- * Null when there is no database.
+ * WHERE. `detectedFromTxn` is never taken from the client: it is set on
+ * create when `fromTxn` names one of the owner's txns (T37), and an edit
+ * never changes it. Null when there is no database.
  */
 export async function saveSubscription(userId: string, w: SubscriptionWrite): Promise<SaveSubscriptionOutcome | null> {
   const db = getDb();
   if (!db) return null;
-  const [accounts, categories] = await db.batch([
+  const [accounts, categories, detected] = await db.batch([
     db
       .select({ id: moneyAccount.id })
       .from(moneyAccount)
@@ -409,6 +410,11 @@ export async function saveSubscription(userId: string, w: SubscriptionWrite): Pr
       .select({ id: category.id })
       .from(category)
       .where(and(eq(category.id, w.categoryId ?? NO_ID), eq(category.userId, userId)))
+      .limit(1),
+    db
+      .select({ id: txn.id })
+      .from(txn)
+      .where(and(eq(txn.id, w.fromTxn ?? NO_ID), eq(txn.userId, userId)))
       .limit(1),
   ]);
   if (w.accountId !== null && accounts.length === 0) return { kind: "not-yours" };
@@ -430,7 +436,7 @@ export async function saveSubscription(userId: string, w: SubscriptionWrite): Pr
   };
   const rows = await db
     .insert(subscription)
-    .values({ id: w.id, userId, ...values })
+    .values({ id: w.id, userId, ...values, detectedFromTxn: detected.length > 0 })
     .onConflictDoUpdate({ target: subscription.id, set: { ...values, updatedAt: sql`now()` }, setWhere: eq(subscription.userId, userId) })
     .returning();
   const saved = rows[0] ? toSubscription(rows[0]) : null;

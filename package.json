@@ -27,6 +27,7 @@
     "cmdk": "1.1.1",
     "dexie": "4.4.7",
     "drizzle-orm": "0.45.4",
+    "fflate": "0.8.3",
     "lucide-react": "1.63.0",
     "motion": "14.7.1",
     "next": "16.4.5",

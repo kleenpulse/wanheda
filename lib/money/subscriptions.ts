@@ -43,6 +43,8 @@ export interface Subscription {
   /** Made from a detected pattern of txns (T37). Set by the server only. */
   detectedFromTxn: boolean;
   createdAt: number;
+  /** On a new one made from a suggestion: the charge it was detected from, for the server to check (never stored). */
+  fromTxn?: string;
 }
 
 export function isSubCycle(v: unknown): v is SubCycle {
@@ -65,7 +67,12 @@ export function isWebUrl(text: string): boolean {
 
 const day = z.string().refine(isDay, "Not a calendar day");
 
-/** One subscription write from the client. No owner and no `detectedFromTxn`: the server sets both (V7, V28). */
+/**
+ * One subscription write from the client. No owner and no `detectedFromTxn`:
+ * the server sets both (V7, V28). `fromTxn` names the charge a suggestion was
+ * made from; the server marks the subscription detected only when that txn is
+ * the owner's, and only when it creates it.
+ */
 export const subscriptionWriteSchema = z
   .object({
     id: z.uuid(),
@@ -81,6 +88,7 @@ export const subscriptionWriteSchema = z
     categoryId: z.uuid().nullable(),
     status: z.enum(SUB_STATUSES),
     cancelUrl: z.string().trim().max(SUB_URL_MAX).refine(isWebUrl, "Not a web link").nullable(),
+    fromTxn: z.uuid().optional(),
   })
   .strict();
 
@@ -101,6 +109,7 @@ export function subscriptionWriteOf(s: Subscription): SubscriptionWrite {
     categoryId: s.categoryId,
     status: s.status,
     cancelUrl: s.cancelUrl,
+    ...(s.fromTxn ? { fromTxn: s.fromTxn } : {}),
   };
 }
 

@@ -35,6 +35,7 @@ import { cn } from "@/lib/utils";
 import { MoneyLoadFailed } from "./money-app";
 import { CategoryMark, MoneyStack, MoneyText } from "./money-text";
 import { RenewalCycle } from "./renewal-cycle";
+import { Suggestions } from "./suggestions";
 import { grouped } from "./txn-form";
 import { useMoney, useNewSubscription, useSubscriptionApi, useToday } from "./use-money";
 
@@ -151,6 +152,8 @@ function SubscriptionsView({ payload }: { payload: MoneyPayload }) {
           )}
         </Tile>
       </section>
+
+      <Suggestions payload={payload} today={today} onAdd={api.save} />
 
       <div className="grid grid-cols-1 items-start gap-6 @4xl:grid-cols-[minmax(0,1fr)_minmax(300px,380px)]">
         <section aria-labelledby="subs-ranked" className="bento flex min-w-0 flex-col gap-3 p-5">
@@ -465,6 +468,8 @@ function SubscriptionForm({
       id: initial?.id ?? crypto.randomUUID(),
       createdAt: initial?.createdAt ?? stamp(),
       detectedFromTxn: initial?.detectedFromTxn ?? false,
+      // An edit made before a suggested one reached the server still carries its charge.
+      ...(initial?.fromTxn ? { fromTxn: initial.fromTxn } : {}),
       name: name.trim().slice(0, SUB_NAME_MAX),
       amountMinor: minor,
       currency,

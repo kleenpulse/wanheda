@@ -1,6 +1,6 @@
 # Latest hand-off
 
-**Newest:** [2026-11-05-phase-3-subscriptions.md](2026-11-05-phase-3-subscriptions.md). **Phase 3 CP3 subscriptions merged** (T36 `x`): PR #18 merged as `1fa07ab` (2026-11-05). Reviewer verdict: **LGTM with nits**, read after the merge. Nit 1: the edit form re-anchors on the shown (clamped) next renewal when only the cycle or count changes, so a Jan 31 monthly switched to every 2 months in Feb drifts to the 28th (V30); fixed on `phase-3/subscriptions-nits`. Nit 2 (watch item): `raiseMoneyAlerts` runs an insert + select on every owner full load in `app/(shell)/layout.tsx`; leave it unless shell TTFB grows, then move it to `after()`. Built on branch `phase-3/subscriptions`, commit `d07d237`. New: a third money tab `/money/subscriptions` (monthly and yearly totals, ranked list, 60-day timeline), subscription writes through the money outbox (`sub-save`, `sub-delete`), reminders as deduped notifications raised on shell load and after a save, the island `money-alert`, and palette "New subscription". No new SQL. Owner-mode check not done. Open: intermittent React #418 hydration error on /money/subscriptions (see hand-off). Next: the nits branch (nit 1 fix, the #418 dev-mode run), then T37 (import).
+**Newest:** [2026-11-05-phase-3-import.md](2026-11-05-phase-3-import.md). **Phase 3 CP4 import built, PR #20 open** (`phase-3/import`, off main `3fa1a58`, commit `8fd541b`): statement import (Web Worker read of CSV / XLSX / HTML-table, saved mappings, 12 bank presets, preview with new / already here / skipped, one-transaction import per V32, "already imported on <date>", undo with confirm) and recurring suggestions on Subscriptions (`detected_from_txn` set by the server). Reviewer: FIX (ref key length) → LGTM. Vitest 52 files / 647, typecheck, tripwire, build all pass. Not done: browser run, owner import against Neon. SPEC T37 + §B B15–B17 drafted in the hand-off, waiting for the user's OK. PR #19 merged as `3fa1a58`. Next: merge #20, then T38 in a new session.
 
 Read the hand-off first, then verify it against the repo before trusting it (git, tripwire, typecheck, tests). The Builder and Reviewer prompts below are copied from it.
 
@@ -13,15 +13,14 @@ commit; commit, push and PRs only on the user's word; a short hand-off + continu
 after every PR. No worktrees: branch off main in D:\Vxrcel\wanheda itself. One checkpoint per
 session: after its PR merges, stop and hand over. House goal (CLAUDE.md): native-app feel, V24.
 
-Phase 3 CP4: import (SPEC T37). Read docs/handoff/2026-11-05-phase-3-subscriptions.md, SPEC.md
-T37, V12, V25, V27, V28, V32, ADR-0008, and lib/money/subscriptions.ts (recurring detection
-ends in a subscription with detected_from_txn). First ask the user for redacted sample
-statements from their NG and US banks; build the generic mapper first if they aren't ready.
-
-Start: `git fetch`; check new commits with `sh scripts/forged-commits.sh c37937e..origin/main`
-before pulling; fast-forward main. Then `git switch -c phase-3/import`. Any new package: pinned,
->= 7 days old, supply-chain read first. Any new SQL: generate, show it, apply only on the
-user's go-ahead.
+Read docs/handoff/2026-11-05-phase-3-import.md first. PR #20 (T37 import) was open at
+hand-off. Start: `git fetch`; check new commits with `sh scripts/forged-commits.sh
+3fa1a58..origin/main` before pulling; fast-forward main. Another session was making UI
+changes in the working tree: check `git status` and leave its files alone unless the user says.
+If the user OKs the SPEC draft in the hand-off, apply it with the spec skill. Then Phase 3 CP5:
+T38 (budgets + 80/100 % alerts, rules, FX daily + base-currency picker, privacy mode, Home money
+widgets, export) on branch phase-3/budgets-fx. Any new package: pinned, >= 7 days old,
+supply-chain read first. Any new SQL: generate, show it, apply only on the user's go-ahead.
 ```
 
 ### Reviewer prompt
@@ -30,10 +29,6 @@ user's go-ahead.
 You are the REVIEWER session for Wanheda at D:\Vxrcel\wanheda. Use the diff-reviewer skill;
 read-only. Lean mode: review when the user asks, one pass per PR, bugs and edge cases only,
 verdict LGTM / LGTM with nits / FIX, sent to the Builder. Your LGTM is not the user's approval.
-Context: docs/handoff/2026-11-05-phase-3-subscriptions.md, SPEC.md V25, V26, V28, V30, V31.
-Look hardest at: lib/money/subscriptions.ts firstIndexFrom and month-end clamping; costTotals
-rounding once per currency; the form keeping the anchor on edit (components/money/subscriptions.tsx
-submit); sub ops in lib/money/outbox.ts supersedes and money-runtime.ts settleRow/unhideRow;
-raiseMoneyAlerts in the shell layout (never throws, merged with the notices read); the island
-alert dropping paused, cancelled or deleted subscriptions; the PageFrame header wrap on other pages.
+Target: the post-push / post-merge check of PR #20 (phase-3/import), then the next T38 PR.
+Context: docs/handoff/2026-11-05-phase-3-import.md, SPEC.md V12, V24, V28, V32.
 ```
