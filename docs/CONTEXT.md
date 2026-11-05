@@ -12,7 +12,7 @@ Domain terms used in `FRD.md`, `SPEC.md`, the ADRs and the code. Alphabetical. W
 
 **ARR.** Annual recurring revenue: MRR × 12.
 
-**Base currency.** The one currency reports convert into (NGN or USD, still open). Original amounts are always shown too.
+**Base currency.** The one currency reports convert into. The owner can switch it in Settings; the default is NGN (decided 2026-11-05). Original amounts are always shown too.
 
 **Billing event.** One raw event from a billing provider (Polar, Stripe, Paystack), stored as-is in `billing_event`. The table is append-only. MRR movements are derived from it.
 

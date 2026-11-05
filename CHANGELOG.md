@@ -26,6 +26,11 @@ All notable user-visible changes. Shipped in-app as "What's New" (FR-SHELL-10).
 - Notification centre: the bell on the rail (or "Open notifications" in the palette) lists past alerts with read and unread, a filter and Mark all read. Finished timers raise an alert, once even with two tabs open.
 - Settings in a new layout: sections on the left (Appearance, Timers, Keyboard, Account), cards on the right, and a list you tap into on phones. Appearance opens with a preview in your skin and accent, and the theme is now System, Ember or Nebula. Keyboard lists every shortcut.
 - The palette reaches every command: edit the board (from any page), skin, accent, wallpaper and repeat timers (type "skin", "accent" and so on), mark all notifications read, and sign out.
+- Money: a new app (the $ on the rail) for spending and income. It shows what you spent today and this month and what came in, and lists the newest entries by day, each with its category's emoji and colour. Amounts are stored as whole kobo or cents, never rounded.
+- Log spending from anywhere: type `4500 food jollof` into the palette and press Enter. `+50000 salary` logs income, `$12 netflix` uses your dollar account, `@bank` picks an account, `yesterday` backdates it and `#work` tags it.
+- An add form beside the list (Enter saves and it's ready for the next one), and on phones an Add button that opens a one-thumb sheet with your most-used categories as big buttons.
+- Dropdowns in the Money form are frosted glass in every skin, each category with its emoji and colour, with keyboard and type-to-find.
+- The palette's highlight fades when the pointer leaves the list and comes back when you type or use the arrow keys, so Enter never runs a row you can't see.
 
 ### Fixed
 
