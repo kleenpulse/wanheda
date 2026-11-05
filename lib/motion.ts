@@ -21,3 +21,6 @@ export const SNAP_SPRING = { type: "spring", stiffness: 520, damping: 42, mass: 
 
 /** The dock's swell under the pointer. Low mass so the peak keeps up with a fast sweep. */
 export const DOCK_SPRING = { stiffness: 320, damping: 24, mass: 0.1 } as const;
+
+/** Parallax layers easing toward the pointer (the empty-state mark; from ellum-harness AvatarStage). */
+export const FOLLOW_SPRING = { stiffness: 140, damping: 18, mass: 0.6 } as const;

@@ -13,6 +13,7 @@ import {
   LogOut,
   Monitor,
   Moon,
+  NotebookPen,
   Paintbrush,
   Palette,
   PanelLeft,
@@ -22,7 +23,6 @@ import {
   Repeat,
   Search,
   SquarePen,
-  StickyNote,
   Sun,
   Timer as TimerIcon,
   Wallpaper,
@@ -215,7 +215,7 @@ function PaletteBody({
             <Item
               forceMount
               value="note-capture"
-              icon={StickyNote}
+              icon={NotebookPen}
               title={`Save note: ${captured.length > 60 ? `${captured.slice(0, 59)}…` : captured}`}
               hint="Enter"
               onSelect={run(() => {
@@ -227,7 +227,7 @@ function PaletteBody({
 
         {noteSearch.kind === "failed" && (
           <Command.Group heading="Notes" forceMount>
-            <Item forceMount disabled value="note-search-failed" icon={StickyNote} title="Note search failed" hint="Try again" onSelect={() => undefined} />
+            <Item forceMount disabled value="note-search-failed" icon={NotebookPen} title="Note search failed" hint="Try again" onSelect={() => undefined} />
           </Command.Group>
         )}
         {noteSearch.kind === "hits" && noteSearch.hits.length > 0 && (
@@ -237,7 +237,7 @@ function PaletteBody({
                 key={hit.id}
                 forceMount
                 value={`note-hit-${hit.id}`}
-                icon={StickyNote}
+                icon={NotebookPen}
                 title={hit.title}
                 {...(hit.snippet ? { hint: hit.snippet } : {})}
                 onSelect={run(() => {

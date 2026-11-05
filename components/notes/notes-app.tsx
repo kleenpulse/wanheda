@@ -81,6 +81,8 @@ export function NotesApp() {
   const api = useNotesApi();
   const url = useNotesUrl();
   const rootRef = React.useRef<HTMLDivElement>(null);
+  // The board view renders the view switch in another branch: one id for both, so the pill slides between them.
+  const viewSwitchId = React.useId();
   const [filter, setFilter] = React.useState("");
   const isWide = () => (rootRef.current?.offsetWidth ?? 0) >= WIDE_PX;
 
@@ -102,6 +104,7 @@ export function NotesApp() {
     <div className="flex flex-wrap items-center gap-2">
       <Segmented
         label="Which notes"
+        layoutId={viewSwitchId}
         className="tabular"
         value={url.view}
         options={[

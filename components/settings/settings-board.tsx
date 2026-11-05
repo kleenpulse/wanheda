@@ -137,6 +137,7 @@ function Rail({ section, onSelect }: { section: SectionId; onSelect: (id: Sectio
                   {selected && (
                     <motion.span
                       layoutId={indicatorId}
+                      layoutDependency={section}
                       aria-hidden
                       transition={TAB_SPRING}
                       style={{ borderRadius: 9999 }}
@@ -292,7 +293,10 @@ export function SettingsBoard() {
 
   return (
     <div className="mx-auto flex w-full max-w-[1120px] gap-10">
-      <aside className="sticky top-8 hidden w-52 shrink-0 self-start @3xl:block">
+      {/* layout + layoutRoot: sticky, so the page can scroll under it. The root snaps to
+          its new spot and the tab pill animates relative to it; without this the pill
+          reads a scroll reset as its own move and flies in (motion-pill-jump). */}
+      <motion.aside layout layoutRoot className="sticky top-8 hidden w-52 shrink-0 self-start @3xl:block">
         <Rail
           section={section}
           onSelect={(id, viaKeyboard) => {
@@ -300,7 +304,7 @@ export function SettingsBoard() {
             open(id, false);
           }}
         />
-      </aside>
+      </motion.aside>
 
       <div className="min-w-0 max-w-[680px] flex-1">
         {listOnly && (

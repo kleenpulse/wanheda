@@ -1,4 +1,4 @@
-import { bottom, moveElement, verticalCompactor, type Layout, type LayoutItem } from "react-grid-layout/core";
+import { bottom, moveElement, verticalCompactor, type LayoutItem } from "react-grid-layout/core";
 import { z } from "zod";
 import { WIDGETS, isWidgetId, type WidgetDef, type WidgetId } from "@/lib/modules";
 
@@ -26,6 +26,21 @@ export interface BoardItem {
 }
 
 export type BoardLayouts = Record<Breakpoint, BoardItem[]>;
+
+/**
+ * owner: the saved board, saved on change. demo: the seed, never saved.
+ * load-failed: the seed standing in for a board that could not be read;
+ * never saved, so it cannot overwrite the real one.
+ */
+export type BoardSource = "owner" | "demo" | "load-failed";
+
+/** What Home prefetches and `GET /api/board` serves, cached on the client under BOARD_KEY. */
+export interface BoardPayload {
+  source: BoardSource;
+  layouts: BoardLayouts;
+}
+
+export const BOARD_KEY = ["board"] as const;
 
 const DEFS: ReadonlyMap<string, WidgetDef> = new Map(WIDGETS.map((w) => [w.id, w]));
 
@@ -57,10 +72,10 @@ export function sizeLimits(id: WidgetId, cols: number) {
 /** The wire shape: the server action and the database both hold this, unvalidated. */
 const rawItemSchema = z.object({
   i: z.string().max(64),
-  x: z.number().finite(),
-  y: z.number().finite(),
-  w: z.number().finite(),
-  h: z.number().finite(),
+  x: z.number(),
+  y: z.number(),
+  w: z.number(),
+  h: z.number(),
 });
 export const rawLayoutSchema = z.array(rawItemSchema).max(64);
 export const layoutsInputSchema = z.partialRecord(z.enum(BREAKPOINT_NAMES), rawLayoutSchema);
@@ -240,7 +255,7 @@ export function nudge(
     // moveElement mutates the items it moves and pushes: work on a copy.
     const copy = layout.map((l) => ({ ...l }));
     const target = copy.find((l) => l.i === id) ?? { ...item };
-    const moved = moveElement(copy as Layout, target, x, y, true, false, "vertical", cols);
+    const moved = moveElement(copy, target, x, y, true, false, "vertical", cols);
     const next = compact(moved.map(pick), cols);
     if (!samePlaces(next, layout)) return next;
   }

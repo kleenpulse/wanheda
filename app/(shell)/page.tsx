@@ -1,32 +1,31 @@
-import { Board, type BoardSource } from "@/components/board/board";
+import { Suspense } from "react";
+import { Board } from "@/components/board/board";
 import { Wallpaper } from "@/components/prefs/wallpaper";
+import { Prefetch } from "@/components/providers/prefetch";
+import { ModeText } from "@/components/shell/mode-text";
 import { PageFrame } from "@/components/shell/page-frame";
 import { widgetNodes } from "@/components/widgets";
-import { requireOwner } from "@/lib/auth/owner";
-import { seedLayouts, type BoardLayouts } from "@/lib/board/layout";
-import { loadLayouts } from "@/lib/board/store";
+import { BOARD_KEY } from "@/lib/board/layout";
+import { boardFor } from "@/lib/board/server";
 
-// Home: the widget board (FR-SHELL-2). The owner's layout comes from Neon;
-// demo mode shows the seed and never saves it.
-export default async function Home() {
-  const owner = await requireOwner();
-  const mode = owner.kind === "owner" ? "owner" : "demo";
-
-  let layouts: BoardLayouts = seedLayouts();
-  let source: BoardSource = "demo";
-  if (owner.kind === "owner") {
-    const loaded = await loadLayouts(owner.user.id);
-    layouts = loaded.layouts;
-    source = loaded.kind === "loaded" ? "owner" : "load-failed";
-  }
-
+// Home: the widget board (FR-SHELL-2). The page awaits nothing, so a hop here
+// paints at once: the board comes from the client cache, and the owner's
+// layout streams in from Neon beside it (CLAUDE.md: native-app feel). Demo
+// shows the seed and never saves it.
+export default function Home() {
   return (
     <PageFrame
       title="Home"
-      subtitle={mode === "demo" ? "Seed data, open to anyone." : "Your board"}
+      subtitle={<ModeText owner="Your board" demo="Seed data, open to anyone." />}
       backdrop={<Wallpaper />}
     >
-      <Board initial={layouts} source={source} nodes={widgetNodes(mode)} />
+      {/* useSearchParams reads the request (SPEC V16). */}
+      <Suspense fallback={null}>
+        <Board nodes={widgetNodes()} />
+      </Suspense>
+      <Suspense fallback={null}>
+        <Prefetch queryKey={BOARD_KEY} load={boardFor} />
+      </Suspense>
     </PageFrame>
   );
 }

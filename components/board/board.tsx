@@ -5,12 +5,15 @@ import { Check, GripVertical, LayoutGrid, Pencil, Plus, X } from "lucide-react";
 import { ResponsiveGridLayout, useContainerWidth, type Layout, type LayoutItem } from "react-grid-layout";
 import { getBreakpointFromWidth } from "react-grid-layout/core";
 import { usePathname, useSearchParams } from "next/navigation";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { saveBoard } from "@/actions/board";
 import { EDIT_PARAM } from "@/lib/board/edit";
+import { useAccount } from "@/components/shell/account";
 import { EmptyState } from "@/components/shell/page-frame";
 import { buttonClass } from "@/components/ui/button";
 import { Menu, MenuContent, MenuItem, MenuTrigger } from "@/components/ui/menu";
 import {
+  BOARD_KEY,
   BREAKPOINTS,
   BREAKPOINT_NAMES,
   COLS,
@@ -19,13 +22,17 @@ import {
   addWidget,
   nudge,
   removeWidget,
+  seedLayouts,
   sizeLimits,
   widgetsOn,
   type BoardItem,
   type BoardLayouts,
+  type BoardPayload,
+  type BoardSource,
   type Breakpoint,
   type KeyAction,
 } from "@/lib/board/layout";
+import { fetchJson } from "@/lib/fetch-json";
 import { WIDGETS, type WidgetId } from "@/lib/modules";
 import { cn } from "@/lib/utils";
 
@@ -38,10 +45,13 @@ import { cn } from "@/lib/utils";
 
   The owner's layout is saved per breakpoint after each change. Demo boards
   are the seed and never saved (SPEC T25).
+
+  The layouts live in the shell's QueryClient (BOARD_KEY), not in the page's
+  server props: a hop back to Home paints the board from that cache at once
+  (CLAUDE.md: native-app feel), and every change is written back to it.
 */
 
 type SaveState = "idle" | "saving" | "saved" | "failed";
-export type BoardSource = "owner" | "demo" | "load-failed";
 
 const KEYS: Record<string, KeyAction> = { ArrowLeft: "left", ArrowRight: "right", ArrowUp: "up", ArrowDown: "down" };
 const KEY_SAVE_DELAY = 700;
@@ -99,26 +109,57 @@ function useBoardSaver(persist: boolean) {
     [persist, flush],
   );
 
-  React.useEffect(() => () => clearTimeout(timer.current), []);
+  // Leaving Home inside the key-save pause still saves the last nudges.
+  React.useEffect(() => () => void flush(), [flush]);
   return { state, save };
 }
 
-export function Board({
+export function Board({ nodes }: { nodes: Record<WidgetId, React.ReactNode> }) {
+  const demo = useAccount().kind !== "owner";
+  const query = useQuery({
+    queryKey: BOARD_KEY,
+    queryFn: () => fetchJson<BoardPayload>("/api/board"),
+    // Demo's board is the seed: nothing to pull, its edits live in this tab.
+    staleTime: demo ? Infinity : 30_000,
+  });
+  // No cached board and the read failed: the seed stands in, never saved (SPEC V17).
+  const payload: BoardPayload | null =
+    query.data ?? (query.isError ? { source: "load-failed", layouts: seedLayouts() } : null);
+  if (!payload) return <BoardSkeleton />;
+  // A board that loads after a failed read starts over from the real layout.
+  return <BoardGrid key={payload.source} initial={payload.layouts} source={payload.source} nodes={nodes} />;
+}
+
+/** First visit only, before the board is on the device. */
+function BoardSkeleton() {
+  return (
+    <div className="flex flex-col gap-4" aria-busy aria-label="Loading the board">
+      <div className="min-h-9 px-1" />
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <div className="h-[176px] rounded-card bg-card-nested md:col-span-1" />
+        <div className="h-[176px] rounded-card bg-card-nested md:col-span-1" />
+        <div className="h-[176px] rounded-card bg-card-nested md:col-span-1" />
+      </div>
+    </div>
+  );
+}
+
+function BoardGrid({
   initial,
   source,
   nodes,
 }: {
   initial: BoardLayouts;
-  /**
-   * owner: the saved board, saved on change. demo: the seed, never saved.
-   * load-failed: the seed standing in for a board that could not be read;
-   * never saved, so it cannot overwrite the real one.
-   */
   source: BoardSource;
   nodes: Record<WidgetId, React.ReactNode>;
 }) {
   const persist = source === "owner";
   const [layouts, setLayouts] = React.useState(initial);
+  // Keep the cache in step, so the next visit paints this board, not the one loaded.
+  const qc = useQueryClient();
+  React.useEffect(() => {
+    qc.setQueryData<BoardPayload>(BOARD_KEY, (prev) => (prev?.source === source ? { ...prev, layouts } : prev));
+  }, [qc, layouts, source]);
   // Edit mode lives in the URL (`?edit=1`), not in state: Next keeps a route
   // you leave alive (hidden, state intact), so local state would still be
   // editing when you come back. A plain link to Home carries no flag, and the
@@ -130,7 +171,7 @@ export function Board({
   };
   const [announcement, setAnnouncement] = React.useState("");
   const { width, containerRef, mounted } = useContainerWidth({ measureBeforeMount: true, debounceTimeout: 50 });
-  const bp = getBreakpointFromWidth(BREAKPOINTS, width) as Breakpoint;
+  const bp = getBreakpointFromWidth<Breakpoint>(BREAKPOINTS, width);
   const { state: saveState, save } = useBoardSaver(persist);
 
   const onBoard = widgetsOn(layouts);
