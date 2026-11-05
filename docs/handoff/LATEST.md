@@ -1,6 +1,6 @@
 # Latest hand-off
 
-**Newest:** [2026-11-05-phase-3-money-outbox.md](2026-11-05-phase-3-money-outbox.md) — **Phase 3 CP2b money outbox built** (T35b `x`) **+ `/money/analytics` split.** Branch `phase-3/money-outbox`: the analytics split is commit `2094b0f` (pushed); the outbox (Dexie queue for txn and account writes, B13 races ported, SyncChip counts money) is not committed yet, waiting for the user's go-ahead. No new SQL. Owner-mode check not done. Next: commit + PR on the user's word, owner check, merge, then T36 in a fresh session.
+**Newest:** [2026-11-05-phase-3-money-outbox.md](2026-11-05-phase-3-money-outbox.md) — **Phase 3 CP2b money outbox built** (T35b `x`) **+ `/money/analytics` split.** Branch `phase-3/money-outbox`, PR #17: analytics split, day cards back, and the outbox (Dexie queue for txn and account writes, B13 races ported, SyncChip counts money). No new SQL. Owner-mode check not done. Next: user's owner check (4 steps in the hand-off), optional Reviewer pass, merge, then T36 in a fresh session.
 
 Read the hand-off first, then verify it against the repo before trusting it (git, tripwire, typecheck, tests). The Builder and Reviewer prompts below are copied from it.
 

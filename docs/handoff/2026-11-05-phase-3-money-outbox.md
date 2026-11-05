@@ -4,7 +4,7 @@
 |---|---|
 | Date | 2026-11-05 |
 | Phase / tasks | T35b built and marked `x`; `/money` split into Entries and Analytics (user asks, same branch) |
-| Branch / PR | `phase-3/money-outbox`, cut from `main` at `cef4d98` in `D:\Vxrcel\wanheda`. Commit `2094b0f` (analytics split) pushed on the user's word. The outbox work is **not committed yet**: waiting for the user's go-ahead. No PR yet |
+| Branch / PR | `phase-3/money-outbox`, cut from `main` at `cef4d98` in `D:\Vxrcel\wanheda`. Commits `2094b0f` (analytics split), `b728a8c` (day cards), `22fcea7` (outbox), pushed and PR #17 opened 2026-11-05 on the user's go-ahead |
 | Main | `cef4d98` — Merge pull request #16 (`phase-3/periods`). `git fetch` at session start: 4 new commits `d571ecb..cef4d98`, forged-commit check clean, main fast-forwarded |
 | Previous hand-off | docs/handoff/2026-11-05-phase-3-periods.md |
 
@@ -15,7 +15,7 @@ Money writes no longer get dropped. Every txn save or delete and every account s
 ## Done this session
 
 - **Start.** Forged-commit check on `d571ecb..origin/main` clean (4 commits); main fast-forwarded to `cef4d98`; branch `phase-3/money-outbox`.
-- **Analytics split** (commit `2094b0f`, pushed): `app/(shell)/money/layout.tsx` (frame, Prefetch, `MoneyTabs` in `actions`), `/money` = tiles → entries + Add/Accounts, `/money/analytics` = tiles → charts + breakdown; `lib/money/list-filter.ts` (`?f=by:key`, 2 tests); `useListFilter`, `entriesHref`, `usePeriodParam` in `use-period.ts`; `normalPayee` shared; tiles one short row under `@xl`. Not yet committed: each day in the entries list is its own card again with a 16 px gap (the T34 look), the virtual list windows whole days (offsets measured = formula).
+- **Analytics split** (commit `2094b0f`, pushed): `app/(shell)/money/layout.tsx` (frame, Prefetch, `MoneyTabs` in `actions`), `/money` = tiles → entries + Add/Accounts, `/money/analytics` = tiles → charts + breakdown; `lib/money/list-filter.ts` (`?f=by:key`, 2 tests); `useListFilter`, `entriesHref`, `usePeriodParam` in `use-period.ts`; `normalPayee` shared; tiles one short row under `@xl`. Day cards (`b728a8c`): each day in the entries list is its own card again with a 16 px gap (the T34 look), the virtual list windows whole days (offsets measured = formula).
 - **Outbox.** `lib/money/outbox.ts` (ops, `supersedes`, `MemoryMoneyStore`, `MoneyOutbox`, result types the actions now re-export), `lib/money/local-store.ts` (Dexie, every step one transaction), `components/money/money-runtime.ts` (overlay of txns and accounts, answered ops folded into the cache in every tab, BroadcastChannel for queued and answered ops, boot replay), `components/money/money-provider.tsx` (mounted in `shell-frame.tsx` next to `NotesProvider`), `use-money.ts` rewired, `SyncChip` sums notes and money.
 - **Docs.** SPEC V28 (client rule), I line P3 CP2b, T35b `x`, B13 note; ADR-0008 amended; `docs/CONTEXT.md` Outbox.
 
@@ -29,14 +29,14 @@ Money writes no longer get dropped. Every txn save or delete and every account s
 
 ## Verification (actual results)
 
-- Typecheck clean; Vitest 45 files / 539 tests (old writer's 8 removed; runtime 18 + queue 4 + filter 2 added); ESLint clean on every touched file; tripwire clean at the `2094b0f` commit.
+- Typecheck clean; Vitest 45 files / 539 tests (old writer's 8 removed; runtime 18 + queue 4 + filter 2 added); ESLint clean on every touched file; tripwire and forged-commit check clean on all three commits. gitleaks is not installed locally: CI scans.
 - Zero-env build passes (`/money` and `/money/analytics` partial prerender).
 - Demo browser run (Nebula desktop, Ember desktop and 380 px phone): tabs carry `?p=`, hop stays in the same document, breakdown Food & drink → 26 of 61 entries = its row, Back/forward/clear; form add +₦4,500 to Spent, delete → Undo → back, delete → expiry → gone and total restored; add account with `-12.5k` → total −₦12,500, archive → Undo → back; 0 console errors.
 - **Not run:** owner mode. The Dexie store and the real server path are untested in a browser (demo never queues). Needs the user's dev server and login. (1) DevTools offline → add 2 entries → chip "Offline · 2 waiting" → online → both on Neon. (2) Offline → add 1 → close the tab → back online, reopen `/money` → it shows at once and lands (replay from Dexie; a cold reload while offline needs a service worker, which there isn't). (3) Offline → delete a row, let the toast run out → online → gone on Neon. (4) Two tabs → add in one → the other shows it.
 
 ## Next steps (in order)
 
-1. User: go-ahead to commit the outbox and push; then open the PR (title "Money outbox and analytics page").
+1. Done: committed, pushed, PR #17 "Money outbox and analytics page (T35b)" (user's go-ahead).
 2. Reviewer pass if the user wants one (prompt below).
 3. User: owner check (steps above), then merge.
 4. After merge: **stop**. T36 (subscriptions) starts in a fresh session from the Builder prompt below.
