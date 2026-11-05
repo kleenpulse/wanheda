@@ -117,5 +117,7 @@ export function seedMoney(today: Day, timeZone = DEFAULT_TIME_ZONE): MoneyPayloa
     accounts: [...DEMO_ACCOUNTS],
     categories: demoCategories(),
     txns,
+    // The demo ledger starts at the window, so opening balances are all there is before it.
+    priorMinor: {},
   };
 }

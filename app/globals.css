@@ -102,6 +102,10 @@
 	--color-cat-red: var(--cat-red);
 	--color-cat-cyan: var(--cat-cyan);
 	--color-cat-slate: var(--cat-slate);
+	--color-heat-1: var(--heat-1);
+	--color-heat-2: var(--heat-2);
+	--color-heat-3: var(--heat-3);
+	--color-heat-4: var(--heat-4);
 
 	--radius-sm: calc(var(--radius) * 0.6);
 	--radius-md: calc(var(--radius) * 0.8);
@@ -280,6 +284,14 @@
 	--cat-red: #e34948;
 	--cat-cyan: #0891b2;
 	--cat-slate: var(--ink-3);
+	/* Money heat scale (daily-spend calendar): the signal's own hue at fixed
+	   OKLCH lightness, so it follows any accent the owner picks. Validated as an
+	   ordinal ramp (monotone L, gaps >= 0.06, light end >= 2:1) on Ember and
+	   Bench light for six hues. */
+	--heat-1: oklch(from var(--signal) 0.74 c h);
+	--heat-2: oklch(from var(--signal) 0.65 c h);
+	--heat-3: oklch(from var(--signal) 0.56 c h);
+	--heat-4: oklch(from var(--signal) 0.47 c h);
 
 	--shadow-card-value: none;
 	--shadow-lift-value: 0 14px 34px -16px rgb(17 17 17 / 0.22);
@@ -378,6 +390,11 @@
 	--cat-red: #e66767;
 	--cat-cyan: #1a93b3;
 	--cat-slate: var(--ink-3);
+	/* Heat scale, dark: brighter is more. Validated on Nebula and Bench dark. */
+	--heat-1: oklch(from var(--signal) 0.52 c h);
+	--heat-2: oklch(from var(--signal) 0.64 c h);
+	--heat-3: oklch(from var(--signal) 0.76 c h);
+	--heat-4: oklch(from var(--signal) 0.88 c h);
 
 	--shadow-card-value: inset 0 1px 0 rgb(255 255 255 / 0.05), 0 24px 60px -32px rgb(0 0 0 / 0.75);
 	--shadow-lift-value: inset 0 1px 0 rgb(255 255 255 / 0.07), 0 26px 50px -24px rgb(0 0 0 / 0.85);

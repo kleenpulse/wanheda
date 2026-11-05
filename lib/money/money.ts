@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { type CategoryColor, type CategoryKind } from "./categories";
-import { assertMinor, sumByCurrency, type Currency, type Money } from "./currency";
+import { assertMinor, CURRENCY_CODES, sumByCurrency, type Currency, type Money } from "./currency";
 import { isDay, type Day } from "./dates";
 
 // The money domain (FRD 6.3). Pure: shared by the store, the actions, the
@@ -65,7 +65,29 @@ export interface MoneyPayload {
   categories: Category[];
   /** Newest first: posted day, then entry time. */
   txns: Txn[];
+  /**
+   * Per account id, the sum of every txn posted before `since` (the server
+   * adds them up, so a balance needs no full history on the device). Missing
+   * ids are 0. Optional because a cached payload may predate it.
+   */
+  priorMinor?: Readonly<Record<string, number>>;
+  /** The window held more txns than one read returns: its oldest rows, and so balances and totals, are short. */
+  windowTruncated?: boolean;
 }
+
+/** A page of txns for a range older than the loaded window (`GET /api/money/range`). */
+export interface TxnRangePayload {
+  from: Day;
+  to: Day;
+  txns: Txn[];
+  /** More rows matched than one read returns; totals over the range would be short. */
+  truncated: boolean;
+}
+
+export const MONEY_RANGE_KEY = "money-range";
+
+/** Most txns the money window loads; past it the oldest are cut and `windowTruncated` says so. */
+export const TXN_LIST_LIMIT = 5000;
 
 export const PAYEE_MAX = 200;
 export const NOTE_MAX = 2000;
@@ -93,6 +115,33 @@ export const txnWriteSchema = z
   .strict();
 
 export type TxnWrite = z.infer<typeof txnWriteSchema>;
+
+export const ACCOUNT_NAME_MAX = 60;
+
+/**
+ * One account write (FR-MONEY-1). The currency only applies when the account
+ * is created: a txn's currency is its account's (V28), so changing it later
+ * would relabel every amount already on it. Opening may be 0 or below (a card
+ * that starts in debt).
+ */
+export const accountWriteSchema = z
+  .object({
+    id: z.uuid(),
+    name: z.string().trim().min(1).max(ACCOUNT_NAME_MAX),
+    kind: z.enum(ACCOUNT_KINDS),
+    currency: z.enum(CURRENCY_CODES as [Currency, ...Currency[]]),
+    openingMinor: z.number().refine((n) => Number.isSafeInteger(n), "Opening balance must be a whole number of minor units"),
+  })
+  .strict();
+
+export type AccountWrite = z.infer<typeof accountWriteSchema>;
+
+/** Replaces or adds an account in a payload (optimistic, V24). */
+export function upsertAccount(payload: MoneyPayload, account: Account): MoneyPayload {
+  const i = payload.accounts.findIndex((a) => a.id === account.id);
+  const accounts = i < 0 ? [...payload.accounts, account] : payload.accounts.map((a) => (a.id === account.id ? account : a));
+  return { ...payload, accounts };
+}
 
 /** The txn a write turns into, given the account it lands on. */
 export function txnFromWrite(w: TxnWrite, account: Pick<Account, "currency">, createdAt: number): Txn {
