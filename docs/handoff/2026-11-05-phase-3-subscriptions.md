@@ -4,7 +4,7 @@
 |---|---|
 | Date | 2026-11-05 |
 | Phase / tasks | T36 built and marked `x` |
-| Branch / PR | `phase-3/subscriptions`, cut from `main` at `c37937e` in `D:\Vxrcel\wanheda`. Committed, pushed and PR opened 2026-11-05 on the user's go-ahead (PR number recorded in the follow-up docs commit) |
+| Branch / PR | `phase-3/subscriptions`, cut from `main` at `c37937e` in `D:\Vxrcel\wanheda`. Commit `d07d237`, pushed and PR #18 "Subscriptions (T36)" opened 2026-11-05 on the user's go-ahead |
 | Main | `c37937e`: Merge pull request #17 (`phase-3/money-outbox`). `git fetch` at session start: 5 new commits `cef4d98..origin/main`, forged-commit check clean, main fast-forwarded |
 | Previous hand-off | docs/handoff/2026-11-05-phase-3-money-outbox.md |
 
@@ -42,7 +42,7 @@ Subscriptions are a third money tab, `/money/subscriptions`, on the same layout,
 
 ## Next steps (in order)
 
-1. Done: committed, pushed, PR opened (user go-ahead, 2026-11-05).
+1. Done: commit `d07d237`, pushed, PR #18 (user go-ahead, 2026-11-05).
 2. Reviewer pass if the user wants one (prompt below).
 3. User: owner check (steps above), then merge.
 4. After merge: **stop**. T37 (import) starts in a fresh session. Before it starts, ask the user for redacted sample statements from their NG and US banks.
