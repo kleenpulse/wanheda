@@ -9,6 +9,7 @@ import {
   AppWindow,
   Bell,
   CheckCheck,
+  LayoutDashboard,
   LogOut,
   Monitor,
   Moon,
@@ -311,6 +312,15 @@ function PaletteBody({
             title="New note"
             onSelect={run(() => {
               router.push(`/notes?n=${notesApi.create()}`);
+            })}
+          />
+          <Item
+            value="notes-board"
+            keywords={["note", "notes", "board", "sticky", "canvas", "open"]}
+            icon={LayoutDashboard}
+            title="Open notes board"
+            onSelect={run(() => {
+              router.push("/notes?view=board");
             })}
           />
         </Command.Group>

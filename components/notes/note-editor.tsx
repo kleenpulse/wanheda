@@ -9,14 +9,13 @@ import { Segmented } from "@/components/ui/segmented";
 import { useNow } from "@/hooks/use-now";
 import {
   BODY_MAX,
-  EMPTY_CONTENT,
+  isBlank,
   TAG_MAX,
   TAGS_MAX,
   TITLE_MAX,
   checklistProgress,
   displayTitle,
   excerpt,
-  sameContent,
   toggleTaskAt,
   type Note,
   type NoteRevision,
@@ -25,7 +24,7 @@ import { relativeTime } from "@/lib/notifications/notifications";
 import type { NoteStatus } from "@/lib/notes/sync";
 import { cn } from "@/lib/utils";
 
-const STATUS_LABEL: Record<NoteStatus, string> = {
+export const STATUS_LABEL: Record<NoteStatus, string> = {
   queued: "Kept on this device, syncs when online",
   saving: "Saving",
   saved: "Saved",
@@ -37,23 +36,18 @@ const STATUS_LABEL: Record<NoteStatus, string> = {
 type Mode = "write" | "read";
 
 /** One note, edited in place: title, Markdown body (write or read, checklists tick in read), tags, pin, archive, history. */
-export function NoteEditor({ note, onBack }: { note: Note; onBack?: () => void }) {
+export function NoteEditor({ note, onBack, backLabel = "Notes" }: { note: Note; onBack?: () => void; backLabel?: string }) {
   const api = useNotesApi();
   const status = useNoteStatus(note.id);
   const conflict = useNoteConflict();
-  const fresh = note.version === 0 && sameContent(note, EMPTY_CONTENT);
+  const fresh = note.version === 0 && isBlank(note);
   const [historyOpen, setHistoryOpen] = React.useState(false);
   const [mode, setMode] = React.useState<Mode>(() => (fresh || !checklistProgress(note.bodyMd) ? "write" : "read"));
   const bodyRef = React.useRef<HTMLTextAreaElement>(null);
   const progress = checklistProgress(note.bodyMd);
 
-  // A "New note" left empty disappears when you move on.
-  React.useEffect(
-    () => () => {
-      api.discardIfEmpty(note.id);
-    },
-    [api, note.id],
-  );
+  // A "New note" left empty disappears when you move on, unless another surface still shows it.
+  React.useEffect(() => api.hold(note.id), [api, note.id]);
 
   React.useEffect(() => {
     if (fresh) bodyRef.current?.focus();
@@ -74,7 +68,7 @@ export function NoteEditor({ note, onBack }: { note: Note; onBack?: () => void }
         {onBack ? (
           <button type="button" onClick={onBack} className={buttonClass("ghost", "pill-sm", "-ml-1 pl-2 @4xl:hidden")}>
             <ChevronLeft aria-hidden />
-            Notes
+            {backLabel}
           </button>
         ) : null}
         <Segmented

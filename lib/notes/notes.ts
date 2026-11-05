@@ -17,6 +17,29 @@ export const BODY_MAX = 100_000;
 export const TAGS_MAX = 20;
 export const TAG_MAX = 32;
 
+/** Where a sticky sits on the board, in board pixels (FR-NOTES-2). */
+export interface BoardPlace {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/** How far from the origin a sticky may sit, either way. */
+export const BOARD_REACH = 100_000;
+export const STICKY_MIN = { w: 144, h: 120 } as const;
+export const STICKY_MAX = { w: 720, h: 720 } as const;
+export const STICKY_SIZE = { w: 240, h: 192 } as const;
+
+export const boardPlaceSchema = z
+  .object({
+    x: z.number().int().min(-BOARD_REACH).max(BOARD_REACH),
+    y: z.number().int().min(-BOARD_REACH).max(BOARD_REACH),
+    w: z.number().int().min(STICKY_MIN.w).max(STICKY_MAX.w),
+    h: z.number().int().min(STICKY_MIN.h).max(STICKY_MAX.h),
+  })
+  .strict();
+
 /** What the owner writes. A write replaces all of it at once. */
 export interface NoteContent {
   title: string;
@@ -25,6 +48,8 @@ export interface NoteContent {
   pinned: boolean;
   archived: boolean;
   tags: string[];
+  /** Null until the owner places it; the board lays out the rest. */
+  board: BoardPlace | null;
 }
 
 export interface Note extends NoteContent {
@@ -37,13 +62,22 @@ export interface Note extends NoteContent {
   updatedAt: number;
 }
 
-/** One write as sent to the server: the whole content, the version it was made on, and when. */
-export interface NoteWrite extends NoteContent {
+/** The note's text and flags: everything a conflict is about. The board place is settled on its own. */
+export type NoteText = Omit<NoteContent, "board">;
+
+/** One write as sent to the server: the whole text, the version it was made on, and when. */
+export interface NoteWrite extends NoteText {
   id: string;
   baseVersion: number;
   editedAt: number;
   /** A restore from history: the version it replaces goes to history too, so nothing drops out of it. */
   keepCurrent?: true;
+  /**
+   * Only when this write moves the sticky. Absent, the place stays as the
+   * server has it, so a text edit made on a copy that missed a move made
+   * elsewhere never moves the sticky back (SPEC V23).
+   */
+  board?: BoardPlace | null | undefined;
 }
 
 /** Lowercased, trimmed, deduplicated, order kept. */
@@ -69,6 +103,9 @@ export const noteWriteSchema = z
     // 2020-01-01 or later: a zero or garbage clock would lose every conflict.
     editedAt: z.number().int().min(1_577_836_800_000),
     keepCurrent: z.literal(true).optional(),
+    // Sent only when the write moves the sticky (and never by a device that
+    // queued its write before the board existed): absent keeps the place.
+    board: boardPlaceSchema.nullable().optional(),
   })
   .strict();
 
@@ -90,6 +127,7 @@ export const EMPTY_CONTENT: NoteContent = {
   pinned: false,
   archived: false,
   tags: [],
+  board: null,
 };
 
 /** A note the server hasn't seen yet. */
@@ -97,7 +135,7 @@ export function draftNote(id: string, now: number, content: Partial<NoteContent>
   return { ...EMPTY_CONTENT, ...content, id, version: 0, editedAt: now, createdAt: now, updatedAt: now };
 }
 
-export function contentOf(n: NoteContent): NoteContent {
+export function textOf(n: NoteText): NoteText {
   return {
     title: n.title,
     bodyMd: n.bodyMd,
@@ -108,7 +146,18 @@ export function contentOf(n: NoteContent): NoteContent {
   };
 }
 
-export function sameContent(a: NoteContent, b: NoteContent): boolean {
+export function contentOf(n: NoteContent): NoteContent {
+  // Lists kept on a device before the board existed have no place.
+  return { ...textOf(n), board: n.board ? { ...n.board } : null };
+}
+
+export function samePlace(a: BoardPlace | null | undefined, b: BoardPlace | null | undefined): boolean {
+  if (!a || !b) return !a && !b;
+  return a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h;
+}
+
+/** Everything but the board place: what a conflict is about. */
+export function sameText(a: NoteText, b: NoteText): boolean {
   return (
     a.title === b.title &&
     a.bodyMd === b.bodyMd &&
@@ -120,27 +169,57 @@ export function sameContent(a: NoteContent, b: NoteContent): boolean {
   );
 }
 
-export function writeOf(n: Note, baseVersion: number = n.version): NoteWrite {
-  return { ...contentOf(n), id: n.id, baseVersion, editedAt: n.editedAt };
+export function sameContent(a: NoteContent, b: NoteContent): boolean {
+  return sameText(a, b) && samePlace(a.board, b.board);
 }
 
 /**
- * What the server does with a write (SPEC V23):
+ * No title, body or tags yet. A colour, a pin or a board place alone don't
+ * count: a note started from the board or the pinned widget and left without
+ * a word is dropped, never saved.
+ */
+export function isBlank(n: NoteContent): boolean {
+  return n.title === "" && n.bodyMd === "" && n.tags.length === 0;
+}
+
+/**
+ * The write for a note's local state. `server` is the copy the device last
+ * had from the server: the place goes along only when it differs from that
+ * copy's, so only a write that moves the sticky carries one.
+ */
+export function writeOf(n: Note, baseVersion: number = n.version, server?: NoteContent | null): NoteWrite {
+  const write: NoteWrite = { ...textOf(n), id: n.id, baseVersion, editedAt: n.editedAt };
+  const board = n.board ?? null;
+  return server && samePlace(board, server.board) ? write : { ...write, board };
+}
+
+/** Where the write leaves the sticky: its own place if it carries one, else the note's. */
+export function placeAfter(current: NoteContent | null, write: NoteWrite): BoardPlace | null {
+  return write.board === undefined ? (current?.board ?? null) : write.board;
+}
+
+/**
+ * What the server does with a write (SPEC V23). The text (everything but the
+ * place) settles by version and edit time; the place rides along on its own,
+ * the last write to arrive wins, and a move never bumps the version or
+ * `edited_at`, so it can't win or lose a text conflict.
  * - no row: insert it (a new note, or one deleted elsewhere: the edit brings it back);
- * - made on the current version: apply it, unless it changes nothing;
- * - made on an older version with the same content: a replay, nothing to do;
+ * - same text as the row: nothing, or `place` when the write moves the sticky;
+ * - made on the current version: apply it;
  * - otherwise a conflict: the later `editedAt` wins, the server row on a tie,
- *   and the loser goes to `note_revision`.
+ *   and the loser's text goes to `note_revision`. The place still follows
+ *   the write if it moved the sticky.
  */
 export type Resolution =
   | { kind: "insert" }
   | { kind: "update" }
+  | { kind: "place" }
   | { kind: "noop" }
   | { kind: "conflict"; winner: "incoming" | "server" };
 
 export function resolveWrite(current: Note | null, write: NoteWrite): Resolution {
   if (!current) return { kind: "insert" };
-  if (sameContent(current, write)) return { kind: "noop" };
+  if (sameText(current, write)) return samePlace(placeAfter(current, write), current.board) ? { kind: "noop" } : { kind: "place" };
   if (current.version === write.baseVersion) return { kind: "update" };
   return { kind: "conflict", winner: write.editedAt > current.editedAt ? "incoming" : "server" };
 }

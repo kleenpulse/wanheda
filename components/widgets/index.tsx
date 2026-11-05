@@ -2,7 +2,7 @@ import type * as React from "react";
 import { Suspense } from "react";
 import type { WidgetId } from "@/lib/modules";
 import { ClockWidget } from "./clock-widget";
-import { NoteWidget } from "./note-widget";
+import { PinnedNotesWidget } from "./pinned-notes-widget";
 import { TodayWidget } from "./today-widget";
 import { WeatherSkeleton, WeatherWidget } from "./weather-widget";
 
@@ -20,6 +20,6 @@ export function widgetNodes(mode: "demo" | "owner"): Record<WidgetId, React.Reac
       </Suspense>
     ),
     "home.today": <TodayWidget />,
-    "home.note": <NoteWidget />,
+    "home.note": <PinnedNotesWidget />,
   };
 }

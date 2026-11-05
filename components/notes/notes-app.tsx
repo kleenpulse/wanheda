@@ -4,6 +4,7 @@ import * as React from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { Pin, Plus, Search } from "lucide-react";
 import { NoteEditor } from "@/components/notes/note-editor";
+import { NotesBoard, type NotesBoardHandle } from "@/components/notes/notes-board";
 import { useNotes, useNotesApi } from "@/components/notes/notes-provider";
 import { EmptyState } from "@/components/shell/page-frame";
 import { Kbd } from "@/components/ui/kbd";
@@ -15,39 +16,43 @@ import { relativeTime } from "@/lib/notifications/notifications";
 import { cn } from "@/lib/utils";
 
 /*
-  The Notes app (FR-NOTES-2, list view): the list beside the open note on
-  wide sheets; on narrow ones the list, and the note you drill into. `?n=`
-  holds the open note and `?view=archive` the archive, through the History
-  API, so Back works and nothing waits on the server (SPEC B4: route state
-  lives in the URL, not in component state).
+  The Notes app (FR-NOTES-2): the list or the board, with the open note
+  beside it on wide sheets; on narrow ones the list or board, and the note
+  you drill into. `?n=` holds the open note and `?view=board|archive` the
+  view, through the History API, so Back works and nothing waits on the
+  server (SPEC B4: route state lives in the URL, not in component state).
 */
 
-type View = "notes" | "archive";
+type View = "notes" | "board" | "archive";
 
 /** Same as Tailwind's @4xl, where the list and the note sit side by side. */
 const WIDE_PX = 896;
+
+function parseView(value: string | null): View {
+  return value === "archive" || value === "board" ? value : "notes";
+}
 
 function useNotesUrl() {
   const params = useSearchParams();
   const pathname = usePathname();
   const id = params.get("n");
-  const view: View = params.get("view") === "archive" ? "archive" : "notes";
+  const view = parseView(params.get("view"));
   const pushed = React.useRef(false);
 
   const href = (next: { id: string | null; view: View }) => {
     const q = new URLSearchParams();
-    if (next.view === "archive") q.set("view", "archive");
+    if (next.view !== "notes") q.set("view", next.view);
     if (next.id) q.set("n", next.id);
     const s = q.toString();
     return s ? `${pathname}?${s}` : pathname;
   };
   /** Narrow sheets push, so Back returns to the list; wide ones replace. */
-  const open = (next: string, drill: boolean) => {
+  const open = (next: string, drill: boolean, inView: View = view) => {
     if (drill) {
       pushed.current = true;
-      window.history.pushState(null, "", href({ id: next, view }));
+      window.history.pushState(null, "", href({ id: next, view: inView }));
     } else {
-      window.history.replaceState(null, "", href({ id: next, view }));
+      window.history.replaceState(null, "", href({ id: next, view: inView }));
     }
   };
   const close = () => {
@@ -79,35 +84,82 @@ export function NotesApp() {
   const [filter, setFilter] = React.useState("");
   const isWide = () => (rootRef.current?.offsetWidth ?? 0) >= WIDE_PX;
 
+  const boardRef = React.useRef<NotesBoardHandle>(null);
+
   const inView = notes.filter((n) => n.archived === (url.view === "archive"));
   const shown = inView.filter((n) => matches(n, filter));
   const archivedCount = notes.length - notes.filter((n) => !n.archived).length;
   const selected = url.id ? (notes.find((n) => n.id === url.id) ?? null) : null;
 
   const newNote = () => {
-    if (url.view === "archive") url.setView("notes");
-    url.open(api.create(), !isWide());
+    // On the board, the new sticky lands in the middle of the view.
+    const place = url.view === "board" ? boardRef.current?.centerPlace() : undefined;
+    const view = url.view === "archive" ? "notes" : url.view;
+    url.open(api.create(place ? { board: place } : {}), !isWide(), view);
   };
+
+  const viewBar = (
+    <div className="flex flex-wrap items-center gap-2">
+      <Segmented
+        label="Which notes"
+        className="tabular"
+        value={url.view}
+        options={[
+          { value: "notes", label: `List ${String(notes.length - archivedCount)}` },
+          { value: "board", label: "Board" },
+          { value: "archive", label: `Archive ${String(archivedCount)}` },
+        ]}
+        onChange={url.setView}
+      />
+      <button type="button" onClick={newNote} className={buttonClass("inverse", "pill-sm", "ml-auto")}>
+        <Plus aria-hidden />
+        New note
+      </button>
+    </div>
+  );
+
+  const failedNotice = failed ? (
+    <p role="alert" className="rounded-[16px] bg-card-nested px-4 py-3 text-[13px] text-ink-2">
+      {onDevice
+        ? "Couldn't reach the server. These are the notes kept on this device; edits sync when it answers."
+        : "Couldn't load your notes from the server. What you see was written on this device."}
+    </p>
+  ) : null;
+
+  const demoNote = source === "demo" ? <p className="readout px-1">Demo: sample notes. Changes stay in this tab.</p> : null;
+
+  if (url.view === "board") {
+    return (
+      <div ref={rootRef} className="flex flex-col gap-3">
+        <div className={cn(selected && "hidden @4xl:block")}>{viewBar}</div>
+        {failedNotice}
+        <div className={cn("grid gap-4", selected && "@4xl:grid-cols-[minmax(0,1fr)_minmax(360px,500px)] @4xl:items-start")}>
+          <section aria-label="Board" className={cn("h-[min(74svh,820px)] min-h-[420px] min-w-0", selected && "hidden @4xl:block")}>
+            <NotesBoard
+              ref={boardRef}
+              notes={notes}
+              loading={loading}
+              selectedId={url.id}
+              onOpen={(id) => {
+                url.open(id, !isWide());
+              }}
+            />
+          </section>
+          {selected ? (
+            <div className="min-w-0 @4xl:sticky @4xl:top-6">
+              <NoteEditor key={selected.id} note={selected} onBack={url.close} backLabel="Board" />
+            </div>
+          ) : null}
+        </div>
+        {demoNote}
+      </div>
+    );
+  }
 
   return (
     <div ref={rootRef} className="grid gap-4 @4xl:grid-cols-[minmax(280px,360px)_minmax(0,1fr)] @4xl:items-start">
       <section aria-label="Notes" className={cn("flex min-w-0 flex-col gap-3", selected && "hidden @4xl:flex")}>
-        <div className="flex flex-wrap items-center gap-2">
-          <Segmented
-            label="Which notes"
-            className="tabular"
-            value={url.view}
-            options={[
-              { value: "notes", label: `Notes ${String(notes.length - archivedCount)}` },
-              { value: "archive", label: `Archive ${String(archivedCount)}` },
-            ]}
-            onChange={url.setView}
-          />
-          <button type="button" onClick={newNote} className={buttonClass("inverse", "pill-sm", "ml-auto")}>
-            <Plus aria-hidden />
-            New note
-          </button>
-        </div>
+        {viewBar}
         <label className="relative block">
           <span className="sr-only">Filter notes</span>
           <Search aria-hidden className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-ink-3" />
@@ -121,13 +173,7 @@ export function NotesApp() {
           />
         </label>
 
-        {failed ? (
-          <p role="alert" className="rounded-[16px] bg-card-nested px-4 py-3 text-[13px] text-ink-2">
-            {onDevice
-              ? "Couldn't reach the server. These are the notes kept on this device; edits sync when it answers."
-              : "Couldn't load your notes from the server. What you see was written on this device."}
-          </p>
-        ) : null}
+        {failedNotice}
 
         {loading && !notes.length ? (
           <ListSkeleton />
@@ -163,7 +209,7 @@ export function NotesApp() {
             />
           </div>
         )}
-        {source === "demo" ? <p className="readout px-1">Demo: sample notes. Changes stay in this tab.</p> : null}
+        {demoNote}
       </section>
 
       {selected ? (

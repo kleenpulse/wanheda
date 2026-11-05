@@ -5,9 +5,12 @@ import {
   clampEditedAt,
   displayTitle,
   draftNote,
+  isBlank,
   excerpt,
+  sameContent,
   noteWriteSchema,
   parseCapture,
+  placeAfter,
   prefixTsQuery,
   resolveWrite,
   searchLocal,
@@ -44,9 +47,39 @@ describe("noteWriteSchema", () => {
       { ...valid, baseVersion: -1 },
       { ...valid, tags: Array.from({ length: 21 }, (_, i) => `t${String(i)}`) },
       { ...valid, tags: ["x".repeat(33)] },
+      { ...valid, board: { x: 0, y: 0, w: 100, h: 200 } },
+      { ...valid, board: { x: 0.5, y: 0, w: 240, h: 192 } },
+      { ...valid, board: { x: 200_000, y: 0, w: 240, h: 192 } },
+      { ...valid, board: { x: 0, y: 0, w: 240, h: 192, z: 1 } },
     ]) {
       expect(noteWriteSchema.safeParse(bad).success).toBe(false);
     }
+  });
+
+  it("takes a board place, none, or a write queued before the board existed", () => {
+    const place = { x: -48, y: 24, w: 240, h: 192 };
+    expect(noteWriteSchema.parse({ ...valid, board: place }).board).toEqual(place);
+    expect(noteWriteSchema.parse({ ...valid, board: null }).board).toBeNull();
+    const { board: _none, ...old } = valid;
+    expect(noteWriteSchema.parse(old).board).toBeUndefined();
+  });
+});
+
+describe("board place in content", () => {
+  it("counts in sameContent, not in isBlank (nor do a pin or a colour)", () => {
+    const placed = note({ board: { x: 0, y: 0, w: 240, h: 192 } });
+    expect(sameContent(placed, note())).toBe(false);
+    expect(isBlank(placed)).toBe(true);
+    expect(isBlank(note({ pinned: true, color: "mint" }))).toBe(true);
+    expect(isBlank(note({ bodyMd: "x" }))).toBe(false);
+    expect(isBlank(note({ tags: ["x"] }))).toBe(false);
+  });
+
+  it("treats a place missing from an old device copy as none", () => {
+    const old = { ...note() } as Partial<Note>;
+    delete old.board;
+    expect(sameContent(old as Note, note())).toBe(true);
+    expect(writeOf(old as Note).board).toBeNull();
   });
 });
 
@@ -79,6 +112,43 @@ describe("resolveWrite (SPEC V23)", () => {
     expect(resolveWrite(current, { ...stale, editedAt: NOW + 1 })).toEqual({ kind: "conflict", winner: "incoming" });
     expect(resolveWrite(current, { ...stale, editedAt: NOW - 1 })).toEqual({ kind: "conflict", winner: "server" });
     expect(resolveWrite(current, { ...stale, editedAt: NOW })).toEqual({ kind: "conflict", winner: "server" });
+  });
+
+  it("settles a move as place only, on any version: it never touches the text conflict", () => {
+    const place = { x: 24, y: 48, w: 240, h: 192 };
+    expect(resolveWrite(current, { ...writeOf(current), board: place })).toEqual({ kind: "place" });
+    expect(resolveWrite(current, { ...writeOf(current, 2), board: place, editedAt: NOW - 5 })).toEqual({ kind: "place" });
+    // A replayed move is nothing.
+    expect(resolveWrite({ ...current, board: place }, { ...writeOf(current, 2), board: place })).toEqual({ kind: "noop" });
+  });
+
+  it("applies an offline text edit made before a move elsewhere, and keeps the move (review FIX, PR #12)", () => {
+    // Desktop moved the sticky: place only, so the version stays where the phone's edit was made.
+    const moved: Note = { ...current, board: { x: 96, y: 0, w: 240, h: 192 } };
+    const { board: _phoneSawNoMove, ...phone } = { ...writeOf(current), bodyMd: "edited offline", editedAt: NOW - 60_000 };
+    expect(resolveWrite(moved, phone)).toEqual({ kind: "update" });
+    expect(placeAfter(moved, phone)).toEqual(moved.board);
+  });
+
+  it("lets a move ride along with a text conflict either way", () => {
+    const place = { x: 24, y: 48, w: 240, h: 192 };
+    const stale = { ...writeOf(current, 2), title: "stale text", board: place };
+    expect(resolveWrite(current, { ...stale, editedAt: NOW - 5 })).toEqual({ kind: "conflict", winner: "server" });
+    expect(placeAfter(current, stale)).toEqual(place);
+    const { board: _none, ...unmoved } = stale;
+    expect(placeAfter({ ...current, board: place }, unmoved)).toEqual(place);
+  });
+});
+
+describe("writeOf", () => {
+  const place = { x: 0, y: 24, w: 240, h: 192 };
+  it("carries the place only when it differs from the server's copy", () => {
+    const local = note({ board: place });
+    expect(writeOf(local, 3, note({ board: place })).board).toBeUndefined();
+    expect(writeOf(local, 3, note()).board).toEqual(place);
+    // A note the server hasn't seen yet sends its place, none included.
+    expect(writeOf(local, 0, null).board).toEqual(place);
+    expect("board" in writeOf(note(), 0, undefined)).toBe(true);
   });
 });
 

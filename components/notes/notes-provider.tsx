@@ -8,9 +8,10 @@ import { deleteNote, saveNote } from "@/actions/notes";
 import { useAccount } from "@/components/shell/account";
 import { toast } from "@/components/ui/toaster";
 import {
-  EMPTY_CONTENT,
+  isBlank,
   NOTES_KEY,
-  contentOf,
+  placeAfter,
+  textOf,
   displayTitle,
   draftNote,
   hitOf,
@@ -101,8 +102,12 @@ export interface NotesApi {
   capture: (text: string) => string;
   /** Deletes an archived note for good. */
   remove: (id: string) => void;
-  /** Drops a note that never got any content (a "New note" left empty). */
-  discardIfEmpty: (id: string) => void;
+  /**
+   * A surface (editor, note window) shows this note. The returned release
+   * drops a note that never got a word (a "New note" left empty), but only
+   * once no other surface still has it open.
+   */
+  hold: (id: string) => () => void;
   /** Sends every edit still waiting for a pause in typing. */
   flushAll: () => void;
   dismissConflict: () => void;
@@ -142,6 +147,8 @@ function createNotesRuntime(qc: QueryClient, demo: boolean): NotesRuntime {
   const timers = new Map<string, ReturnType<typeof setTimeout>>();
   /** Notes this tab has queued a write for: an emptied one stays, since the server has it. */
   const queued = new Set<string>();
+  /** How many surfaces show each note (see `hold`). */
+  const holds = new Map<string, number>();
   const store = openStore(demo);
   let channel: BroadcastChannel | null = null;
   const post = (message: ChannelMessage) => {
@@ -235,7 +242,9 @@ function createNotesRuntime(qc: QueryClient, demo: boolean): NotesRuntime {
     const local = useLocal.getState().overlay[id];
     if (!local) return;
     queued.add(id);
-    void outbox.enqueue(restore ? { ...writeOf(local), keepCurrent: true } : writeOf(local));
+    // The place goes along only if it differs from the server's copy (SPEC V23).
+    const write = writeOf(local, local.version, cachedNote(qc, id));
+    void outbox.enqueue(restore ? { ...write, keepCurrent: true } : write);
   };
 
   const schedule = (id: string, immediate: boolean, restore = false) => {
@@ -258,7 +267,7 @@ function createNotesRuntime(qc: QueryClient, demo: boolean): NotesRuntime {
     const id = crypto.randomUUID();
     const note = draftNote(id, Date.now(), { ...content, ...(content.tags ? { tags: normalizeTags(content.tags) } : {}) });
     setOverlay(id, note);
-    if (!sameContent(note, EMPTY_CONTENT)) schedule(id, true);
+    if (!isBlank(note)) schedule(id, true);
     return id;
   };
 
@@ -278,7 +287,9 @@ function createNotesRuntime(qc: QueryClient, demo: boolean): NotesRuntime {
         continue;
       }
       const base = cachedNote(qc, id) ?? draftNote(id, op.queuedAt);
-      setOverlay(id, { ...base, ...contentOf(op.write), id, version: op.write.baseVersion, editedAt: op.write.editedAt });
+      // An op that doesn't move the sticky carries no place: the note keeps its own.
+      const board = placeAfter(base, op.write);
+      setOverlay(id, { ...base, ...textOf(op.write), board, id, version: op.write.baseVersion, editedAt: op.write.editedAt });
       setStatus(id, isOnline() ? "saving" : "queued");
     }
   };
@@ -385,9 +396,25 @@ function createNotesRuntime(qc: QueryClient, demo: boolean): NotesRuntime {
       // Queued behind the note's earlier writes, so the archive lands first.
       void outbox.remove(id);
     },
-    discardIfEmpty(id) {
-      const local = useLocal.getState().overlay[id];
-      if (local && local.version === 0 && sameContent(local, EMPTY_CONTENT) && !queued.has(id)) dropOverlay(id);
+    hold(id) {
+      holds.set(id, (holds.get(id) ?? 0) + 1);
+      let released = false;
+      return () => {
+        if (released) return;
+        released = true;
+        const left = (holds.get(id) ?? 1) - 1;
+        if (left > 0) {
+          holds.set(id, left);
+          return;
+        }
+        holds.delete(id);
+        // A tick later: a remount in the same tick (StrictMode, a key change) holds it again first.
+        setTimeout(() => {
+          if (holds.has(id)) return;
+          const local = useLocal.getState().overlay[id];
+          if (local && local.version === 0 && isBlank(local) && !queued.has(id)) dropOverlay(id);
+        }, 0);
+      };
     },
     flushAll,
     dismissConflict() {

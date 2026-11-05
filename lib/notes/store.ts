@@ -7,12 +7,15 @@ import {
   SEARCH_FLOOR,
   SEARCH_LIMIT,
   clampEditedAt,
-  contentOf,
+  placeAfter,
+  samePlace,
+  textOf,
   prefixTsQuery,
   type NoteRevision,
   resolveWrite,
   type Note,
   type NoteColor,
+  type BoardPlace,
   type NoteContent,
   type NoteWrite,
 } from "./notes";
@@ -38,6 +41,17 @@ function isColor(value: string): value is NoteColor {
   return (NOTE_COLORS as readonly string[]).includes(value);
 }
 
+function placeOf(r: Pick<Row, "boardX" | "boardY" | "boardW" | "boardH">): BoardPlace | null {
+  const { boardX: x, boardY: y, boardW: w, boardH: h } = r;
+  return x === null || y === null || w === null || h === null ? null : { x, y, w, h };
+}
+
+/** A note's content as table columns: the board place is four nullable ints. */
+function columnsOf(c: NoteContent) {
+  const { board, ...rest } = c;
+  return { ...rest, boardX: board?.x ?? null, boardY: board?.y ?? null, boardW: board?.w ?? null, boardH: board?.h ?? null };
+}
+
 function toNote(r: Row): Note {
   return {
     id: r.id,
@@ -47,6 +61,7 @@ function toNote(r: Row): Note {
     pinned: r.pinned,
     archived: r.archived,
     tags: r.tags,
+    board: placeOf(r),
     version: r.version,
     editedAt: r.editedAt.getTime(),
     createdAt: r.createdAt.getTime(),
@@ -104,7 +119,6 @@ export async function saveNote(userId: string, input: NoteWrite, now = Date.now(
   const db = getDb();
   if (!db) return null;
   const write: NoteWrite = { ...input, editedAt: clampEditedAt(input.editedAt, now) };
-  const content = contentOf(write);
   const editedAt = new Date(write.editedAt);
 
   for (let attempt = 0; attempt < ATTEMPTS; attempt++) {
@@ -112,12 +126,24 @@ export async function saveNote(userId: string, input: NoteWrite, now = Date.now(
     const [row] = await db.select(NOTE_COLUMNS).from(note).where(eq(note.id, write.id)).limit(1);
     if (row && row.userId !== userId) return { kind: "not-yours" };
     const current = row ? toNote(row) : null;
+    // The place this write leaves: its own if it moves the sticky, else the row's.
+    const place = placeAfter(current, write);
+    const content = columnsOf({ ...textOf(write), board: place });
     const resolution = resolveWrite(current, write);
 
     switch (resolution.kind) {
       case "noop":
         if (current) return { kind: "unchanged", note: current };
         break;
+
+      case "place": {
+        // A move alone: the place changes, the version and edited_at don't,
+        // so a text edit made elsewhere on this version still applies cleanly.
+        if (!current) break;
+        const moved = await movePlace(userId, current, place);
+        if (moved) return { kind: "saved", note: moved };
+        break;
+      }
 
       case "insert": {
         const [inserted] = await db
@@ -149,8 +175,11 @@ export async function saveNote(userId: string, input: NoteWrite, now = Date.now(
       case "conflict": {
         if (!current) break;
         if (resolution.winner === "server") {
+          // The text lost, but a move it carries still lands: place is settled on its own.
+          const moved = samePlace(place, current.board) ? current : await movePlace(userId, current, place);
+          if (!moved) break;
           await keepLoser(userId, write);
-          return { kind: "conflict", note: current, won: false };
+          return { kind: "conflict", note: moved, won: false };
         }
         const updated = await replaceKeepingHistory(userId, current, content, editedAt);
         if (updated) return { kind: "conflict", note: updated, won: true };
@@ -159,6 +188,19 @@ export async function saveNote(userId: string, input: NoteWrite, now = Date.now(
     }
   }
   throw new Error(`saveNote: note ${write.id} kept changing; gave up after ${String(ATTEMPTS)} reads`);
+}
+
+/** Sets only the board place, on the version read. Undefined when the row changed since. */
+async function movePlace(userId: string, current: Note, place: BoardPlace | null): Promise<Note | undefined> {
+  const db = getDb();
+  if (!db) return undefined;
+  const { boardX, boardY, boardW, boardH } = columnsOf({ ...current, board: place });
+  const [moved] = await db
+    .update(note)
+    .set({ boardX, boardY, boardW, boardH })
+    .where(and(eq(note.id, current.id), eq(note.userId, userId), eq(note.version, current.version)))
+    .returning();
+  return moved ? toNote(moved) : undefined;
 }
 
 /**
@@ -172,7 +214,7 @@ export async function saveNote(userId: string, input: NoteWrite, now = Date.now(
 async function replaceKeepingHistory(
   userId: string,
   current: Note,
-  content: NoteContent,
+  content: ReturnType<typeof columnsOf>,
   editedAt: Date,
 ): Promise<Note | undefined> {
   const db = getDb();
