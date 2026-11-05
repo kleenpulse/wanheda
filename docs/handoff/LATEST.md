@@ -1,6 +1,6 @@
 # Latest hand-off
 
-**Newest:** [2026-11-05-phase-2-done.md](2026-11-05-phase-2-done.md) — **Phase 2 done** (T30–T33 `x`, owner checks passed 2026-11-05). Branch `phase-2/exit`: board fixes from the T31 run (sticky controls fade instead of `display: none`, so no text jump and the colour menu stays anchored; ink-tint hover; selected ring = sticky mark; visible menu highlight; global hand cursor), Figtree display face with uppercase 900 page titles. PR #14 (`40f694d`). Next: user merges, then Phase 3 (Money I) in a fresh session: ask FRD open questions 3 and 4 first, then plan Phase 3 in SPEC.
+**Newest:** [2026-11-05-phase-3-money-core.md](2026-11-05-phase-3-money-core.md) — **Phase 3 planned (T34–T39, V25–V32); CP1 money core built** (T34 `x`). Branch `phase-3/money-core`, PR #15: `0004_money.sql` (applied to Neon), `lib/money`, `/money`, palette quick-add, per-id txn writer (B13), house Select + Calendar, edit + undoable delete, Next 16.4.5. Owner mode verified on Neon. Reviewer LGTM. Next: user merges, then T35 (periods + charts) in a fresh session.
 
 Read the hand-off first, then verify it against the repo before trusting it (git, tripwire, typecheck, tests). The Builder and Reviewer prompts below are copied from it.
 
@@ -14,32 +14,32 @@ word; a short hand-off + continuation prompt after every PR. No worktrees: branc
 D:\Vxrcel\wanheda itself. One checkpoint per session: after its PR merges, stop and hand over.
 House goal (CLAUDE.md): native-app feel, SPEC V24.
 
-Phase 3: Money I — spending and subscriptions. Read docs/handoff/2026-11-05-phase-2-done.md,
-FRD §10 Phase 3, §6.3 (MONEY) and §7.3 (D:\Vxrcel\wanheda\FRD.md), SPEC.md §V (V7, V9,
-V17, V23, V24) and docs/CONTEXT.md. Money is always integer minor units + ISO currency, never
-floats; from Phase 3, migrations are reviewed SQL from `bun run db:generate`.
+Phase 3 CP2: periods and charts (SPEC T35). Read docs/handoff/2026-11-05-phase-3-money-core.md,
+SPEC.md §V (V24–V32) and the T34/T35 rows, FRD §6.3 (D:\Vxrcel\wanheda\FRD.md) and
+docs/CONTEXT.md. Money is integer minor units + ISO currency, never floats (V25); figures render
+only through <MoneyText>; dropdowns use components/ui/select.tsx and days components/ui/calendar.tsx,
+never native <select> or <input type="date">.
 
-Start: `git fetch`; check new commits with `sh scripts/forged-commits.sh 7d7b6d7..origin/main`
-before pulling; fast-forward main. Ask the user FRD open questions 3 (which bank statements to
-import first) and 4 (base currency NGN or USD). Then plan Phase 3 in SPEC with the spec skill:
-checkpoints as §T rows (schema + lib/money + quick-add first; then period views + charts;
-subscriptions + reminders; CSV import with dedupe + idempotency; budgets, rules, FX, privacy
-mode, Home widgets) and an exit row from the FRD exit criteria, plus money invariants in §V.
-Show the plan to the user, then `git switch -c phase-3/<slug>` and build the first checkpoint.
-Migrations: generate and show the SQL; apply only on the user's go-ahead, with
-`bun --env-file=.env.local run db:migrate`.
+Start: `git fetch`; check new commits with `sh scripts/forged-commits.sh d0bc942..origin/main`
+before pulling; fast-forward main. Owner mode works (seed verified on Neon). Every destructive
+action gets a confirm dialog or an undo (user rule; delete uses the Undo toast, see
+components/ui/toaster.tsx onDismiss). Then `git switch -c phase-3/periods` and build T35: today|week|month|custom
+views with previous-period compare, totals per category|account|payee, virtualised txn list
+(edit and undoable delete already exist), accounts (add, archive, opening balance, balance), and the charts (load the dataviz
+skill first). Decide whether money writes get a Dexie outbox like notes (ADR-0008) and say why.
+Any new SQL: generate, show it, apply only on the user's go-ahead.
 ```
 
 ### Reviewer prompt
 
 ```text
 You are the REVIEWER session for Wanheda at D:\Vxrcel\wanheda. Use the diff-reviewer skill;
-read-only (review the PR diff with gh / git show, never switch the Builder's branch). Lean mode
-(user, 2026-11-04): review only when the user asks, one pass per PR, FIX-level findings only, no
-push or merge checks. Your LGTM is not the user's approval. Context:
-docs/handoff/2026-11-05-phase-2-done.md, SPEC.md §V (V7, V9, V17, V24 and the Phase 3 money
-invariants once added). Look hardest at money arithmetic (integer minor units only, never floats,
-currency carried with every amount), import idempotency (same statement twice adds zero rows),
-the migration SQL (RLS, user_id from session only) and any server read placed in front of a
-page's first paint (V24).
+read-only (review the uncommitted tree or the PR diff with gh / git show; never switch the
+Builder's branch). Lean mode (user, 2026-11-04): review only when the user asks, one pass per
+PR, FIX-level findings only, no push or merge checks. Your LGTM is not the user's approval.
+Context: docs/handoff/2026-11-05-phase-3-money-core.md, SPEC.md §V (V7, V24–V32) and §B (B13).
+Look hardest at period maths on calendar days (V27: weeks Mon–Sun, previous-period ranges,
+month ends), totals against a hand count, anything that multiplies or divides money (V26 only),
+ownership checks on edits and accounts (V28), and any server read in front of a page's first
+paint (V24).
 ```
