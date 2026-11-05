@@ -3,7 +3,7 @@
 import * as React from "react";
 import { flushSync } from "react-dom";
 import { Dialog } from "@base-ui/react/dialog";
-import { Bell, CalendarClock, Check, CheckCheck, ExternalLink, Timer as TimerIcon, Trash2, X } from "lucide-react";
+import { Bell, CalendarClock, Check, CheckCheck, ExternalLink, Timer as TimerIcon, Trash2, TrendingUp, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import type { Route } from "next";
 import { useNotifications } from "@/components/notifications/notifications-provider";
@@ -14,7 +14,7 @@ import { useNow } from "@/hooks/use-now";
 import { relativeTime, type Notice, type NotificationKind } from "@/lib/notifications/notifications";
 import { cn } from "@/lib/utils";
 
-const ICONS: Record<NotificationKind, typeof Bell> = { timer: TimerIcon, money: CalendarClock };
+const ICONS: Record<NotificationKind, typeof Bell> = { timer: TimerIcon, money: CalendarClock, income: TrendingUp };
 const FILTERS = [
   { value: "all", label: "All" },
   { value: "unread", label: "Unread" },

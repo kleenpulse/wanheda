@@ -29,6 +29,7 @@ import {
   DollarSign,
   Download,
   PlugZap,
+  RefreshCcw,
   Eye,
   EyeOff,
   Target,
@@ -38,6 +39,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { signOutOk } from "@/components/auth/account-actions";
+import { rebuildIncome } from "@/actions/connectors";
 import { togglePrivacy, usePrivacy } from "@/components/money/privacy";
 import { lastAccountId, newTxn, useMoney, useMoneyApi, useNewSubscription } from "@/components/money/use-money";
 import { useNoteSearch, useNotesApi } from "@/components/notes/notes-provider";
@@ -464,6 +466,26 @@ function PaletteBody({
             title="Open connections (Polar)"
             onSelect={run(() => {
               router.push("/settings?s=connections");
+            })}
+          />
+          <Item
+            value="income-rebuild"
+            keywords={["rebuild", "recompute", "income", "mrr", "movements", "polar", "metrics"]}
+            icon={RefreshCcw}
+            title="Rebuild income figures"
+            onSelect={run(() => {
+              void rebuildIncome().then(
+                (r) => {
+                  toast(
+                    r.ok
+                      ? { title: "Income figures rebuilt", body: r.connectors === 0 ? "No connector yet." : `${String(r.movements)} MRR movements from ${String(r.connectors)} connector${r.connectors === 1 ? "" : "s"}.` }
+                      : { title: r.reason === "demo" ? "Demo income isn't stored" : r.reason === "off" ? "Connectors are off" : "Couldn't rebuild income figures" },
+                  );
+                },
+                () => {
+                  toast({ title: "Couldn't rebuild income figures" });
+                },
+              );
             })}
           />
         </Command.Group>

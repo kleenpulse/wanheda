@@ -1,21 +1,18 @@
 import "server-only";
 import type { Owner } from "@/lib/auth/owner";
 import { connectorSealKey, has } from "@/lib/capabilities";
-import { WEBHOOK_PATH, type ConnectionsPayload, type PolarProductRef, type Product } from "./connectors";
+import { WEBHOOK_PATH, type ConnectionsPayload, type PolarProductRef } from "./connectors";
 import { describePolarError, polarClient, type PolarClient, type PolarProduct, type PolarServer } from "./polar/client";
 import { fromPull, type BillingEventInput, type BillingKind } from "./polar/events";
 import { reconcile } from "./reconcile";
-import { insertEvents, loadConnections, markConnector, openConnector } from "./store";
+import { DEMO_PRODUCTS } from "./seed";
+import { polarSnapshots, snapshotDays } from "./snapshots";
+import { insertEvents, loadConnections, loadReconcileFacts, markConnector, openConnector, upsertSnapshots, type SnapshotWrite } from "./store";
 
 // Income connectors, server side (T40). Reads for the settings screen, the
 // token test, and the pull sync that feeds the same reconcile() the webhook
 // does (FRD 4.5: one writer).
 
-/** Demo products, so Settings › Connections shows what mapping looks like (G4). */
-export const DEMO_PRODUCTS: readonly Product[] = [
-  { id: "00000000-0000-4000-8000-00000000a001", name: "Motion Garden", url: "https://shadow-garden.example", color: "violet" },
-  { id: "00000000-0000-4000-8000-00000000a002", name: "rawstash", url: "https://rawstash.example", color: "aqua" },
-];
 
 export async function connectionsFor(owner: Owner): Promise<ConnectionsPayload | null> {
   const base = { webhookPath: WEBHOOK_PATH };
@@ -77,12 +74,45 @@ export async function syncConnector(userId: string, id: string, makeClient = pol
       }
     }
     const added = (await insertEvents(c, events)) ?? 0;
-    await markConnector(c.id, { ok: true, products, synced: true });
     await reconcile(c.id);
+    const warning = await pullPolarMetrics(c.id, client);
+    await markConnector(c.id, { ok: true, products, synced: true, ...(warning ? { warning } : {}) });
     return { ok: true, added, skipped, products };
   } catch (error) {
     const message = describePolarError(error);
     await markConnector(c.id, { ok: false, error: message });
     return { ok: false, reason: "polar", error: message };
+  }
+}
+
+/**
+ * Polar's own daily figures for the last 30 days, per mapped product and for
+ * the whole organization, stored beside ours (V36). A failure here never
+ * fails the sync: the events are in; the parity readout just waits. Returns a
+ * line for `last_error` when Polar's figures couldn't be read.
+ */
+export async function pullPolarMetrics(connectorId: string, client: PolarClient, now = new Date()): Promise<string | null> {
+  const facts = await loadReconcileFacts(connectorId);
+  if (!facts) return null;
+  const days = snapshotDays(now);
+  const range = { startDate: days[0] ?? "", endDate: days.at(-1) ?? "" };
+  const live = facts.products.filter((p) => !p.archived);
+  const scopes: { productId: string | null; polarIds: string[] }[] = [
+    { productId: null, polarIds: [] },
+    ...live.flatMap((p) => {
+      const polarIds = Object.entries(facts.config.productMap).flatMap(([polarId, id]) => (id === p.id ? [polarId] : []));
+      return polarIds.length > 0 ? [{ productId: p.id, polarIds }] : [];
+    }),
+  ];
+  try {
+    const rows: SnapshotWrite[] = [];
+    for (const scope of scopes) {
+      const metricDays = await client.metrics({ ...range, productIds: scope.polarIds });
+      rows.push(...polarSnapshots(metricDays, scope.productId));
+    }
+    await upsertSnapshots(facts.userId, rows);
+    return null;
+  } catch (error) {
+    return `Synced, but Polar's own figures couldn't be read: ${describePolarError(error)}`;
   }
 }

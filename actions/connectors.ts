@@ -4,8 +4,9 @@ import { z } from "zod";
 import { requireOwner } from "@/lib/auth/owner";
 import { connectorSealKey, has } from "@/lib/capabilities";
 import { addPolarSchema, productMapSchema, productWriteSchema, replaceTokenSchema, webhookSecretSchema, type Product } from "@/lib/saas/connectors";
+import { reconcile } from "@/lib/saas/reconcile";
 import { checkPolarToken, syncConnector } from "@/lib/saas/server";
-import { archiveProduct as archiveStoredProduct, connectorConfig, createPolarConnector, deleteConnector, markConnector, patchConnectorSecret, saveProduct as saveStoredProduct, setProductMap } from "@/lib/saas/store";
+import { archiveProduct as archiveStoredProduct, connectorConfig, connectorIds, createPolarConnector, deleteConnector, markConnector, patchConnectorSecret, saveProduct as saveStoredProduct, setProductMap } from "@/lib/saas/store";
 
 // Settings › Connections (T40). requireOwner() first and the owner from the
 // session (SPEC V7); secrets go in sealed and never come back out (V33):
@@ -125,6 +126,22 @@ export async function syncNow(input: unknown): Promise<SyncReply> {
     return result.reason === "polar" ? result : { ok: false, reason: result.reason };
   } catch (error) {
     return failed("syncNow", error);
+  }
+}
+
+export type RebuildReply = { ok: true; connectors: number; movements: number } | ConnectorFail;
+
+/** Rebuilds every derived income row from the stored billing events (V35). Same log ⇒ same rows. */
+export async function rebuildIncome(): Promise<RebuildReply> {
+  const g = await gate();
+  if (!g.ok) return g;
+  try {
+    const ids = (await connectorIds(g.userId)) ?? [];
+    let movements = 0;
+    for (const id of ids) movements += (await reconcile(id))?.movements ?? 0;
+    return { ok: true, connectors: ids.length, movements };
+  } catch (error) {
+    return failed("rebuildIncome", error);
   }
 }
 

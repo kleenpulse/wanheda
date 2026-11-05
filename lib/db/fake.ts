@@ -5,7 +5,7 @@ import { getTableName, isTable } from "drizzle-orm";
 // `answer` returns. Store tests use it to check their own logic (ownership
 // checks, races, what gets written); the SQL itself is checked against Neon.
 
-export type FakeOp = "select" | "selectDistinct" | "insert" | "update" | "delete";
+export type FakeOp = "select" | "selectDistinct" | "insert" | "update" | "delete" | "execute";
 
 export interface FakeQuery {
   op: FakeOp;
@@ -67,6 +67,12 @@ export function fakeDb(answer: (q: FakeQuery) => unknown): FakeDb {
     insert: (t: unknown) => build("insert", t),
     update: (t: unknown) => build("update", t),
     delete: (t: unknown) => build("delete", t),
+    // Raw SQL (`db.execute(sql…)`): recorded with an empty table name, the SQL as its one call's argument.
+    execute: (query: unknown) => {
+      const q = build("execute");
+      (q as Record<string, (...args: unknown[]) => unknown>).sql?.(query);
+      return q;
+    },
     batch: async (list: readonly unknown[]) => {
       state.batches++;
       const out: unknown[] = [];
