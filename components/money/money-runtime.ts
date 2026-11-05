@@ -1,25 +1,31 @@
 import type { QueryClient } from "@tanstack/react-query";
 import { create } from "zustand";
-import { archiveAccount, deleteTxn, saveAccount, saveTxn } from "@/actions/money";
+import { archiveAccount, deleteSubscription, deleteTxn, saveAccount, saveSubscription, saveTxn } from "@/actions/money";
 import { toast } from "@/components/ui/toaster";
 import { formatMoney } from "@/lib/money/currency";
 import {
   MONEY_KEY,
   MONEY_RANGE_KEY,
+  removeSubscription,
   removeTxn,
   upsertAccount,
+  upsertSubscription,
   upsertTxn,
   writeOf,
   type Account,
   type MoneyPayload,
   type PendingAccounts,
+  type PendingSubscriptions,
   type PendingTxns,
   type Txn,
   type TxnRangePayload,
 } from "@/lib/money/money";
+import { subscriptionWriteOf, type Subscription } from "@/lib/money/subscriptions";
+import { pushNotices } from "@/lib/notifications/inbox";
 import {
   MemoryMoneyStore,
   MoneyOutbox,
+  subKey,
   txnKey,
   type AccountWriteResult,
   type MoneyEvent,
@@ -28,6 +34,8 @@ import {
   type MoneyQueueStore,
   type MoneyResult,
   type MoneyWrite,
+  type SubDeleteResult,
+  type SubSaveResult,
   type TxnDeleteResult,
   type TxnSaveResult,
 } from "@/lib/money/outbox";
@@ -52,22 +60,35 @@ interface MoneyLocal {
   /** Txn writes not yet confirmed: the txn to show, or null for one deleted here. */
   txns: PendingTxns;
   accounts: PendingAccounts;
+  /** Subscription writes not yet confirmed, like `txns`. */
+  subs: PendingSubscriptions;
   /** Ops waiting in the outbox, across tabs. */
   queued: number;
 }
 
-export const useMoneyLocal = create<MoneyLocal>(() => ({ txns: {}, accounts: {}, queued: 0 }));
+export const useMoneyLocal = create<MoneyLocal>(() => ({ txns: {}, accounts: {}, subs: {}, queued: 0 }));
+
+/** The two overlays of whole rows: txns and subscriptions share their rules. */
+type RowLayer = "txns" | "subs";
+
+function setPendingRow(layer: RowLayer, id: string, row: Txn | Subscription | null) {
+  useMoneyLocal.setState((s) => ({ [layer]: { ...s[layer], [id]: row } }));
+}
+
+function clearPendingRow(layer: RowLayer, id: string) {
+  useMoneyLocal.setState((s) => {
+    if (!(id in s[layer])) return s;
+    const { [id]: _gone, ...rest } = s[layer];
+    return { [layer]: rest };
+  });
+}
 
 function setPendingTxn(id: string, txn: Txn | null) {
-  useMoneyLocal.setState((s) => ({ txns: { ...s.txns, [id]: txn } }));
+  setPendingRow("txns", id, txn);
 }
 
 function clearPendingTxn(id: string) {
-  useMoneyLocal.setState((s) => {
-    if (!(id in s.txns)) return s;
-    const { [id]: _gone, ...rest } = s.txns;
-    return { txns: rest };
-  });
+  clearPendingRow("txns", id);
 }
 
 function setPendingAccount(account: Account) {
@@ -88,9 +109,18 @@ export function describeTxn(t: Txn): string {
   return t.payee ? `${amount} · ${t.payee}` : amount;
 }
 
+/** How a subscription is named in a toast. */
+function describeSub(s: Subscription): string {
+  return s.name || "subscription";
+}
+
 /** Sends one op through its server action. A thrown request counts as failed. */
 function sendOp(op: MoneyOp): Promise<MoneyResult> {
   switch (op.kind) {
+    case "sub-save":
+      return saveSubscription(subscriptionWriteOf(op.subscription));
+    case "sub-delete":
+      return deleteSubscription({ id: op.subscription.id });
     case "txn-save":
       return saveTxn(writeOf(op.txn));
     case "txn-delete":
@@ -136,6 +166,12 @@ export interface MoneyRuntime {
   saveAccount: (account: Account) => void;
   /** `account.archived` is the state wanted. */
   archiveAccount: (account: Account) => void;
+  saveSubscription: (sub: Subscription) => void;
+  /** Like `hideTxn`, for a subscription's undo toast. */
+  hideSubscription: (id: string) => Subscription | null | undefined;
+  unhideSubscription: (id: string, before: Subscription | null | undefined) => void;
+  /** The undo window ran out: the delete is queued. */
+  deleteSubscription: (sub: Subscription) => void;
   /** Wires the outbox to this tab: boot from the device, listeners, sync ticks. Returns the cleanup. */
   start: () => () => void;
   /** Shows what is still queued on this device and resumes sending (part of `start`). */
@@ -189,16 +225,54 @@ export function createMoneyRuntime(qc: QueryClient, demo: boolean, overrides: Pa
    * the kind this op settles: a save never brings back a row hidden by a
    * running undo toast, and a delete never drops a newer save's row.
    */
-  const settleTxn = (id: string, more: boolean, deleting: boolean) => {
+  const settleRow = (layer: RowLayer, id: string, more: boolean, deleting: boolean) => {
     if (more) return;
-    const shown = useMoneyLocal.getState().txns[id];
+    const shown = useMoneyLocal.getState()[layer][id];
     if (shown === undefined) return;
-    if (deleting ? shown === null : shown !== null) clearPendingTxn(id);
+    if (deleting ? shown === null : shown !== null) clearPendingRow(layer, id);
+  };
+  const settleTxn = (id: string, more: boolean, deleting: boolean) => {
+    settleRow("txns", id, more, deleting);
   };
 
   /** What an answered op means for this tab's view. Runs in every tab; only the sender's tab speaks. */
   const applyEvent = (event: MoneyEvent, local: boolean) => {
     const { op, more } = event;
+    if (op.kind === "sub-save") {
+      const result = event.result as SubSaveResult;
+      const id = op.subscription.id;
+      if (result.ok) {
+        const saved = result.subscription;
+        // Every tab has its own centre, so each one takes the reminders.
+        pushNotices(result.notices);
+        void confirm(
+          (p) => upsertSubscription(p, saved),
+          () => {
+            settleRow("subs", id, more, false);
+          },
+        );
+        return;
+      }
+      settleRow("subs", id, more, false);
+      if (local) toast({ title: `Not saved: ${describeSub(op.subscription)}`, body: "The server refused it. Reload and try again." });
+      return;
+    }
+    if (op.kind === "sub-delete") {
+      const result = event.result as SubDeleteResult;
+      const id = op.subscription.id;
+      if (result.ok) {
+        void confirm(
+          (p) => removeSubscription(p, id),
+          () => {
+            settleRow("subs", id, more, true);
+          },
+        );
+        return;
+      }
+      settleRow("subs", id, more, true);
+      if (local) toast({ title: `Not deleted: ${describeSub(op.subscription)}`, body: "The server refused it. Reload and try again." });
+      return;
+    }
     if (op.kind === "txn-save") {
       const result = event.result as TxnSaveResult;
       const id = op.txn.id;
@@ -287,7 +361,39 @@ export function createMoneyRuntime(qc: QueryClient, demo: boolean, overrides: Pa
   const overlay = (w: MoneyWrite) => {
     if (w.kind === "txn-save") setPendingTxn(w.txn.id, w.txn);
     else if (w.kind === "txn-delete") setPendingTxn(w.txn.id, null);
+    else if (w.kind === "sub-save") setPendingRow("subs", w.subscription.id, w.subscription);
+    else if (w.kind === "sub-delete") setPendingRow("subs", w.subscription.id, null);
     else setPendingAccount(w.account);
+  };
+
+  /** What a write is called in a toast, and how to take its overlay entry back when it can't be stored. */
+  const describeWrite = (w: MoneyWrite): { what: string; drop: () => void } => {
+    switch (w.kind) {
+      case "txn-save":
+      case "txn-delete":
+        return {
+          what: describeTxn(w.txn),
+          drop: () => {
+            clearPendingTxn(w.txn.id);
+          },
+        };
+      case "sub-save":
+      case "sub-delete":
+        return {
+          what: describeSub(w.subscription),
+          drop: () => {
+            clearPendingRow("subs", w.subscription.id);
+          },
+        };
+      case "account-save":
+      case "account-archive":
+        return {
+          what: w.account.name,
+          drop: () => {
+            clearPendingAccount(w.account.id);
+          },
+        };
+    }
   };
 
   /** Shows the write, then queues it. If the device can't store it, takes it back and says so. */
@@ -298,10 +404,10 @@ export function createMoneyRuntime(qc: QueryClient, demo: boolean, overrides: Pa
         post({ t: "queued", write: w });
         return;
       }
-      if (w.kind === "txn-save" || w.kind === "txn-delete") clearPendingTxn(w.txn.id);
-      else clearPendingAccount(w.account.id);
-      const what = w.kind === "txn-save" || w.kind === "txn-delete" ? describeTxn(w.txn) : w.account.name;
-      toast({ title: `Not ${w.kind === "txn-delete" ? "deleted" : "saved"}: ${what}`, body: "This device couldn't keep it. Try again." });
+      const { what, drop } = describeWrite(w);
+      drop();
+      const deleting = w.kind === "txn-delete" || w.kind === "sub-delete";
+      toast({ title: `Not ${deleting ? "deleted" : "saved"}: ${what}`, body: "This device couldn't keep it. Try again." });
     });
   };
 
@@ -349,6 +455,19 @@ export function createMoneyRuntime(qc: QueryClient, demo: boolean, overrides: Pa
     };
   };
 
+  /** Undo: shows the row again. A save of it may still be queued: its local copy shows until it lands. */
+  const unhideRow = (layer: RowLayer, key: string, id: string, before: Txn | Subscription | null | undefined) => {
+    if (!before) {
+      clearPendingRow(layer, id);
+      return;
+    }
+    // If it already landed (its answer left the row hidden), the cache has it.
+    setPendingRow(layer, id, before);
+    void outbox.has(key).then((queued) => {
+      if (!queued && useMoneyLocal.getState()[layer][id] === before) clearPendingRow(layer, id);
+    });
+  };
+
   return {
     saveTxn(txn) {
       if (demo) {
@@ -363,16 +482,7 @@ export function createMoneyRuntime(qc: QueryClient, demo: boolean, overrides: Pa
       return before;
     },
     unhideTxn(id, before) {
-      if (!before) {
-        clearPendingTxn(id);
-        return;
-      }
-      // A save of it may still be queued: show the local copy until it lands.
-      // If it already landed (its answer left the row hidden), the cache has it.
-      setPendingTxn(id, before);
-      void outbox.has(txnKey(id)).then((queued) => {
-        if (!queued && useMoneyLocal.getState().txns[id] === before) clearPendingTxn(id);
-      });
+      unhideRow("txns", txnKey(id), id, before);
     },
     deleteTxn(txn) {
       if (demo) {
@@ -395,6 +505,29 @@ export function createMoneyRuntime(qc: QueryClient, demo: boolean, overrides: Pa
         return;
       }
       enqueue({ kind: "account-archive", account });
+    },
+    saveSubscription(sub) {
+      if (demo) {
+        writeCache((p) => upsertSubscription(p, sub));
+        return;
+      }
+      enqueue({ kind: "sub-save", subscription: sub });
+    },
+    hideSubscription(id) {
+      const before = useMoneyLocal.getState().subs[id];
+      setPendingRow("subs", id, null);
+      return before;
+    },
+    unhideSubscription(id, before) {
+      unhideRow("subs", subKey(id), id, before);
+    },
+    deleteSubscription(sub) {
+      if (demo) {
+        writeCache((p) => removeSubscription(p, sub.id));
+        clearPendingRow("subs", sub.id);
+        return;
+      }
+      enqueue({ kind: "sub-delete", subscription: sub });
     },
     start,
     boot: () => boot(),

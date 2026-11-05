@@ -1,7 +1,7 @@
 import "server-only";
 import { and, desc, eq, gte, isNotNull, lt, lte, sql } from "drizzle-orm";
 import { getDb } from "@/lib/db";
-import { category, moneyAccount, txn, userPrefs } from "@/lib/db/schema";
+import { category, moneyAccount, subscription, txn, userPrefs } from "@/lib/db/schema";
 import { DEFAULT_CATEGORIES, isCategoryColor, isCategoryKind } from "./categories";
 import { assertMinor, isCurrency, MoneyError, type Currency } from "./currency";
 import { addMonths, DEFAULT_TIME_ZONE, isTimeZone, todayIn, type Day } from "./dates";
@@ -17,6 +17,7 @@ import {
   type TxnSource,
   type TxnWrite,
 } from "./money";
+import { isSubCycle, isSubStatus, type Subscription, type SubscriptionWrite } from "./subscriptions";
 
 // Money persistence. Callers pass the owner's id from requireOwner(), never a
 // client-sent one (SPEC V7, V28). Reads never throw: a failure is reported so
@@ -42,12 +43,14 @@ export type LoadedMoney =
       txns: Txn[];
       priorMinor: Record<string, number>;
       truncated: boolean;
+      subscriptions: Subscription[];
     }
   | { kind: "failed" };
 
 type AccountRow = typeof moneyAccount.$inferSelect;
 type CategoryRow = typeof category.$inferSelect;
 type TxnRow = typeof txn.$inferSelect;
+type SubscriptionRow = typeof subscription.$inferSelect;
 
 function toAccount(r: AccountRow): Account | null {
   if (!isCurrency(r.currency) || !(ACCOUNT_KINDS as readonly string[]).includes(r.kind)) return null;
@@ -90,6 +93,28 @@ function toTxn(r: TxnRow): Txn | null {
     tags: r.tags,
     source: (TXN_SOURCES as readonly string[]).includes(r.source) ? (r.source as TxnSource) : "manual",
     transferId: r.transferId,
+    createdAt: r.createdAt.getTime(),
+  };
+}
+
+function toSubscription(r: SubscriptionRow): Subscription | null {
+  // A currency, cycle or status this build does not know is skipped, not guessed.
+  if (!isCurrency(r.currency) || !isSubCycle(r.cycle) || !isSubStatus(r.status)) return null;
+  return {
+    id: r.id,
+    name: r.name,
+    amountMinor: assertMinor(r.amountMinor),
+    currency: r.currency,
+    cycle: r.cycle,
+    intervalCount: r.intervalCount,
+    anchorOn: r.anchorOn,
+    trialEndsOn: r.trialEndsOn,
+    remindDays: r.remindDays,
+    accountId: r.accountId,
+    categoryId: r.categoryId,
+    status: r.status,
+    cancelUrl: r.cancelUrl,
+    detectedFromTxn: r.detectedFromTxn,
     createdAt: r.createdAt.getTime(),
   };
 }
@@ -172,7 +197,7 @@ export async function loadMoney(userId: string, now = new Date()): Promise<Loade
     // Archived seeded rows still count, so this only runs for a new owner or a new default.
     if ((seeded[0]?.n ?? 0) < DEFAULT_CATEGORIES.length || cash.length === 0) await seedOwner(userId, settings.baseCurrency);
 
-    const [accountRows, categoryRows, txnRows, priorRows] = await db.batch([
+    const [accountRows, categoryRows, txnRows, priorRows, subRows] = await db.batch([
       db.select().from(moneyAccount).where(eq(moneyAccount.userId, userId)).orderBy(moneyAccount.createdAt),
       db.select().from(category).where(eq(category.userId, userId)).orderBy(category.createdAt, category.name),
       db
@@ -187,6 +212,7 @@ export async function loadMoney(userId: string, now = new Date()): Promise<Loade
         .from(txn)
         .where(and(eq(txn.userId, userId), lt(txn.postedOn, since)))
         .groupBy(txn.accountId),
+      db.select().from(subscription).where(eq(subscription.userId, userId)).orderBy(subscription.createdAt),
     ]);
     return {
       kind: "loaded",
@@ -199,6 +225,7 @@ export async function loadMoney(userId: string, now = new Date()): Promise<Loade
       txns: txnRows.slice(0, TXN_LIST_LIMIT).map(toTxn).filter(present),
       truncated: txnRows.length > TXN_LIST_LIMIT,
       priorMinor: Object.fromEntries(priorRows.map((r) => [r.accountId, minorFromText(r.total)])),
+      subscriptions: subRows.map(toSubscription).filter(present),
     };
   } catch (error) {
     console.error("loadMoney failed", error);
@@ -356,4 +383,82 @@ export async function setAccountArchived(userId: string, id: string, archived: b
     .returning();
   const row = rows[0] ? toAccount(rows[0]) : null;
   return row ?? "missing";
+}
+
+export type SaveSubscriptionOutcome = { kind: "saved"; subscription: Subscription } | { kind: "not-yours" };
+
+const NO_ID = "00000000-0000-0000-0000-000000000000";
+
+/**
+ * Creates or edits one subscription (FR-MONEY-8, V28). Its account and
+ * category, when set, must be the owner's. The id comes from the client, so a
+ * create sent twice lands once; another user's id never matches the upsert's
+ * WHERE. `detectedFromTxn` is never taken from the client (T37 sets it).
+ * Null when there is no database.
+ */
+export async function saveSubscription(userId: string, w: SubscriptionWrite): Promise<SaveSubscriptionOutcome | null> {
+  const db = getDb();
+  if (!db) return null;
+  const [accounts, categories] = await db.batch([
+    db
+      .select({ id: moneyAccount.id })
+      .from(moneyAccount)
+      .where(and(eq(moneyAccount.id, w.accountId ?? NO_ID), eq(moneyAccount.userId, userId)))
+      .limit(1),
+    db
+      .select({ id: category.id })
+      .from(category)
+      .where(and(eq(category.id, w.categoryId ?? NO_ID), eq(category.userId, userId)))
+      .limit(1),
+  ]);
+  if (w.accountId !== null && accounts.length === 0) return { kind: "not-yours" };
+  if (w.categoryId !== null && categories.length === 0) return { kind: "not-yours" };
+
+  const values = {
+    name: w.name,
+    amountMinor: assertMinor(w.amountMinor),
+    currency: w.currency,
+    cycle: w.cycle,
+    intervalCount: w.intervalCount,
+    anchorOn: w.anchorOn,
+    trialEndsOn: w.trialEndsOn,
+    remindDays: w.remindDays,
+    accountId: w.accountId,
+    categoryId: w.categoryId,
+    status: w.status,
+    cancelUrl: w.cancelUrl,
+  };
+  const rows = await db
+    .insert(subscription)
+    .values({ id: w.id, userId, ...values })
+    .onConflictDoUpdate({ target: subscription.id, set: { ...values, updatedAt: sql`now()` }, setWhere: eq(subscription.userId, userId) })
+    .returning();
+  const saved = rows[0] ? toSubscription(rows[0]) : null;
+  return saved ? { kind: "saved", subscription: saved } : { kind: "not-yours" };
+}
+
+/** Deletes one subscription. True when it is gone (or never was the owner's); null without a database. */
+export async function deleteSubscription(userId: string, id: string): Promise<true | null> {
+  const db = getDb();
+  if (!db) return null;
+  await db.delete(subscription).where(and(eq(subscription.id, id), eq(subscription.userId, userId)));
+  return true;
+}
+
+/** What the reminder check needs (V31): the owner's day and their active subscriptions. Null without a database. */
+export async function loadAlertFacts(userId: string, now = new Date()): Promise<{ today: Day; subscriptions: Subscription[] } | null> {
+  const db = getDb();
+  if (!db) return null;
+  const [prefsRows, subRows] = await db.batch([
+    db
+      .select({ baseCurrency: userPrefs.baseCurrency, timeZone: userPrefs.timeZone })
+      .from(userPrefs)
+      .where(eq(userPrefs.userId, userId))
+      .limit(1),
+    db
+      .select()
+      .from(subscription)
+      .where(and(eq(subscription.userId, userId), eq(subscription.status, "active"))),
+  ]);
+  return { today: todayIn(settingsOf(prefsRows[0]).timeZone, now), subscriptions: subRows.map(toSubscription).filter(present) };
 }

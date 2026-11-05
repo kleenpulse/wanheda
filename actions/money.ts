@@ -3,14 +3,18 @@
 import { z } from "zod";
 import { requireOwner } from "@/lib/auth/owner";
 import { accountWriteSchema, txnWriteSchema } from "@/lib/money/money";
-import type { AccountWriteResult, TxnDeleteResult, TxnSaveResult } from "@/lib/money/outbox";
+import { raiseMoneyAlerts } from "@/lib/money/alerts";
+import type { AccountWriteResult, SubDeleteResult, SubSaveResult, TxnDeleteResult, TxnSaveResult } from "@/lib/money/outbox";
 import {
+  deleteSubscription as deleteStoredSubscription,
   deleteTxn as deleteStoredTxn,
   removeCategory as removeStoredCategory,
   saveAccount as saveStoredAccount,
+  saveSubscription as saveStoredSubscription,
   saveTxn as saveStoredTxn,
   setAccountArchived,
 } from "@/lib/money/store";
+import { subscriptionWriteSchema } from "@/lib/money/subscriptions";
 
 // Money writes (FR-MONEY-2, 3). Reads go through /api/money. The owner comes
 // from the session and every id in the input is checked against it in the
@@ -101,6 +105,42 @@ export async function archiveAccount(input: unknown): Promise<AccountResult> {
     return outcome === "missing" ? { ok: false, reason: "invalid" } : { ok: true, account: outcome };
   } catch (error) {
     console.error("archiveAccount failed", error);
+    return { ok: false, reason: "failed" };
+  }
+}
+
+/**
+ * Creates or edits a subscription (FR-MONEY-8). Its account and category are
+ * checked against the owner. A reminder the save makes due (V31) is raised
+ * now and returned, so the centre and the island show it without a reload.
+ */
+export async function saveSubscription(input: unknown): Promise<SubSaveResult> {
+  const owner = await requireOwner();
+  if (owner.kind === "demo") return { ok: false, reason: "demo" };
+  const parsed = subscriptionWriteSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, reason: "invalid" };
+  try {
+    const outcome = await saveStoredSubscription(owner.user.id, parsed.data);
+    if (!outcome) return { ok: false, reason: "failed" };
+    if (outcome.kind === "not-yours") return { ok: false, reason: "invalid" };
+    const notices = await raiseMoneyAlerts(owner.user.id, outcome.subscription.id);
+    return { ok: true, subscription: outcome.subscription, notices };
+  } catch (error) {
+    console.error("saveSubscription failed", error);
+    return { ok: false, reason: "failed" };
+  }
+}
+
+/** Deletes a subscription. Already gone counts as done, so a retry settles. */
+export async function deleteSubscription(input: unknown): Promise<SubDeleteResult> {
+  const owner = await requireOwner();
+  if (owner.kind === "demo") return { ok: false, reason: "demo" };
+  const parsed = idSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, reason: "invalid" };
+  try {
+    return (await deleteStoredSubscription(owner.user.id, parsed.data.id)) ? { ok: true } : { ok: false, reason: "failed" };
+  } catch (error) {
+    console.error("deleteSubscription failed", error);
     return { ok: false, reason: "failed" };
   }
 }

@@ -4,7 +4,10 @@ import * as React from "react";
 import { markNotificationsRead, notifyTimerDone } from "@/actions/notifications";
 import { useActivity } from "@/lib/activity/store";
 import { isRunning, type Timer } from "@/lib/activity/timer";
-import { addNotice, demoNotices, markRead, timerDoneNotice, unreadCount, type Notice } from "@/lib/notifications/notifications";
+import { DEFAULT_TIME_ZONE, todayIn } from "@/lib/money/dates";
+import { demoMoneyAlerts } from "@/lib/money/seed";
+import { onNotices } from "@/lib/notifications/inbox";
+import { addNotice, demoNotices, markRead, mergeNotices, timerDoneNotice, unreadCount, type Notice } from "@/lib/notifications/notifications";
 
 /** owner: saved alerts. demo: sample alerts, never saved. load-failed: the list could not be read. */
 export type NoticesSource = "owner" | "demo" | "load-failed";
@@ -41,7 +44,9 @@ export function NotificationsProvider({
   children: React.ReactNode;
 }) {
   // Demo shows sample alerts, timed from when the shell loads.
-  const [notices, setNotices] = React.useState(() => (source === "demo" ? demoNotices(Date.now()) : initial));
+  const [notices, setNotices] = React.useState(() =>
+    source === "demo" ? demoNotices(Date.now(), demoMoneyAlerts(todayIn(DEFAULT_TIME_ZONE))) : initial,
+  );
   const [open, setOpen] = React.useState(false);
   const timers = useActivity((s) => s.timers);
   const raised = React.useRef(new Set<string>());
@@ -85,6 +90,15 @@ export function NotificationsProvider({
       document.removeEventListener("visibilitychange", onVisible);
     };
   }, [timers, source]);
+
+  // Reminders a subscription save raised (V31): shown without a reload.
+  React.useEffect(
+    () =>
+      onNotices((list) => {
+        setNotices((current) => mergeNotices(current, list));
+      }),
+    [],
+  );
 
   const read = React.useCallback(
     (ids: readonly string[] | "all") => {

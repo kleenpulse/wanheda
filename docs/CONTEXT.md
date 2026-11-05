@@ -72,7 +72,7 @@ Domain terms used in `FRD.md`, `SPEC.md`, the ADRs and the code. Alphabetical. W
 
 **MRR movement.** One change to MRR for one customer: new, expansion, contraction, churn or reactivation. Movements are derived from billing events in `mrr_movement` and can be rebuilt from scratch.
 
-**Outbox.** An IndexedDB queue (Dexie) where writes wait until the server has them: one for notes and quick capture, one for money (transactions and accounts). It flushes when the connection comes back, and nothing leaves it until the server answers.
+**Outbox.** An IndexedDB queue (Dexie) where writes wait until the server has them: one for notes and quick capture, one for money (transactions, accounts and subscriptions). It flushes when the connection comes back, and nothing leaves it until the server answers.
 
 **Palette.** The command palette (Ctrl/⌘+K). It opens apps, runs module commands, searches, and does quick actions like "add expense 4500 food".
 
@@ -104,7 +104,9 @@ Domain terms used in `FRD.md`, `SPEC.md`, the ADRs and the code. Alphabetical. W
 
 **Skin.** One CSS block of tokens that re-tints the whole app without touching components. Phase 0 ships Ember (light) and Nebula (dark). Bench comes with the Phase 1 skin picker.
 
-**Subscription.** A recurring charge: name, amount, cycle, next renewal, trial end, status and cancel URL. It can be detected from transactions.
+**Subscription.** A recurring charge: name, amount, cycle, next renewal, trial end, status and cancel URL. It can be detected from transactions. It stores one known renewal day (the anchor); every other renewal is counted from it, so a charge on the 31st falls on each month's last day without drifting.
+
+**Reminder.** A notification raised once for a subscription's next renewal or trial end, a set number of days ahead (3 by default). The island shows the unread ones until they are dismissed or their day passes.
 
 **Transcode.** Re-encoding media into a codec the browser can decode. Slow, so it is the last resort after native play and remux.
 

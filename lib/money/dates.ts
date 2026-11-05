@@ -90,6 +90,27 @@ export function addMonths(day: Day, n: number): Day {
   return `${String(ny).padStart(4, "0")}-${String(nm).padStart(2, "0")}-01`;
 }
 
+/**
+ * The same day of the month `n` months away, clamped to that month's end
+ * (Jan 31 + 1 → Feb 28). Always counted from `day` itself, so a schedule that
+ * steps from one anchor never drifts (SPEC V30).
+ */
+export function addMonthsClamped(day: Day, n: number): Day {
+  const [y, m, d] = parts(day);
+  const total = y * 12 + (m - 1) + n;
+  const ny = Math.floor(total / 12);
+  const nm = total - ny * 12 + 1;
+  const nd = Math.min(d, daysInMonth(ny, nm));
+  return `${String(ny).padStart(4, "0")}-${String(nm).padStart(2, "0")}-${String(nd).padStart(2, "0")}`;
+}
+
+/** Whole months from a's month to b's month, ignoring the days. */
+export function monthsBetween(a: Day, b: Day): number {
+  const [ay, am] = parts(a);
+  const [by, bm] = parts(b);
+  return (by - ay) * 12 + (bm - am);
+}
+
 /** Whole days from a to b (b − a). */
 export function daysBetween(a: Day, b: Day): number {
   const [ay, am, ad] = parts(a);

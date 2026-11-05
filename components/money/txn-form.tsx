@@ -29,7 +29,7 @@ const FIELD =
 const LABEL = "readout mb-1.5 block";
 
 /** Categories for the picker: parents, each followed by its children, per kind. */
-function grouped(categories: readonly Category[], kind: Category["kind"]) {
+export function grouped(categories: readonly Category[], kind: Category["kind"]) {
   const live = categories.filter((c) => !c.archived && c.kind === kind);
   const tops = live.filter((c) => !c.parentId);
   return tops.flatMap((p) => [{ c: p, child: false }, ...live.filter((c) => c.parentId === p.id).map((c) => ({ c, child: true }))]);

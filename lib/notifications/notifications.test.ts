@@ -14,7 +14,7 @@ import {
 const T0 = 1_800_000_000_000;
 
 function notice(id: string, createdAt: number, readAt: number | null = null): Notice {
-  return { id, kind: "timer", title: "Timer done", body: id, href: null, createdAt, readAt };
+  return { id, kind: "timer", title: "Timer done", body: id, href: null, dedupeKey: `timer:${id}`, createdAt, readAt };
 }
 
 describe("timerDoneNotice", () => {

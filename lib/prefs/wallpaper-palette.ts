@@ -43,6 +43,18 @@ function resolve(probe: HTMLElement, expr: string): Rgb {
   return [r, g, b];
 }
 
+/** Any CSS colour expressions (`var(--cat-blue)`, …) as bytes, in order: for other canvases. */
+export function resolveColors(exprs: readonly string[]): Rgb[] {
+  const probe = document.createElement("span");
+  probe.hidden = true;
+  document.body.append(probe);
+  try {
+    return exprs.map((e) => resolve(probe, e));
+  } finally {
+    probe.remove();
+  }
+}
+
 export function readPalette(root: HTMLElement = document.documentElement): WallpaperPalette {
   const probe = document.createElement("span");
   probe.hidden = true;

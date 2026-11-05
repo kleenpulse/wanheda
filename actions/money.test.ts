@@ -4,10 +4,20 @@ const requireOwner = vi.fn();
 const saveStored = vi.fn();
 const deleteStored = vi.fn();
 const removeStored = vi.fn();
+const saveSub = vi.fn();
+const deleteSub = vi.fn();
+const raise = vi.fn();
 vi.mock("@/lib/auth/owner", () => ({ requireOwner }));
-vi.mock("@/lib/money/store", () => ({ saveTxn: saveStored, deleteTxn: deleteStored, removeCategory: removeStored }));
+vi.mock("@/lib/money/store", () => ({
+  saveTxn: saveStored,
+  deleteTxn: deleteStored,
+  removeCategory: removeStored,
+  saveSubscription: saveSub,
+  deleteSubscription: deleteSub,
+}));
+vi.mock("@/lib/money/alerts", () => ({ raiseMoneyAlerts: raise }));
 
-const { deleteTxn, removeCategory, saveTxn } = await import("./money");
+const { deleteSubscription, deleteTxn, removeCategory, saveSubscription, saveTxn } = await import("./money");
 
 const owner = { kind: "owner", user: { id: "user-1", email: "o@example.test", name: "O" } };
 const ID = "0b9e1c4e-6f0a-4c39-9a51-2f8d7c3b1a10";
@@ -27,6 +37,67 @@ beforeEach(() => {
   saveStored.mockReset();
   deleteStored.mockReset();
   removeStored.mockReset();
+  saveSub.mockReset();
+  deleteSub.mockReset();
+  raise.mockReset();
+});
+
+const SUB = {
+  id: ID,
+  name: "Netflix",
+  amountMinor: 1_549,
+  currency: "USD",
+  cycle: "month",
+  intervalCount: 1,
+  anchorOn: "2026-11-05",
+  trialEndsOn: null,
+  remindDays: 3,
+  accountId: null,
+  categoryId: null,
+  status: "active",
+  cancelUrl: null,
+};
+
+describe("saveSubscription", () => {
+  it("saves nothing in demo and refuses bad shapes", async () => {
+    requireOwner.mockResolvedValue({ kind: "demo" });
+    expect(await saveSubscription(SUB)).toEqual({ ok: false, reason: "demo" });
+    requireOwner.mockResolvedValue(owner);
+    for (const bad of [{ ...SUB, amountMinor: 15.49 }, { ...SUB, userId: "x" }, { ...SUB, detectedFromTxn: true }, { ...SUB, cancelUrl: "javascript:x" }]) {
+      expect(await saveSubscription(bad)).toEqual({ ok: false, reason: "invalid" });
+    }
+    expect(saveSub).not.toHaveBeenCalled();
+  });
+
+  it("stores under the session's user, raises its reminders, and maps outcomes", async () => {
+    requireOwner.mockResolvedValue(owner);
+    const subscription = { id: ID };
+    const notices = [{ id: "n1" }];
+    saveSub.mockResolvedValueOnce({ kind: "saved", subscription });
+    raise.mockResolvedValueOnce(notices);
+    expect(await saveSubscription(SUB)).toEqual({ ok: true, subscription, notices });
+    expect(saveSub).toHaveBeenCalledWith("user-1", SUB);
+    expect(raise).toHaveBeenCalledWith("user-1", ID);
+
+    saveSub.mockResolvedValueOnce({ kind: "not-yours" });
+    expect(await saveSubscription(SUB)).toEqual({ ok: false, reason: "invalid" });
+    saveSub.mockResolvedValueOnce(null);
+    expect(await saveSubscription(SUB)).toEqual({ ok: false, reason: "failed" });
+    saveSub.mockRejectedValueOnce(new Error("down"));
+    expect(await saveSubscription(SUB)).toEqual({ ok: false, reason: "failed" });
+  });
+});
+
+describe("deleteSubscription", () => {
+  it("deletes the session user's row; gone counts as done", async () => {
+    requireOwner.mockResolvedValue(owner);
+    deleteSub.mockResolvedValueOnce(true);
+    expect(await deleteSubscription({ id: ID })).toEqual({ ok: true });
+    expect(deleteSub).toHaveBeenCalledWith("user-1", ID);
+    deleteSub.mockResolvedValueOnce(null);
+    expect(await deleteSubscription({ id: ID })).toEqual({ ok: false, reason: "failed" });
+    expect(await deleteSubscription({ id: "nope" })).toEqual({ ok: false, reason: "invalid" });
+  });
 });
 
 describe("saveTxn", () => {

@@ -23,6 +23,7 @@ export async function moneyFor(owner: Owner): Promise<MoneyPayload> {
       categories: [],
       txns: [],
       priorMinor: {},
+      subscriptions: [],
     };
   }
   return {
@@ -35,6 +36,7 @@ export async function moneyFor(owner: Owner): Promise<MoneyPayload> {
     txns: loaded.txns,
     priorMinor: loaded.priorMinor,
     windowTruncated: loaded.truncated,
+    subscriptions: loaded.subscriptions,
   };
 }
 

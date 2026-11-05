@@ -41,7 +41,7 @@ describe("notifyTimerDone", () => {
 
   it("builds the alert itself and stores it under the session's user, keyed by the run", async () => {
     requireOwner.mockResolvedValue(owner);
-    const stored = { id: UUID, kind: "timer", title: "Timer done", body: "25 min timer", href: null, createdAt: NOW, readAt: null };
+    const stored = { id: UUID, kind: "timer", title: "Timer done", body: "25 min timer", href: null, dedupeKey: "timer:t1", createdAt: NOW, readAt: null };
     addNotice.mockResolvedValue(stored);
     expect(await notifyTimerDone(TIMER)).toEqual({ ok: true, notice: stored });
     expect(addNotice).toHaveBeenCalledWith("user-1", {

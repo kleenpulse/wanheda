@@ -3,7 +3,8 @@ import { cookies } from "next/headers";
 import { PAGE_COLUMN } from "@/components/shell/page-frame";
 import { ShellFrame } from "@/components/shell/shell-frame";
 import { requireOwner } from "@/lib/auth/owner";
-import type { Notice } from "@/lib/notifications/notifications";
+import { raiseMoneyAlerts } from "@/lib/money/alerts";
+import { mergeNotices, type Notice } from "@/lib/notifications/notifications";
 import { loadNotices } from "@/lib/notifications/store";
 import { PREFS_COOKIE, decodePrefs } from "@/lib/prefs/prefs";
 import { loadPrefs } from "@/lib/prefs/store";
@@ -39,9 +40,11 @@ async function OwnerShell({ children }: { children: React.ReactNode }) {
   // Demo samples are stamped on the client (NotificationsProvider), not here.
   let notices: { initial: Notice[]; source: NoticesSource } = { initial: [], source: "demo" };
   if (owner.kind === "owner") {
-    const [p, n] = await Promise.all([loadPrefs(owner.user.id), loadNotices(owner.user.id)]);
+    // Subscription reminders due today are raised beside the read (V31), so
+    // they show in this very load; each is raised once, whichever check wins.
+    const [p, n, alerts] = await Promise.all([loadPrefs(owner.user.id), loadNotices(owner.user.id), raiseMoneyAlerts(owner.user.id)]);
     prefs = p.kind === "loaded" ? { initial: p.prefs, source: "owner" } : { initial: devicePrefs, source: "load-failed" };
-    notices = { initial: n.notices, source: n.kind === "loaded" ? "owner" : "load-failed" };
+    notices = { initial: mergeNotices(n.notices, alerts), source: n.kind === "loaded" ? "owner" : "load-failed" };
   }
 
   return (
