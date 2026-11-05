@@ -72,7 +72,7 @@ function matches(n: Note, filter: string): boolean {
 }
 
 export function NotesApp() {
-  const { notes, source, loading, failed } = useNotes();
+  const { notes, source, loading, failed, onDevice } = useNotes();
   const api = useNotesApi();
   const url = useNotesUrl();
   const rootRef = React.useRef<HTMLDivElement>(null);
@@ -123,7 +123,9 @@ export function NotesApp() {
 
         {failed ? (
           <p role="alert" className="rounded-[16px] bg-card-nested px-4 py-3 text-[13px] text-ink-2">
-            Couldn&apos;t load your notes from the server. What you see was written on this device.
+            {onDevice
+              ? "Couldn't reach the server. These are the notes kept on this device; edits sync when it answers."
+              : "Couldn't load your notes from the server. What you see was written on this device."}
           </p>
         ) : null}
 

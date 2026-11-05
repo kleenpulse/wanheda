@@ -1,5 +1,6 @@
 import type * as React from "react";
 import { ModeChip } from "@/components/shell/mode-chip";
+import { SyncChip } from "@/components/shell/sync-chip";
 import { cn } from "@/lib/utils";
 
 /*
@@ -52,6 +53,7 @@ export function PageFrame({
           </div>
           <div className="flex shrink-0 items-center gap-3">
             {actions}
+            <SyncChip />
             <ModeChip />
           </div>
         </header>

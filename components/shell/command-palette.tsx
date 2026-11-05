@@ -63,6 +63,9 @@ function isTyping(target: EventTarget | null) {
 
 const PRESETS = [5, 15, 25, 50] as const;
 
+/** Keys that move cmdk's highlight. */
+const MOVE_KEYS = new Set(["ArrowUp", "ArrowDown", "Home", "End", "PageUp", "PageDown"]);
+
 const THEMES: { choice: ThemeChoice; title: string; short: string; icon: LucideIcon }[] = [
   { choice: "light", title: "Light theme (Ember)", short: "Light", icon: Sun },
   { choice: "dark", title: "Dark theme (Nebula)", short: "Dark", icon: Moon },
@@ -154,9 +157,16 @@ function PaletteBody({
   const noteSearch = useNoteSearch(query, typedTimer === null && captured === null);
   const firstHit = noteSearch.kind === "hits" ? noteSearch.hits[0]?.id : undefined;
   const preferred = captured !== null ? "note-capture" : firstHit ? `note-hit-${firstHit}` : null;
+  // The best note row takes the highlight, on every new query and when late
+  // hits arrive, until the owner moves it (keys or pointer) for this query.
+  const [movedAt, setMovedAt] = React.useState<string | null>(null);
+  const moved = movedAt === query;
   React.useEffect(() => {
-    if (preferred) select(preferred);
-  }, [preferred, select]);
+    if (preferred && !moved) select(preferred);
+  }, [preferred, moved, query, select]);
+  const noteMove = () => {
+    setMovedAt(query);
+  };
   // cmdk's empty state ignores force-mounted rows, so it is ours to hide when they show.
   const forcedRows = captured !== null || noteSearch.kind === "failed" || (noteSearch.kind === "hits" && noteSearch.hits.length > 0);
 
@@ -173,11 +183,14 @@ function PaletteBody({
           autoFocus
           value={query}
           onValueChange={setQuery}
+          onKeyDown={(e) => {
+            if (MOVE_KEYS.has(e.key)) noteMove();
+          }}
           placeholder="Search apps, commands and notes. 25 starts a timer, note … saves one"
           className="h-12 w-full rounded-full bg-sheet pr-5 pl-12 text-[15px] text-foreground ring-1 ring-border outline-none placeholder:text-ink-3 focus-visible:ring-2 focus-visible:ring-ring dark:bg-card-nested dark:ring-glass-border"
         />
       </div>
-      <Command.List className="mt-2 max-h-[min(24rem,60svh)] overflow-y-auto overscroll-contain">
+      <Command.List onPointerMove={noteMove} className="mt-2 max-h-[min(24rem,60svh)] overflow-y-auto overscroll-contain">
         {!forcedRows && (
           <Command.Empty className="px-3 py-6 text-center text-[13px] text-ink-2">
             {noteSearch.kind === "loading" ? "Searching notes" : "Nothing by that name."}

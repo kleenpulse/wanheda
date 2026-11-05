@@ -24,7 +24,8 @@ export async function saveNote(input: unknown): Promise<SaveNoteResult> {
   const parsed = noteWriteSchema.safeParse(input);
   if (!parsed.success) return { ok: false, reason: "invalid" };
   try {
-    const outcome = await saveStoredNote(owner.user.id, parsed.data);
+    const { keepCurrent, ...write } = parsed.data;
+    const outcome = await saveStoredNote(owner.user.id, keepCurrent ? { ...write, keepCurrent } : write);
     if (!outcome) return { ok: false, reason: "failed" };
     if (outcome.kind === "not-yours") return { ok: false, reason: "invalid" };
     return { ok: true, ...outcome };
@@ -36,14 +37,17 @@ export async function saveNote(input: unknown): Promise<SaveNoteResult> {
 
 const deleteSchema = z.object({ id: z.uuid() }).strict();
 
-/** Deletes an archived note for good. */
+/**
+ * Deletes an archived note for good. A note already gone, or taken out of the
+ * archive on another device, counts as done: retrying would never change it.
+ */
 export async function deleteNote(input: unknown): Promise<DeleteNoteResult> {
   const owner = await requireOwner();
   if (owner.kind === "demo") return { ok: false, reason: "demo" };
   const parsed = deleteSchema.safeParse(input);
   if (!parsed.success) return { ok: false, reason: "invalid" };
   try {
-    return (await deleteStoredNote(owner.user.id, parsed.data.id)) ? { ok: true } : { ok: false, reason: "failed" };
+    return (await deleteStoredNote(owner.user.id, parsed.data.id)) === null ? { ok: false, reason: "failed" } : { ok: true };
   } catch (error) {
     console.error("deleteNote failed", error);
     return { ok: false, reason: "failed" };

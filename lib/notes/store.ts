@@ -9,9 +9,11 @@ import {
   clampEditedAt,
   contentOf,
   prefixTsQuery,
+  type NoteRevision,
   resolveWrite,
   type Note,
   type NoteColor,
+  type NoteContent,
   type NoteWrite,
 } from "./notes";
 
@@ -129,6 +131,12 @@ export async function saveNote(userId: string, input: NoteWrite, now = Date.now(
 
       case "update": {
         if (!current) break;
+        if (write.keepCurrent) {
+          // A restore from history: the version it replaces joins the history.
+          const updated = await replaceKeepingHistory(userId, current, content, editedAt);
+          if (updated) return { kind: "saved", note: updated };
+          break;
+        }
         const [updated] = await db
           .update(note)
           .set({ ...content, version: current.version + 1, editedAt })
@@ -144,37 +152,56 @@ export async function saveNote(userId: string, input: NoteWrite, now = Date.now(
           await keepLoser(userId, write);
           return { kind: "conflict", note: current, won: false };
         }
-        // The incoming write wins: copy the row it replaces into history and
-        // apply it, in one transaction, both keyed on the version read above.
-        const same = and(eq(note.id, write.id), eq(note.userId, userId), eq(note.version, current.version));
-        const [, updatedRows] = await db.batch([
-          db.insert(noteRevision).select(
-            db
-              .select({
-                id: sql<string>`gen_random_uuid()`.as("id"),
-                noteId: note.id,
-                userId: note.userId,
-                title: note.title,
-                bodyMd: note.bodyMd,
-                editedAt: note.editedAt,
-                replacedAt: sql<Date>`now()`.as("replaced_at"),
-              })
-              .from(note)
-              .where(same),
-          ),
-          db
-            .update(note)
-            .set({ ...content, version: current.version + 1, editedAt })
-            .where(same)
-            .returning(),
-        ]);
-        const [updated] = updatedRows;
-        if (updated) return { kind: "conflict", note: toNote(updated), won: true };
+        const updated = await replaceKeepingHistory(userId, current, content, editedAt);
+        if (updated) return { kind: "conflict", note: updated, won: true };
         break;
       }
     }
   }
   throw new Error(`saveNote: note ${write.id} kept changing; gave up after ${String(ATTEMPTS)} reads`);
+}
+
+/**
+ * Copies the row a write replaces into history and applies the write, in one
+ * transaction, all keyed on the version read before. The row is locked first:
+ * under READ COMMITTED each statement takes a fresh snapshot, so without the
+ * lock a write landing between the copy and the update would leave a history
+ * row for an update that never happened, and the retry would copy it again.
+ * Undefined when the row changed since it was read.
+ */
+async function replaceKeepingHistory(
+  userId: string,
+  current: Note,
+  content: NoteContent,
+  editedAt: Date,
+): Promise<Note | undefined> {
+  const db = getDb();
+  if (!db) return undefined;
+  const same = and(eq(note.id, current.id), eq(note.userId, userId), eq(note.version, current.version));
+  const [, , updatedRows] = await db.batch([
+    db.select({ id: note.id }).from(note).where(same).for("update"),
+    db.insert(noteRevision).select(
+      db
+        .select({
+          id: sql<string>`gen_random_uuid()`.as("id"),
+          noteId: note.id,
+          userId: note.userId,
+          title: note.title,
+          bodyMd: note.bodyMd,
+          editedAt: note.editedAt,
+          replacedAt: sql<Date>`now()`.as("replaced_at"),
+        })
+        .from(note)
+        .where(same),
+    ),
+    db
+      .update(note)
+      .set({ ...content, version: current.version + 1, editedAt })
+      .where(same)
+      .returning(),
+  ]);
+  const [updated] = updatedRows;
+  return updated ? toNote(updated) : undefined;
 }
 
 /** A late write that lost goes to history once, however often the outbox replays it. */
@@ -199,10 +226,15 @@ async function keepLoser(userId: string, write: NoteWrite): Promise<void> {
   await db.insert(noteRevision).values({ noteId: write.id, userId, title: write.title, bodyMd: write.bodyMd, editedAt });
 }
 
-/** Deletes a note for good, archived ones only (the list offers it from the archive). */
-export async function deleteNote(userId: string, id: string): Promise<boolean> {
+/**
+ * Deletes a note for good, archived ones only (the list offers it from the
+ * archive). Null without a database. False when there was nothing to delete:
+ * already gone, or brought back out of the archive on another device. Both
+ * are final, so the outbox drops the op either way.
+ */
+export async function deleteNote(userId: string, id: string): Promise<boolean | null> {
   const db = getDb();
-  if (!db) return false;
+  if (!db) return null;
   const gone = await db
     .delete(note)
     .where(and(eq(note.id, id), eq(note.userId, userId), eq(note.archived, true)))
@@ -210,19 +242,50 @@ export async function deleteNote(userId: string, id: string): Promise<boolean> {
   return gone.length > 0;
 }
 
+export const REVISION_LIMIT = 50;
+
+/** A note's history, newest first: what conflicts replaced or turned away (FR-NOTES-4). Null when the read failed. */
+export async function listRevisions(userId: string, noteId: string): Promise<NoteRevision[] | null> {
+  const db = getDb();
+  if (!db) return [];
+  try {
+    const rows = await db
+      .select({
+        id: noteRevision.id,
+        title: noteRevision.title,
+        bodyMd: noteRevision.bodyMd,
+        editedAt: noteRevision.editedAt,
+        replacedAt: noteRevision.replacedAt,
+      })
+      .from(noteRevision)
+      .where(and(eq(noteRevision.noteId, noteId), eq(noteRevision.userId, userId)))
+      .orderBy(desc(noteRevision.replacedAt))
+      .limit(REVISION_LIMIT);
+    return rows.map((r) => ({ ...r, editedAt: r.editedAt.getTime(), replacedAt: r.replacedAt.getTime() }));
+  } catch (error) {
+    console.error("listRevisions failed", error);
+    return null;
+  }
+}
+
 /**
  * Full-text search over titles and bodies (FR-NOTES-7): every word as a
- * prefix, ranked, with a score floor (SPEC V17). Archived notes are left out.
+ * prefix must match; ranked by how well the words match, with a score floor
+ * (SPEC V17). Archived notes are left out.
  * The index is a generated column, so an edit re-indexes itself.
  */
 export async function searchNotes(userId: string, query: string): Promise<Note[] | null> {
   const db = getDb();
   if (!db) return [];
   const tsquery = prefixTsQuery(query);
-  if (!tsquery) return [];
+  const anyTerm = prefixTsQuery(query, "any");
+  if (!tsquery || !anyTerm) return [];
   try {
     const q = sql`to_tsquery('simple', ${tsquery})`;
-    const rank = sql<number>`ts_rank(${note.search}, ${q})`;
+    // Ranked against "any word", matched against "every word". ts_rank on an
+    // AND query falls towards zero as the words drift apart in the note, so a
+    // title word plus a word deep in the body would sink under the floor.
+    const rank = sql<number>`ts_rank(${note.search}, to_tsquery('simple', ${anyTerm}))`;
     const rows = await db
       .select(NOTE_COLUMNS)
       .from(note)

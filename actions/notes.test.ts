@@ -51,6 +51,14 @@ describe("saveNote", () => {
     expect(saveStored).toHaveBeenCalledWith("user-1", WRITE);
   });
 
+  it("passes a restore's keepCurrent through, and refuses any other value for it", async () => {
+    requireOwner.mockResolvedValue(owner);
+    saveStored.mockResolvedValue({ kind: "saved", note: { id: ID, version: 2 } });
+    await saveNote({ ...WRITE, keepCurrent: true });
+    expect(saveStored).toHaveBeenLastCalledWith("user-1", { ...WRITE, keepCurrent: true });
+    expect(await saveNote({ ...WRITE, keepCurrent: false })).toEqual({ ok: false, reason: "invalid" });
+  });
+
   it("treats someone else's id as invalid and a thrown store as failed", async () => {
     requireOwner.mockResolvedValue(owner);
     saveStored.mockResolvedValueOnce({ kind: "not-yours" });
@@ -70,9 +78,17 @@ describe("deleteNote", () => {
     expect(await deleteNote({ id: "1 or 1=1" })).toEqual({ ok: false, reason: "invalid" });
   });
 
-  it("says failed when nothing was deleted (not archived, or not there)", async () => {
+  it("counts nothing to delete (already gone, or unarchived elsewhere) as done, so the outbox drops it", async () => {
     requireOwner.mockResolvedValue(owner);
     deleteStored.mockResolvedValue(false);
+    expect(await deleteNote({ id: ID })).toEqual({ ok: true });
+  });
+
+  it("says failed without a database or when the delete throws, so the outbox retries", async () => {
+    requireOwner.mockResolvedValue(owner);
+    deleteStored.mockResolvedValueOnce(null);
+    expect(await deleteNote({ id: ID })).toEqual({ ok: false, reason: "failed" });
+    deleteStored.mockRejectedValueOnce(new Error("db down"));
     expect(await deleteNote({ id: ID })).toEqual({ ok: false, reason: "failed" });
   });
 });

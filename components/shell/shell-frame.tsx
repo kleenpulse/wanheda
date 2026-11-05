@@ -12,6 +12,7 @@ import { CommandPalette } from "@/components/shell/command-palette";
 import { Dock } from "@/components/shell/dock";
 import { MobileTabBar } from "@/components/shell/mobile-tab-bar";
 import { NavRail } from "@/components/shell/nav-rail";
+import { Toaster } from "@/components/ui/toaster";
 import { WindowLayer } from "@/components/windows/window-layer";
 import type { Notice } from "@/lib/notifications/notifications";
 import type { Prefs } from "@/lib/prefs/prefs";
@@ -105,6 +106,7 @@ export function ShellFrame({
         <Island />
         <CommandPalette railExpanded={expanded} onToggleRail={toggle} />
         <NotificationCentre />
+        <Toaster />
       </div>
       </NotificationsProvider>
       </PrefsProvider>

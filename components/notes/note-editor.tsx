@@ -1,16 +1,32 @@
 "use client";
 
 import * as React from "react";
-import { Archive, ArchiveRestore, ChevronLeft, Pin, PinOff, Trash2, X } from "lucide-react";
+import { Archive, ArchiveRestore, ChevronLeft, History, Pin, PinOff, Trash2, X } from "lucide-react";
 import { NoteMarkdown } from "@/components/notes/note-markdown";
-import { useNoteConflict, useNoteStatus, useNotesApi } from "@/components/notes/notes-provider";
+import { useNoteConflict, useNoteHistory, useNoteStatus, useNotesApi } from "@/components/notes/notes-provider";
 import { buttonClass } from "@/components/ui/button";
 import { Segmented } from "@/components/ui/segmented";
-import { TAG_MAX, TAGS_MAX, TITLE_MAX, checklistProgress, sameContent, EMPTY_CONTENT, toggleTaskAtLine, type Note } from "@/lib/notes/notes";
+import { useNow } from "@/hooks/use-now";
+import {
+  BODY_MAX,
+  EMPTY_CONTENT,
+  TAG_MAX,
+  TAGS_MAX,
+  TITLE_MAX,
+  checklistProgress,
+  displayTitle,
+  excerpt,
+  sameContent,
+  toggleTaskAt,
+  type Note,
+  type NoteRevision,
+} from "@/lib/notes/notes";
+import { relativeTime } from "@/lib/notifications/notifications";
 import type { NoteStatus } from "@/lib/notes/sync";
 import { cn } from "@/lib/utils";
 
 const STATUS_LABEL: Record<NoteStatus, string> = {
+  queued: "Kept on this device, syncs when online",
   saving: "Saving",
   saved: "Saved",
   retrying: "Not saved yet, retrying",
@@ -20,12 +36,13 @@ const STATUS_LABEL: Record<NoteStatus, string> = {
 
 type Mode = "write" | "read";
 
-/** One note, edited in place: title, Markdown body (write or read, checklists tick in read), tags, pin, archive. */
+/** One note, edited in place: title, Markdown body (write or read, checklists tick in read), tags, pin, archive, history. */
 export function NoteEditor({ note, onBack }: { note: Note; onBack?: () => void }) {
   const api = useNotesApi();
   const status = useNoteStatus(note.id);
   const conflict = useNoteConflict();
   const fresh = note.version === 0 && sameContent(note, EMPTY_CONTENT);
+  const [historyOpen, setHistoryOpen] = React.useState(false);
   const [mode, setMode] = React.useState<Mode>(() => (fresh || !checklistProgress(note.bodyMd) ? "write" : "read"));
   const bodyRef = React.useRef<HTMLTextAreaElement>(null);
   const progress = checklistProgress(note.bodyMd);
@@ -45,8 +62,8 @@ export function NoteEditor({ note, onBack }: { note: Note; onBack?: () => void }
   }, [note.id]);
 
   const toggleTask = React.useCallback(
-    (line: number) => {
-      api.update(note.id, { bodyMd: toggleTaskAtLine(note.bodyMd, line) }, { immediate: true });
+    (offset: number) => {
+      api.update(note.id, { bodyMd: toggleTaskAt(note.bodyMd, offset) }, { immediate: true });
     },
     [api, note.id, note.bodyMd],
   );
@@ -72,6 +89,18 @@ export function NoteEditor({ note, onBack }: { note: Note; onBack?: () => void }
         <span className="readout mr-auto truncate pl-1" role="status" aria-live="polite">
           {status ? STATUS_LABEL[status] : ""}
         </span>
+        <button
+          type="button"
+          aria-pressed={historyOpen}
+          onClick={() => {
+            setHistoryOpen((open) => !open);
+          }}
+          className={buttonClass("ghost", "circle-sm", historyOpen ? "text-foreground" : undefined)}
+          title="History: versions replaced by other devices or restores"
+        >
+          <History aria-hidden strokeWidth={1.75} />
+          <span className="sr-only">History</span>
+        </button>
         <button
           type="button"
           aria-pressed={note.pinned}
@@ -127,6 +156,15 @@ export function NoteEditor({ note, onBack }: { note: Note; onBack?: () => void }
         </div>
       ) : null}
 
+      {historyOpen ? (
+        <NoteHistory
+          note={note}
+          onClose={() => {
+            setHistoryOpen(false);
+          }}
+        />
+      ) : null}
+
       <div className="flex flex-1 flex-col gap-3 px-5 pt-4 pb-5 md:px-6">
         <input
           value={note.title}
@@ -147,6 +185,7 @@ export function NoteEditor({ note, onBack }: { note: Note; onBack?: () => void }
           <textarea
             ref={bodyRef}
             value={note.bodyMd}
+            maxLength={BODY_MAX}
             onChange={(e) => {
               api.update(note.id, { bodyMd: e.target.value });
             }}
@@ -204,6 +243,8 @@ function TagEditor({ tags, onChange }: { tags: string[]; onChange: (tags: string
           setDraft(e.target.value);
         }}
         onKeyDown={(e) => {
+          // An IME uses Enter to accept a candidate: that isn't the end of the tag.
+          if (e.nativeEvent.isComposing) return;
           if (e.key === "Enter" || e.key === ",") {
             e.preventDefault();
             add();
@@ -217,5 +258,101 @@ function TagEditor({ tags, onChange }: { tags: string[]; onChange: (tags: string
         className={cn("h-7 min-w-32 flex-1 bg-transparent px-1 text-[12.5px] text-foreground outline-none placeholder:text-ink-3")}
       />
     </div>
+  );
+}
+
+/**
+ * The note's history (FR-NOTES-4): versions a conflict or a restore replaced,
+ * newest first. Restoring one is a new write; the version it replaces joins
+ * the history, so nothing ever drops out of it.
+ */
+function NoteHistory({ note, onClose }: { note: Note; onClose: () => void }) {
+  const api = useNotesApi();
+  const view = useNoteHistory(note.id, true);
+  const now = useNow(60_000);
+  const [preview, setPreview] = React.useState<string | null>(null);
+
+  const message =
+    view.kind === "demo"
+      ? "Demo notes have no history: their edits stay in this tab."
+      : view.kind === "offline"
+        ? "History needs a connection."
+        : view.kind === "failed"
+          ? "Couldn't load the history. Try again in a moment."
+          : view.kind === "loading"
+            ? "Loading history"
+            : view.revisions.length === 0
+              ? "No earlier versions. One lands here when an edit from another device replaces it, or when you restore one."
+              : null;
+
+  const restore = (rev: NoteRevision) => {
+    api.update(note.id, { title: rev.title, bodyMd: rev.bodyMd }, { restore: true });
+    setPreview(null);
+  };
+
+  return (
+    <section aria-label="History" className="mx-4 mt-3 rounded-[16px] bg-card-nested px-4 py-3 ring-1 ring-border dark:ring-glass-border">
+      <div className="flex items-center gap-2">
+        <h2 className="mr-auto text-[13px] font-medium text-foreground">History</h2>
+        <button type="button" onClick={onClose} className={buttonClass("ghost", "circle-sm", "-my-1.5 -mr-2 size-8")}>
+          <X aria-hidden strokeWidth={1.75} />
+          <span className="sr-only">Close history</span>
+        </button>
+      </div>
+      {message ? (
+        <p className="mt-1 text-[12.5px] text-ink-2" aria-busy={view.kind === "loading" || undefined}>
+          {message}
+        </p>
+      ) : view.kind === "loaded" ? (
+        <ol className="mt-2 flex max-h-80 flex-col gap-2 overflow-y-auto overscroll-contain">
+          {view.revisions.map((rev) => {
+            const current = rev.title === note.title && rev.bodyMd === note.bodyMd;
+            const open = preview === rev.id;
+            const text = excerpt(rev, 120);
+            return (
+              <li key={rev.id} className="rounded-[12px] bg-card px-3 py-2.5 ring-1 ring-border dark:bg-transparent dark:ring-glass-border">
+                <div className="flex items-start gap-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[13px] font-medium text-foreground">{displayTitle(rev)}</p>
+                    <p className="readout tabular">
+                      {now === null ? "" : `Written ${relativeTime(rev.editedAt, now)} · replaced ${relativeTime(rev.replacedAt, now)}`}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    aria-expanded={open}
+                    onClick={() => {
+                      setPreview(open ? null : rev.id);
+                    }}
+                    className={buttonClass("ghost", "pill-sm")}
+                  >
+                    {open ? "Hide" : "Show"}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={current}
+                    onClick={() => {
+                      restore(rev);
+                    }}
+                    className={buttonClass("inverse", "pill-sm")}
+                  >
+                    {current ? "Shown now" : "Restore"}
+                  </button>
+                </div>
+                {open ? (
+                  rev.bodyMd.trim() ? (
+                    <NoteMarkdown body={rev.bodyMd} className="mt-2 border-t border-border/70 pt-2 dark:border-glass-border" />
+                  ) : (
+                    <p className="mt-2 text-[12.5px] text-ink-3">Nothing written.</p>
+                  )
+                ) : text ? (
+                  <p className="mt-1 line-clamp-2 text-[12.5px] leading-snug text-ink-2">{text}</p>
+                ) : null}
+              </li>
+            );
+          })}
+        </ol>
+      ) : null}
+    </section>
   );
 }

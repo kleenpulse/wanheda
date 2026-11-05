@@ -1,0 +1,28 @@
+"use client";
+
+import { useNotesSync } from "@/components/notes/notes-provider";
+import { useAccount } from "@/components/shell/account";
+import { cn } from "@/lib/utils";
+
+/**
+ * The sync status chip (vxrcel-ui-design status chip): "Offline" while the
+ * device has no connection, with the writes waiting in the outbox, and
+ * "Syncing" while some are still on their way. Nothing when all is sent, and
+ * nothing in demo, whose edits never leave the tab.
+ */
+export function SyncChip() {
+  const account = useAccount();
+  const { pending, online } = useNotesSync();
+  if (account.kind !== "owner" || (online && pending === 0)) return null;
+  const label = online ? `Syncing ${String(pending)}` : pending > 0 ? `Offline · ${String(pending)} waiting` : "Offline";
+  return (
+    <span
+      role="status"
+      title={online ? "Notes saved on this device are being sent" : "Notes are kept on this device and sent when the connection is back"}
+      className="inline-flex h-6 shrink-0 items-center gap-1.5 rounded-pill bg-foreground/8 px-2.5 font-mono text-[10.5px] tracking-wide text-ink-2 uppercase tabular"
+    >
+      <span aria-hidden className={cn("size-1.5 rounded-full", online ? "bg-signal" : "bg-ink-3")} />
+      {label}
+    </span>
+  );
+}

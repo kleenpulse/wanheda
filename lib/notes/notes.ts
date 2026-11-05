@@ -1,3 +1,7 @@
+import type { Nodes as MdNodes } from "mdast";
+import remarkGfm from "remark-gfm";
+import remarkParse from "remark-parse";
+import { unified } from "unified";
 import { z } from "zod";
 
 // Sticky notes, the pure part (FR-NOTES-1..7): the shapes, input checks,
@@ -38,6 +42,8 @@ export interface NoteWrite extends NoteContent {
   id: string;
   baseVersion: number;
   editedAt: number;
+  /** A restore from history: the version it replaces goes to history too, so nothing drops out of it. */
+  keepCurrent?: true;
 }
 
 /** Lowercased, trimmed, deduplicated, order kept. */
@@ -62,6 +68,7 @@ export const noteWriteSchema = z
     baseVersion: z.number().int().min(0),
     // 2020-01-01 or later: a zero or garbage clock would lose every conflict.
     editedAt: z.number().int().min(1_577_836_800_000),
+    keepCurrent: z.literal(true).optional(),
   })
   .strict();
 
@@ -146,49 +153,63 @@ export function sortNotes(notes: readonly Note[]): Note[] {
 // ---- Markdown helpers --------------------------------------------------------
 
 const FENCE = /^\s{0,3}(`{3,}|~{3,})/;
-// A GFM task item, optionally inside blockquotes: `- [ ] buy`, `1. [x] done`, `> * [ ] x`.
-const TASK = /^((?:\s*>)*\s*(?:[-*+]|\d{1,9}[.)])\s+\[)([ xX])(\]\s)/;
 
-interface TaskLine {
-  /** 1-based, as the Markdown parser reports positions. */
+// Checklists come from the same parser the Read view renders with (remark +
+// GFM), so the count, the boxes and the toggle never disagree about what is a
+// task: code blocks, HTML blocks, quotes and nesting all follow CommonMark.
+const markdown = unified().use(remarkParse).use(remarkGfm).freeze();
+
+/** Bodies without anything like `[ ]` or `[x]` skip the parser. */
+const TASK_HINT = /\[[ xX]\]/;
+const TASK_CACHE_MAX = 300;
+const taskCache = new Map<string, readonly TaskItem[]>();
+
+export interface TaskItem {
+  /** Where the list item starts in the body (its bullet), as the renderer reports it. */
+  offset: number;
+  /** 1-based. */
   line: number;
   checked: boolean;
 }
 
-/** Every task item outside fenced code, in document order. */
-export function taskLines(body: string): TaskLine[] {
-  const out: TaskLine[] = [];
-  let fence: string | null = null;
-  body.split("\n").forEach((text, i) => {
-    const f = FENCE.exec(text);
-    if (f?.[1]) {
-      const marker = f[1];
-      if (fence === null) fence = marker;
-      else if (marker[0] === fence[0] && marker.length >= fence.length) fence = null;
-      return;
+/** Every task item in the body, in document order. */
+export function taskItems(body: string): readonly TaskItem[] {
+  if (!TASK_HINT.test(body)) return [];
+  const cached = taskCache.get(body);
+  if (cached) return cached;
+  const out: TaskItem[] = [];
+  const walk = (node: MdNodes) => {
+    if (node.type === "listItem" && typeof node.checked === "boolean" && node.position?.start.offset !== undefined) {
+      out.push({ offset: node.position.start.offset, line: node.position.start.line, checked: node.checked });
     }
-    if (fence !== null) return;
-    const m = TASK.exec(`${text} `);
-    if (m) out.push({ line: i + 1, checked: m[2] !== " " });
-  });
+    if ("children" in node) for (const child of node.children) walk(child);
+  };
+  walk(markdown.parse(body));
+  if (taskCache.size >= TASK_CACHE_MAX) {
+    const oldest = taskCache.keys().next().value;
+    if (oldest !== undefined) taskCache.delete(oldest);
+  }
+  taskCache.set(body, out);
   return out;
 }
 
 /** "2 of 5 done" on the sticky (FR-NOTES-5), or null without a checklist. */
 export function checklistProgress(body: string): { done: number; total: number } | null {
-  const tasks = taskLines(body);
+  const tasks = taskItems(body);
   if (tasks.length === 0) return null;
   return { done: tasks.filter((t) => t.checked).length, total: tasks.length };
 }
 
-/** Ticks or unticks the task item on `line` (1-based). Any other line leaves the body as is. */
-export function toggleTaskAtLine(body: string, line: number): string {
-  if (!taskLines(body).some((t) => t.line === line)) return body;
-  const lines = body.split("\n");
-  const text = lines[line - 1];
-  if (text === undefined) return body;
-  lines[line - 1] = `${text} `.replace(TASK, (_all, pre: string, mark: string, post: string) => `${pre}${mark === " " ? "x" : " "}${post}`).slice(0, -1);
-  return lines.join("\n");
+// From a task item's start: its bullet, the space after it, and the box.
+const TASK_BOX = /^(?:[-*+]|\d{1,9}[.)])\s+\[([ xX])\]/;
+
+/** Ticks or unticks the task item starting at `offset`. Any other offset leaves the body as is. */
+export function toggleTaskAt(body: string, offset: number): string {
+  if (!taskItems(body).some((t) => t.offset === offset)) return body;
+  const m = TASK_BOX.exec(body.slice(offset));
+  if (!m?.[1]) return body;
+  const at = offset + m[0].length - 2;
+  return `${body.slice(0, at)}${m[1] === " " ? "x" : " "}${body.slice(at + 1)}`;
 }
 
 /** One line of Markdown as plain text, for titles and excerpts. */
@@ -250,10 +271,13 @@ export function searchTerms(query: string): string[] {
   return [...new Set(words.map((w) => w.slice(0, 64)))].slice(0, MAX_TERMS);
 }
 
-/** `buy:* & ssd:*` for `to_tsquery('simple', …)`: every word, each as a prefix. Null when there are none. */
-export function prefixTsQuery(query: string): string | null {
+/**
+ * `buy:* & ssd:*` for `to_tsquery('simple', …)`: every word, each as a prefix.
+ * With "any", `buy:* | ssd:*` (for ranking). Null when there are none.
+ */
+export function prefixTsQuery(query: string, match: "every" | "any" = "every"): string | null {
   const terms = searchTerms(query);
-  return terms.length ? terms.map((t) => `${t}:*`).join(" & ") : null;
+  return terms.length ? terms.map((t) => `${t}:*`).join(match === "every" ? " & " : " | ") : null;
 }
 
 /** Below this ts_rank a match is noise (SPEC V17: search has a score floor). */
@@ -315,3 +339,19 @@ export interface NotesPayload {
 
 /** TanStack Query key of the notes list, shared by the server prefetch and the client. */
 export const NOTES_KEY = ["notes"] as const;
+
+/** One entry of a note's history (FR-NOTES-4): a version a conflict replaced or turned away. */
+export interface NoteRevision {
+  id: string;
+  title: string;
+  bodyMd: string;
+  /** When it was written, on its device's clock. */
+  editedAt: number;
+  /** When it went to history. */
+  replacedAt: number;
+}
+
+/** GET /api/notes/[id]/revisions. */
+export interface RevisionsPayload {
+  revisions: NoteRevision[];
+}
