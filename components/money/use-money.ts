@@ -146,20 +146,13 @@ export function newTxn(fields: Pick<Txn, "accountId" | "postedOn" | "amountMinor
   return { ...fields, id: crypto.randomUUID(), note: "", source: "manual", transferId: null, createdAt: Date.now() };
 }
 
-/** Whether this device has seen the txn before: an edit, not a new entry. */
-function known(qc: QueryClient, id: string): boolean {
-  if (id in useMoneyLocal.getState().txns) return true;
-  if (qc.getQueryData<MoneyPayload>(MONEY_KEY)?.txns.some((t) => t.id === id)) return true;
-  return qc.getQueriesData<TxnRangePayload>({ queryKey: [MONEY_RANGE_KEY] }).some(([, d]) => d?.txns.some((t) => t.id === id) ?? false);
-}
-
 /**
  * A new entry with the owner's rules applied (FR-MONEY-13): the first match
- * sets the category when none was picked, and adds its tags. Edits are left
- * as the owner made them.
+ * sets the category when none was picked, and adds its tags. The caller says
+ * whether it is new (review nit, PR #21: a cache lookup could take an old
+ * entry whose range cache was dropped for a new one); edits stay as made.
  */
 function withRules(qc: QueryClient, txn: Txn): Txn {
-  if (known(qc, txn.id)) return txn;
   const payload = qc.getQueryData<MoneyPayload>(MONEY_KEY);
   const rules = payload?.rules;
   if (!payload || !rules || rules.length === 0) return txn;
@@ -173,11 +166,14 @@ export function useMoneyApi() {
   const runtime = useMoneyRuntime();
   const qc = useQueryClient();
 
-  /** Shows at once; the outbox sends it when it can (V24, V28). A newer write to the same id takes over. */
+  /**
+   * Shows at once; the outbox sends it when it can (V24, V28). A newer write
+   * to the same id takes over. `isNew`: an entry being added, so rules apply.
+   */
   const save = React.useCallback(
-    (txn: Txn) => {
+    (txn: Txn, options: { isNew?: boolean } = {}) => {
       rememberAccount(txn.accountId);
-      runtime.saveTxn(withRules(qc, txn));
+      runtime.saveTxn(options.isNew ? withRules(qc, txn) : txn);
     },
     [runtime, qc],
   );

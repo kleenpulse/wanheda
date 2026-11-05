@@ -1,9 +1,10 @@
 import { Suspense } from "react";
 import { cookies } from "next/headers";
+import { after } from "next/server";
 import { PAGE_COLUMN } from "@/components/shell/page-frame";
 import { ShellFrame } from "@/components/shell/shell-frame";
 import { requireOwner } from "@/lib/auth/owner";
-import { raiseMoneyAlerts } from "@/lib/money/alerts";
+import { raiseBudgetAlerts, raiseMoneyAlerts } from "@/lib/money/alerts";
 import { mergeNotices, type Notice } from "@/lib/notifications/notifications";
 import { loadNotices } from "@/lib/notifications/store";
 import { PREFS_COOKIE, decodePrefs } from "@/lib/prefs/prefs";
@@ -44,6 +45,10 @@ async function OwnerShell({ children }: { children: React.ReactNode }) {
     // they show in this very load; each is raised once, whichever check wins.
     const [p, n, alerts] = await Promise.all([loadPrefs(owner.user.id), loadNotices(owner.user.id), raiseMoneyAlerts(owner.user.id)]);
     prefs = p.kind === "loaded" ? { initial: p.prefs, source: "owner" } : { initial: devicePrefs, source: "load-failed" };
+    // Budgets read two months of entries (and maybe fetch FX): after the reply,
+    // off the shell's critical path; a txn save checks them inline (V31).
+    const userId = owner.user.id;
+    after(() => raiseBudgetAlerts(userId, { fetchRates: true }));
     notices = { initial: mergeNotices(n.notices, alerts), source: n.kind === "loaded" ? "owner" : "load-failed" };
   }
 

@@ -1,8 +1,9 @@
 "use server";
 
+import { after } from "next/server";
 import { z } from "zod";
 import { requireOwner } from "@/lib/auth/owner";
-import { raiseBudgetAlerts } from "@/lib/money/alerts";
+import { budgetAlertsForSave } from "@/lib/money/alerts";
 import { budgetWriteSchema } from "@/lib/money/budgets";
 import { CURRENCY_CODES, type Currency } from "@/lib/money/currency";
 import type { BudgetSaveResult, PlanDeleteResult, RuleSaveResult } from "@/lib/money/outbox";
@@ -27,7 +28,7 @@ export async function saveBudget(input: unknown): Promise<BudgetSaveResult> {
     if (!outcome) return { ok: false, reason: "failed" };
     if (outcome.kind === "not-yours") return { ok: false, reason: "invalid" };
     if (outcome.kind === "taken") return { ok: false, reason: "taken" };
-    return { ok: true, budget: outcome.budget, notices: await raiseBudgetAlerts(owner.user.id) };
+    return { ok: true, budget: outcome.budget, notices: await budgetAlertsForSave(owner.user.id, after) };
   } catch (error) {
     console.error("saveBudget failed", error);
     return { ok: false, reason: "failed" };

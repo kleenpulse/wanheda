@@ -125,7 +125,8 @@ export function TxnForm({
       payee: payee.trim().slice(0, PAYEE_MAX),
       categoryId: chosen,
     };
-    api.save(initial ? { ...initial, ...fields } : newTxn({ ...fields, tags: [] }));
+    if (initial) api.save({ ...initial, ...fields });
+    else api.save(newTxn({ ...fields, tags: [] }), { isNew: true });
     if (initial) {
       onSaved?.();
       return;
