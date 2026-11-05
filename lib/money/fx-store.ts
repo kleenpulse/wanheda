@@ -11,8 +11,9 @@ import { cleanRates, FX_HISTORY_START, ratesFromTable, type FxRate } from "./fx"
   API). There is no cron (as with V31's reminders): the first read of a day
   fetches that day, and a read over older days fills the ones still missing,
   a few at a time, newest first. Rates are public and the same for everyone,
-  so `fx_rate` has no owner. A failed fetch is tried again later; a read never
-  waits on more than one round of fetches.
+  so `fx_rate` has no owner. A failed fetch is tried again later. A read never
+  waits on the source for long: callers cap the round (`ensureRatesWithin`)
+  and let the rest finish after the reply.
 */
 
 /** Days fetched per read at most; the client asks again while `incomplete`. */
@@ -77,38 +78,78 @@ function due(key: string, now: number): boolean {
   return at === undefined || now - at > RETRY_AFTER_MS;
 }
 
+/** The newest day the source had published, from its last "latest" answer (per server instance). */
+let newestPublished: Day | null = null;
+
 /**
- * Fetches the days in [from, today] that are not stored yet: today through
- * "latest", older ones by date, at most FETCH_PER_READ per call. Returns
- * whether days are still missing that a later call would fetch.
+ * Fetches the days in [from, today] that are not stored yet, at most
+ * FETCH_PER_READ per call. "latest" goes first and says which day the source
+ * has published up to; only days before that are asked for by date, so a day
+ * not published yet (today, in any zone) is never retried as a missing file
+ * (review nit, PR #21). Returns whether days are still missing that a later
+ * call would fetch.
  */
 export async function ensureRates(from: Day, today: Day, now = Date.now()): Promise<boolean> {
   if (!getDb()) return false;
   const start = from < FX_HISTORY_START ? FX_HISTORY_START : from;
   if (start > today) return false;
   const have = await storedDays(start, today);
-  const missing: Day[] = [];
-  for (let d = today; d >= start; d = addDays(d, -1)) if (!have.has(d)) missing.push(d);
-  if (missing.length === 0) return false;
-
-  const jobs: string[] = [];
-  if (!have.has(today) && due("latest", now)) jobs.push("latest");
-  // The source publishes a day after it ends, so today itself comes only through "latest".
-  const older = missing.filter((d) => d !== today && due(d, now));
-  jobs.push(...older.slice(0, FETCH_PER_READ));
+  if (!have.has(today) && due("latest", now)) {
+    tried.set("latest", now);
+    const latest = await fetchDay("latest");
+    const on = latest?.[0]?.on;
+    if (latest && on) {
+      newestPublished = on;
+      try {
+        await store(latest);
+        have.add(on);
+      } catch (error) {
+        console.error("fx: storing rates failed", error);
+        return true;
+      }
+    }
+  }
+  // Without a known newest day (the source is down), the newest stored one stands in.
+  const ceiling = newestPublished ?? [...have].sort().at(-1) ?? null;
+  if (ceiling === null) return false;
+  const older: Day[] = [];
+  for (let d = addDays(ceiling, -1); d >= start; d = addDays(d, -1)) if (!have.has(d) && due(d, now)) older.push(d);
+  const jobs = older.slice(0, FETCH_PER_READ);
   for (const j of jobs) tried.set(j, now);
 
   for (let i = 0; i < jobs.length; i += PARALLEL) {
     const batch = await Promise.all(jobs.slice(i, i + PARALLEL).map((j) => fetchDay(j)));
-    const rates = batch.flatMap((r) => r ?? []);
     try {
-      await store(rates);
+      await store(batch.flatMap((r) => r ?? []));
     } catch (error) {
       console.error("fx: storing rates failed", error);
       return true;
     }
   }
   return older.length > FETCH_PER_READ;
+}
+
+/**
+ * `ensureRates`, waited on for at most `ms`. Past that the round keeps going
+ * and is handed to `later` (Next's `after()`) so it finishes after the reply;
+ * the answer is then "still incomplete", and the client asks again.
+ */
+export async function ensureRatesWithin(from: Day, today: Day, ms: number, later: (work: Promise<unknown>) => void): Promise<boolean> {
+  const work = ensureRates(from, today).catch((error: unknown) => {
+    console.error("fx: ensureRates failed", error);
+    return true;
+  });
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<"late">((resolve) => {
+    timer = setTimeout(() => {
+      resolve("late");
+    }, ms);
+  });
+  const first = await Promise.race([work, timeout]);
+  clearTimeout(timer);
+  if (first !== "late") return first;
+  later(work);
+  return true;
 }
 
 /**

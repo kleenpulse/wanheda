@@ -1,9 +1,10 @@
 "use server";
 
+import { after } from "next/server";
 import { z } from "zod";
 import { requireOwner } from "@/lib/auth/owner";
 import { accountWriteSchema, categoryWriteSchema, txnWriteSchema } from "@/lib/money/money";
-import { raiseBudgetAlerts, raiseMoneyAlerts } from "@/lib/money/alerts";
+import { budgetAlertsForSave, raiseMoneyAlerts } from "@/lib/money/alerts";
 import type { AccountWriteResult, CategorySaveResult, SubDeleteResult, SubSaveResult, TxnDeleteResult, TxnSaveResult } from "@/lib/money/outbox";
 import {
   deleteSubscription as deleteStoredSubscription,
@@ -38,7 +39,7 @@ export async function saveTxn(input: unknown): Promise<SaveTxnResult> {
     if (!outcome) return { ok: false, reason: "failed" };
     if (outcome.kind === "not-yours") return { ok: false, reason: "invalid" };
     if (outcome.kind === "archived-account") return { ok: false, reason: "archived-account" };
-    return { ok: true, txn: outcome.txn, notices: await raiseBudgetAlerts(owner.user.id) };
+    return { ok: true, txn: outcome.txn, notices: await budgetAlertsForSave(owner.user.id, after) };
   } catch (error) {
     console.error("saveTxn failed", error);
     return { ok: false, reason: "failed" };

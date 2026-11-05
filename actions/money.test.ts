@@ -17,7 +17,7 @@ vi.mock("@/lib/money/store", () => ({
   saveSubscription: saveSub,
   deleteSubscription: deleteSub,
 }));
-vi.mock("@/lib/money/alerts", () => ({ raiseMoneyAlerts: raise, raiseBudgetAlerts: vi.fn(() => Promise.resolve([])) }));
+vi.mock("@/lib/money/alerts", () => ({ raiseMoneyAlerts: raise, budgetAlertsForSave: vi.fn(() => Promise.resolve([])) }));
 
 const { deleteSubscription, deleteTxn, removeCategory, saveCategory, saveSubscription, saveTxn } = await import("./money");
 
