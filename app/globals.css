@@ -353,7 +353,7 @@
 	--inverse-foreground: #0b1616;
 	--glass: rgb(13 30 31 / 0.8);
 	--glass-thin: rgb(13 30 31 / 0.52);
-	/* Flat like Ember (user 2026-11-05): no edges on cards, controls or glass. Only the rail keeps one. */
+	/* Flat like Ember (user 2026-11-05): no edges on cards, controls or glass. Only the rail and the dock keep one. */
 	--glass-border: transparent;
 	--rail-border: rgb(160 220 215 / 0.14);
 	--glass-frost: rgb(13 30 31 / 0.46);
@@ -543,7 +543,8 @@
 	--inverse-foreground: #0a0b0c;
 	--glass: rgb(16 18 21 / 0.82);
 	--glass-thin: rgb(16 18 21 / 0.55);
-	--glass-border: rgb(226 230 233 / 0.09);
+	/* Flat like Nebula (user 2026-11-05: only the dock has a border and a shadow). Only the rail and the dock keep an edge. */
+	--glass-border: transparent;
 	--rail-border: rgb(226 230 233 / 0.09);
 	--glass-frost: rgb(16 18 21 / 0.5);
 	--glass-sheen: rgb(226 230 233 / 0.06);
@@ -703,7 +704,7 @@
 	font-feature-settings: "tnum";
 }
 
-/* Bento card: flat paper in Ember, flat lit glass in Nebula; only Bench dark draws an edge. */
+/* Bento card: flat in every skin, no edge and no shadow (user 2026-11-05: only the dock has them). */
 @utility bento {
 	border-radius: var(--radius-card);
 	background: var(--card);
@@ -713,20 +714,14 @@
 	.dark & {
 		background-image: linear-gradient(160deg, rgb(255 255 255 / 0.035), transparent 42%);
 	}
-	[data-skin="bench"].dark & {
-		border-color: var(--border);
-	}
 }
 
-/* Hover lift only for real pointers; press settles. */
+/* Hover lift only for real pointers; press settles. No shadow: only the dock casts one (user 2026-11-05). */
 @utility lift {
-	transition:
-		transform 180ms var(--ease-out-quint),
-		box-shadow 180ms var(--ease-out-quint);
+	transition: transform 180ms var(--ease-out-quint);
 	@media (hover: hover) and (pointer: fine) {
 		&:hover {
 			transform: translateY(-2px);
-			box-shadow: var(--shadow-lift);
 		}
 	}
 	&:active { transform: scale(0.985); }
