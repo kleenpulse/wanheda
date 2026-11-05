@@ -8,13 +8,14 @@ import { TAB_SPRING } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import { usePeriodParam } from "./use-period";
 
-// Entries and analytics are two pages of one app. The links carry the period
+// Entries, analytics and subscriptions are three pages of one app. The links carry the period
 // (`?p=`), so a hop keeps it, and live in the money layout, so the pill
 // slides between them like the house Segmented.
 
 const TABS = [
   { href: "/money", label: "Entries" },
   { href: "/money/analytics", label: "Analytics" },
+  { href: "/money/subscriptions", label: "Subscriptions" },
 ] as const;
 
 export function MoneyTabs() {

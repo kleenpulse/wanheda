@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { Dialog } from "@base-ui/react/dialog";
-import { Bell, CheckCheck, Timer as TimerIcon, X } from "lucide-react";
+import { Bell, CalendarClock, CheckCheck, Timer as TimerIcon, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import type { Route } from "next";
 import { useNotifications } from "@/components/notifications/notifications-provider";
@@ -13,7 +13,7 @@ import { useNow } from "@/hooks/use-now";
 import { relativeTime, type Notice, type NotificationKind } from "@/lib/notifications/notifications";
 import { cn } from "@/lib/utils";
 
-const ICONS: Record<NotificationKind, typeof Bell> = { timer: TimerIcon };
+const ICONS: Record<NotificationKind, typeof Bell> = { timer: TimerIcon, money: CalendarClock };
 const FILTERS = [
   { value: "all", label: "All" },
   { value: "unread", label: "Unread" },
@@ -78,7 +78,7 @@ export function NotificationCentre() {
             {shown.length === 0 ? (
               <EmptyState
                 title={filter === "unread" ? "All caught up" : "Nothing yet"}
-                body={filter === "unread" ? "No unread alerts." : "Finished timers land here. Renewals and budget alerts join with Money."}
+                body={filter === "unread" ? "No unread alerts." : "Finished timers and subscription reminders land here."}
               />
             ) : (
               <NoticeList notices={shown} onOpen={(n) => {

@@ -2,6 +2,7 @@ import { z } from "zod";
 import { type CategoryColor, type CategoryKind } from "./categories";
 import { assertMinor, CURRENCY_CODES, sumByCurrency, type Currency, type Money } from "./currency";
 import { isDay, type Day } from "./dates";
+import type { Subscription } from "./subscriptions";
 
 // The money domain (FRD 6.3). Pure: shared by the store, the actions, the
 // route handler and the client. Ids are made on the client, so a create that
@@ -73,6 +74,8 @@ export interface MoneyPayload {
   priorMinor?: Readonly<Record<string, number>>;
   /** The window held more txns than one read returns: its oldest rows, and so balances and totals, are short. */
   windowTruncated?: boolean;
+  /** Every subscription, any status. Optional because a cached payload may predate them. */
+  subscriptions?: Subscription[];
 }
 
 /** A page of txns for a range older than the loaded window (`GET /api/money/range`). */
@@ -252,6 +255,27 @@ export function upsertTxn(payload: MoneyPayload, txn: Txn): MoneyPayload {
 
 export function removeTxn(payload: MoneyPayload, id: string): MoneyPayload {
   return { ...payload, txns: payload.txns.filter((t) => t.id !== id) };
+}
+
+/** Replaces or adds a subscription in a payload (optimistic, V24). */
+export function upsertSubscription(payload: MoneyPayload, sub: Subscription): MoneyPayload {
+  const subs = payload.subscriptions ?? [];
+  const i = subs.findIndex((s) => s.id === sub.id);
+  return { ...payload, subscriptions: i < 0 ? [...subs, sub] : subs.map((s) => (s.id === sub.id ? sub : s)) };
+}
+
+export function removeSubscription(payload: MoneyPayload, id: string): MoneyPayload {
+  return { ...payload, subscriptions: (payload.subscriptions ?? []).filter((s) => s.id !== id) };
+}
+
+/** Subscription writes still on their way: the one to show, or null for one being deleted. */
+export type PendingSubscriptions = Readonly<Record<string, Subscription | null>>;
+
+/** The payload with this device's unconfirmed subscription writes laid over it (V24). */
+export function applyPendingSubscriptions(payload: MoneyPayload, pending: PendingSubscriptions): MoneyPayload {
+  let next = payload;
+  for (const [id, sub] of Object.entries(pending)) next = sub ? upsertSubscription(next, sub) : removeSubscription(next, id);
+  return next;
 }
 
 /** Writes still on their way: a txn to show, or null for one being deleted. */

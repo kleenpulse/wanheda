@@ -19,6 +19,7 @@ function toNotice(r: Row): Notice | null {
     title: r.title,
     body: r.body,
     href: r.href,
+    dedupeKey: r.dedupeKey,
     createdAt: r.createdAt.getTime(),
     readAt: r.readAt ? r.readAt.getTime() : null,
   };
@@ -58,6 +59,24 @@ export async function addNotice(userId: string, n: NewNotice): Promise<Notice | 
     .where(and(eq(notification.userId, userId), eq(notification.dedupeKey, n.dedupeKey)))
     .limit(1);
   return existing ? toNotice(existing) : null;
+}
+
+/**
+ * Inserts several alerts, each once per dedupe key, and returns all of them:
+ * the new rows and the ones already there (read or not). Two reads at most.
+ */
+export async function addNotices(userId: string, list: readonly NewNotice[]): Promise<Notice[]> {
+  const db = getDb();
+  if (!db || list.length === 0) return [];
+  await db
+    .insert(notification)
+    .values(list.map((n) => ({ userId, ...n })))
+    .onConflictDoNothing({ target: [notification.userId, notification.dedupeKey] });
+  const rows = await db
+    .select()
+    .from(notification)
+    .where(and(eq(notification.userId, userId), inArray(notification.dedupeKey, list.map((n) => n.dedupeKey))));
+  return rows.flatMap((r) => toNotice(r) ?? []);
 }
 
 /** Marks the given ids, or every unread one, read now. */

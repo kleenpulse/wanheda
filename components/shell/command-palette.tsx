@@ -8,6 +8,7 @@ import { useTheme } from "next-themes";
 import {
   AppWindow,
   Bell,
+  CalendarClock,
   CheckCheck,
   LayoutDashboard,
   LogOut,
@@ -31,7 +32,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { signOutOk } from "@/components/auth/account-actions";
-import { lastAccountId, newTxn, useMoney, useMoneyApi } from "@/components/money/use-money";
+import { lastAccountId, newTxn, useMoney, useMoneyApi, useNewSubscription } from "@/components/money/use-money";
 import { useNoteSearch, useNotesApi } from "@/components/notes/notes-provider";
 import { useNotifications } from "@/components/notifications/notifications-provider";
 import { usePrefs } from "@/components/prefs/prefs-provider";
@@ -162,6 +163,7 @@ function PaletteBody({
   const [openedAt] = React.useState(Date.now);
   const typedTimer = parseTimerQuery(query);
   const notesApi = useNotesApi();
+  const askNewSubscription = useNewSubscription((s) => s.ask);
   const captured = parseCapture(query);
   // A duration wins ("25" starts a timer); anything else that starts with an amount is money.
   const moneyQuery = typedTimer === null && captured === null && looksLikeQuickAdd(query) ? query : null;
@@ -390,6 +392,28 @@ function PaletteBody({
               onSelect={run(() => startTimer(min * MINUTE))}
             />
           ))}
+        </Command.Group>
+
+        <Command.Group heading="Money">
+          <Item
+            value="money-subscription-new"
+            keywords={["subscription", "new", "add", "recurring", "renewal", "trial", "netflix", "sub"]}
+            icon={Repeat}
+            title="New subscription"
+            onSelect={run(() => {
+              askNewSubscription();
+              router.push("/money/subscriptions");
+            })}
+          />
+          <Item
+            value="money-subscriptions"
+            keywords={["subscriptions", "renewals", "upcoming", "recurring", "cut", "monthly", "yearly"]}
+            icon={CalendarClock}
+            title="Open subscriptions"
+            onSelect={run(() => {
+              router.push("/money/subscriptions");
+            })}
+          />
         </Command.Group>
 
         <Command.Group heading="Notes">

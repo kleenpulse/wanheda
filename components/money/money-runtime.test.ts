@@ -1,13 +1,16 @@
 import { QueryClient } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "@/components/ui/toaster";
-import { applyPending, MONEY_KEY, type Account, type MoneyPayload, type Txn } from "@/lib/money/money";
+import { applyPending, applyPendingSubscriptions, MONEY_KEY, type Account, type MoneyPayload, type Txn } from "@/lib/money/money";
+import { blankSubscription, type Subscription } from "@/lib/money/subscriptions";
+import { pushNotices } from "@/lib/notifications/inbox";
 import { MemoryMoneyStore, type MoneyOp, type MoneyOutboxOptions, type MoneyResult } from "@/lib/money/outbox";
 import { seedMoney } from "@/lib/money/seed";
 import { createMoneyRuntime, useMoneyLocal } from "./money-runtime";
 
 vi.mock("@/actions/money", () => ({}));
 vi.mock("@/components/ui/toaster", () => ({ toast: vi.fn() }));
+vi.mock("@/lib/notifications/inbox", () => ({ pushNotices: vi.fn() }));
 
 // The B13 race tests, ported from the in-memory writer to the outbox (SPEC
 // V28), plus what a queue that outlives the tab adds: replay after a reload,
@@ -87,8 +90,9 @@ function tab(opts: { store?: MemoryMoneyStore; lock?: MoneyOutboxOptions["lock"]
 const saved = (t: Txn): MoneyResult => ({ ok: true, txn: t });
 
 beforeEach(() => {
-  useMoneyLocal.setState({ txns: {}, accounts: {}, queued: 0 });
+  useMoneyLocal.setState({ txns: {}, accounts: {}, subs: {}, queued: 0 });
   vi.mocked(toast).mockClear();
+  vi.mocked(pushNotices).mockClear();
 });
 
 describe("money outbox: txn writes", () => {
@@ -336,7 +340,7 @@ describe("money outbox: reloads, accounts and tabs", () => {
     for (let i = 0; i < 4; i++) {
       await settle();
       const c = h.calls[i];
-      c?.resolve(c.op.kind === "txn-save" ? saved(c.op.txn) : c.op.kind === "txn-delete" ? { ok: true } : { ok: true, account: c.op.account });
+      c?.resolve(c.op.kind === "txn-save" ? saved(c.op.txn) : c.op.kind === "txn-delete" ? { ok: true } : "account" in c.op ? { ok: true, account: c.op.account } : { ok: true });
     }
     await settle();
     expect(h.kinds()).toEqual(["account-save", "txn-save", "account-archive", "account-save"]);
@@ -383,5 +387,91 @@ describe("money outbox: reloads, accounts and tabs", () => {
     await settle();
     expect(b.calls).toHaveLength(0);
     expect(await store.count()).toBe(0);
+  });
+});
+
+const SUB: Subscription = {
+  ...blankSubscription("2026-11-05", "USD"),
+  id: "7a1d2c3b-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+  name: "Netflix",
+  amountMinor: 1_549,
+  createdAt: 1,
+};
+
+describe("money outbox: subscriptions", () => {
+  /** What the owner sees: cached subscriptions with the overlay on top. */
+  const subs = (h: ReturnType<typeof tab>) => {
+    const p = h.qc.getQueryData<MoneyPayload>(MONEY_KEY);
+    return p ? (applyPendingSubscriptions(p, useMoneyLocal.getState().subs).subscriptions ?? []) : [];
+  };
+
+  it("a subscription on a new account lands after the account, and its reminders reach the centre", async () => {
+    const h = tab();
+    h.net.online = false;
+    h.rt.saveAccount(ACCOUNT);
+    h.rt.saveSubscription({ ...SUB, accountId: ACCOUNT.id });
+    await settle();
+    expect(subs(h).map((s) => s.name)).toEqual(expect.arrayContaining(["Netflix"]));
+    h.net.online = true;
+    void h.rt.outbox.flush();
+    await settle();
+    h.calls[0]?.resolve({ ok: true, account: ACCOUNT });
+    await settle();
+    const notice = { id: "n1", kind: "money", title: "Netflix renews", body: null, href: null, dedupeKey: "k", createdAt: 1, readAt: null } as const;
+    h.calls[1]?.resolve({ ok: true, subscription: { ...SUB, accountId: ACCOUNT.id, name: "Netflix (server)" }, notices: [notice] });
+    await settle();
+    expect(h.kinds()).toEqual(["account-save", "sub-save"]);
+    expect(h.qc.getQueryData<MoneyPayload>(MONEY_KEY)?.subscriptions?.find((s) => s.id === SUB.id)?.name).toBe("Netflix (server)");
+    expect(useMoneyLocal.getState().subs).toEqual({});
+    expect(pushNotices).toHaveBeenCalledWith([notice]);
+  });
+
+  it("a newer save replaces an unsent one; a delete after it drops both and only the delete goes", async () => {
+    const h = tab();
+    h.net.online = false;
+    h.rt.saveSubscription(SUB);
+    h.rt.saveSubscription({ ...SUB, amountMinor: 1_999 });
+    await settle();
+    expect(await h.rt.outbox.count()).toBe(1);
+    expect(subs(h).find((s) => s.id === SUB.id)?.amountMinor).toBe(1_999);
+    h.rt.hideSubscription(SUB.id);
+    h.rt.deleteSubscription(SUB);
+    await settle();
+    expect(await h.rt.outbox.count()).toBe(1);
+    expect(subs(h).some((s) => s.id === SUB.id)).toBe(false);
+    h.net.online = true;
+    void h.rt.outbox.flush();
+    await settle();
+    h.calls[0]?.resolve({ ok: true });
+    await settle();
+    expect(h.kinds()).toEqual(["sub-delete"]);
+    expect(useMoneyLocal.getState().subs).toEqual({});
+  });
+
+  it("undo inside the toast window never reaches the server, and a still-queued save shows again", async () => {
+    const h = tab();
+    h.net.online = false;
+    h.rt.saveSubscription(SUB);
+    await settle();
+    const before = h.rt.hideSubscription(SUB.id);
+    expect(subs(h).some((s) => s.id === SUB.id)).toBe(false);
+    h.rt.unhideSubscription(SUB.id, before);
+    await settle();
+    expect(subs(h).map((s) => s.id)).toContain(SUB.id);
+    h.net.online = true;
+    void h.rt.outbox.flush();
+    await settle();
+    expect(h.kinds()).toEqual(["sub-save"]);
+  });
+
+  it("a refused save is dropped and said, in the sending tab", async () => {
+    const h = tab();
+    h.rt.saveSubscription(SUB);
+    await settle();
+    h.calls[0]?.resolve({ ok: false, reason: "invalid" });
+    await settle();
+    expect(subs(h).some((s) => s.id === SUB.id)).toBe(false);
+    expect(toast).toHaveBeenCalledOnce();
+    expect(await h.rt.outbox.count()).toBe(0);
   });
 });

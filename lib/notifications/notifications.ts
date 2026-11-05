@@ -4,7 +4,7 @@ import { formatDuration } from "@/lib/activity/timer";
 // plain objects with epoch-ms times, so the server and the demo seed share
 // one shape.
 
-export const NOTIFICATION_KINDS = ["timer"] as const;
+export const NOTIFICATION_KINDS = ["timer", "money"] as const;
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
 
 export interface Notice {
@@ -13,6 +13,8 @@ export interface Notice {
   title: string;
   body: string | null;
   href: string | null;
+  /** What raised it once (`timer:…`, `sub:<id>:<on>:renew|trial`): money alerts read their date back from it. */
+  dedupeKey: string;
   /** Epoch ms. */
   createdAt: number;
   /** Epoch ms, or null while unread. */
@@ -71,10 +73,28 @@ export function relativeTime(at: number, now: number): string {
   return rtf.format(Math.round(hr / 24), "day");
 }
 
-/** Demo mode's centre: clearly sample alerts, never saved. */
-export function demoNotices(now: number): Notice[] {
-  return [
-    { id: "demo-1", kind: "timer", title: "Timer done", body: "Sample: 25 min focus", href: null, createdAt: now - 12 * 60_000, readAt: null },
-    { id: "demo-2", kind: "timer", title: "Timer done", body: "Sample: 5 min tea", href: null, createdAt: now - 26 * 3_600_000, readAt: now - 25 * 3_600_000 },
+/** Adds notices that arrived from elsewhere (a save, the shell's alert check), skipping ones already listed. */
+export function mergeNotices(list: readonly Notice[], incoming: readonly Notice[]): Notice[] {
+  let next = [...list];
+  for (const n of incoming) next = addNotice(next, n);
+  return next;
+}
+
+/** Demo mode's centre: clearly sample alerts, never saved. `extra`: demo's money alerts, from its seed. */
+export function demoNotices(now: number, extra: readonly NewNotice[] = []): Notice[] {
+  const list: Notice[] = [
+    ...extra.map((n) => ({ ...n, id: `demo-${n.dedupeKey}`, createdAt: now - 60 * 60_000, readAt: null })),
+    { id: "demo-1", kind: "timer", title: "Timer done", body: "Sample: 25 min focus", href: null, dedupeKey: "timer:demo-1", createdAt: now - 12 * 60_000, readAt: null },
+    {
+      id: "demo-2",
+      kind: "timer",
+      title: "Timer done",
+      body: "Sample: 5 min tea",
+      href: null,
+      dedupeKey: "timer:demo-2",
+      createdAt: now - 26 * 3_600_000,
+      readAt: now - 25 * 3_600_000,
+    },
   ];
+  return list.sort((a, b) => b.createdAt - a.createdAt);
 }

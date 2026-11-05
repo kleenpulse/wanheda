@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { LiveActivity } from "@/components/island/live-activity";
+import { moneyAlertActivity, useMoneyAlerts } from "@/components/island/money-alert-activity";
 import { orderTimers, timerActivity } from "@/components/island/timer-activity";
 import { ACTIVITY_STORAGE_KEY, useActivity } from "@/lib/activity/store";
 
@@ -37,7 +38,11 @@ export function Island() {
   const timers = useActivity((s) => s.timers);
   const lastStarted = useActivity((s) => s.lastStarted);
   const lastStartedAt = useActivity((s) => s.lastStartedAt);
-  const activities = React.useMemo(() => orderTimers(timers).map(timerActivity), [timers]);
+  const { alerts, today } = useMoneyAlerts();
+  const activities = React.useMemo(
+    () => [...orderTimers(timers).map(timerActivity), ...alerts.map((a) => moneyAlertActivity(a, today))],
+    [timers, alerts, today],
+  );
 
   if (!ready || activities.length === 0) return null;
   return (

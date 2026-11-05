@@ -1,6 +1,8 @@
 import { DEFAULT_CATEGORIES } from "./categories";
 import { addDays, addMonths, daysBetween, DEFAULT_TIME_ZONE, type Day } from "./dates";
+import type { NewNotice } from "@/lib/notifications/notifications";
 import { compareTxns, type Account, type Category, type MoneyPayload, type Txn } from "./money";
+import { alertNotice, blankSubscription, dueAlerts, type Subscription } from "./subscriptions";
 
 // Demo mode's money (G4): about three months of believable NGN spending, a
 // USD card with subscriptions, and salary in. Never saved. Built from a fixed
@@ -34,6 +36,39 @@ export const DEMO_ACCOUNTS: readonly Account[] = [
   { id: demoId(2, 2), slug: null, name: "Bank", kind: "bank", currency: "NGN", openingMinor: 85_000_000, archived: false },
   { id: demoId(2, 3), slug: null, name: "Dollar card", kind: "card", currency: "USD", openingMinor: 120_000, archived: false },
 ];
+
+/**
+ * Demo's subscriptions, set against today so there is always something due:
+ * the card's three monthly charges (the same days as the seed txns), a gym
+ * renewing in two days, a trial ending in three, a yearly domain, and one
+ * paused and one cancelled to show those states.
+ */
+export function demoSubscriptions(today: Day): Subscription[] {
+  const [, bank, card] = DEMO_ACCOUNTS as [Account, Account, Account];
+  const month = today.slice(0, 7);
+  const sub = (n: number, s: Partial<Subscription> & Pick<Subscription, "name" | "amountMinor" | "currency" | "anchorOn">): Subscription => ({
+    ...blankSubscription(today, s.currency),
+    id: demoId(4, n),
+    categoryId: demoCategoryId("subscriptions"),
+    createdAt: Date.parse(`${addMonths(today, -2)}T12:00:00Z`) + n,
+    ...s,
+  });
+  return [
+    sub(1, { name: "Netflix", amountMinor: 1_549, currency: "USD", anchorOn: `${month}-05`, accountId: card.id, cancelUrl: "https://www.netflix.com/cancelplan" }),
+    sub(2, { name: "Spotify", amountMinor: 1_199, currency: "USD", anchorOn: `${month}-12`, accountId: card.id }),
+    sub(3, { name: "Claude", amountMinor: 2_000, currency: "USD", anchorOn: `${month}-18`, accountId: card.id }),
+    sub(4, { name: "Gym", amountMinor: 2_500_000, currency: "NGN", anchorOn: addDays(today, 2), accountId: bank.id, categoryId: demoCategoryId("health") }),
+    sub(5, { name: "Design tool", amountMinor: 1_500, currency: "USD", anchorOn: addDays(today, 3), trialEndsOn: addDays(today, 3), accountId: card.id }),
+    sub(6, { name: "Domain", amountMinor: 1_800, currency: "USD", cycle: "year", anchorOn: addDays(today, 40), accountId: card.id, remindDays: 14 }),
+    sub(7, { name: "Language app", amountMinor: 450_000, currency: "NGN", anchorOn: `${month}-09`, status: "paused", accountId: bank.id, categoryId: demoCategoryId("education") }),
+    sub(8, { name: "Cloud storage", amountMinor: 299, currency: "USD", anchorOn: `${month}-20`, status: "cancelled", accountId: card.id }),
+  ];
+}
+
+/** The reminders demo's subscriptions raise today, for demo's notification centre (never saved). */
+export function demoMoneyAlerts(today: Day): NewNotice[] {
+  return dueAlerts(demoSubscriptions(today), today).map(alertNotice);
+}
 
 /** mulberry32: small, fast, deterministic. */
 function prng(seed: number) {
@@ -119,5 +154,6 @@ export function seedMoney(today: Day, timeZone = DEFAULT_TIME_ZONE): MoneyPayloa
     txns,
     // The demo ledger starts at the window, so opening balances are all there is before it.
     priorMinor: {},
+    subscriptions: demoSubscriptions(today),
   };
 }

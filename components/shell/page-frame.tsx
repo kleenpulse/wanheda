@@ -45,7 +45,8 @@ export function PageFrame({
   return (
     <div className="flex min-h-svh flex-col">
       <div className={cn(PAGE_COLUMN, "@container/frame pt-6 pb-6")}>
-        <header className="entrance flex items-center justify-between gap-4">
+        {/* Wraps: on a phone, a page's actions (the money tabs) drop under the title instead of squeezing it. */}
+        <header className="entrance flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
           <div className="min-w-0">
             <h1 className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 font-display text-[26px] leading-tight font-black tracking-[0.02em] text-foreground uppercase">
               {title}

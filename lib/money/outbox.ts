@@ -1,8 +1,11 @@
+import type { Notice } from "@/lib/notifications/notifications";
 import type { Account, Txn } from "./money";
+import type { Subscription } from "./subscriptions";
 
 /*
   The money outbox (ADR-0008, SPEC V28). Every money write (a txn saved or
-  deleted, an account saved or archived) is stored on the device first, then
+  deleted, an account saved or archived, a subscription saved or deleted) is
+  stored on the device first, then
   sent in order, one at a time, when the device is online: on a new write, on
   focus, on reconnect and on a 30 s tick. Nothing leaves the queue until the
   server has answered, so a phone in a dead zone or a closed tab loses no
@@ -10,8 +13,8 @@ import type { Account, Txn } from "./money";
   id: a save is an upsert, a delete of a row already gone is done, and an
   archive sets a flag.
 
-  One queue, oldest first, for txns and accounts together: a txn made on an
-  account created a moment before always lands after it. One op is in flight
+  One queue, oldest first, for every kind together: a txn or a subscription
+  made on an account created a moment before always lands after it. One op is in flight
   across tabs (a Web Lock), so a delete is never sent while a save of the
   same txn is still on its way (B13).
 
@@ -22,12 +25,15 @@ import type { Account, Txn } from "./money";
 export type TxnSaveResult = { ok: true; txn: Txn } | { ok: false; reason: "demo" | "invalid" | "archived-account" | "failed" };
 export type TxnDeleteResult = { ok: true } | { ok: false; reason: "demo" | "invalid" | "failed" };
 export type AccountWriteResult = { ok: true; account: Account } | { ok: false; reason: "demo" | "invalid" | "failed" };
+/** `notices`: reminders the save made due (V31), for the notification centre. */
+export type SubSaveResult = { ok: true; subscription: Subscription; notices: Notice[] } | { ok: false; reason: "demo" | "invalid" | "failed" };
+export type SubDeleteResult = { ok: true } | { ok: false; reason: "demo" | "invalid" | "failed" };
 
 interface OpBase {
   /** Queue order, given by the store. */
   seq?: number;
   opId: string;
-  /** `txn:<id>` or `account:<id>`: what the op writes. */
+  /** `txn:<id>`, `account:<id>` or `sub:<id>`: what the op writes. */
   key: string;
   queuedAt: number;
   /** Sent before with no answer. It may have landed, so it is resent as is, before anything after it. */
@@ -39,45 +45,70 @@ export type TxnDeleteOp = OpBase & { kind: "txn-delete"; txn: Txn };
 export type AccountSaveOp = OpBase & { kind: "account-save"; account: Account };
 /** `account.archived` is the state asked for. */
 export type AccountArchiveOp = OpBase & { kind: "account-archive"; account: Account };
-export type MoneyOp = TxnSaveOp | TxnDeleteOp | AccountSaveOp | AccountArchiveOp;
+export type SubSaveOp = OpBase & { kind: "sub-save"; subscription: Subscription };
+export type SubDeleteOp = OpBase & { kind: "sub-delete"; subscription: Subscription };
+export type MoneyOp = TxnSaveOp | TxnDeleteOp | AccountSaveOp | AccountArchiveOp | SubSaveOp | SubDeleteOp;
 
 /** An op as the caller hands it in: the outbox stamps the rest. */
 export type MoneyWrite =
   | { kind: "txn-save"; txn: Txn }
   | { kind: "txn-delete"; txn: Txn }
   | { kind: "account-save"; account: Account }
-  | { kind: "account-archive"; account: Account };
+  | { kind: "account-archive"; account: Account }
+  | { kind: "sub-save"; subscription: Subscription }
+  | { kind: "sub-delete"; subscription: Subscription };
 
 export type MoneyResult<O extends MoneyOp = MoneyOp> = O extends TxnSaveOp
   ? TxnSaveResult
   : O extends TxnDeleteOp
     ? TxnDeleteResult
-    : AccountWriteResult;
+    : O extends SubSaveOp
+      ? SubSaveResult
+      : O extends SubDeleteOp
+        ? SubDeleteResult
+        : AccountWriteResult;
 
 /** One answered op, for the client to fold into its view (and pass to other tabs). */
 export type MoneyEvent =
   | { op: TxnSaveOp; result: TxnSaveResult; more: boolean }
   | { op: TxnDeleteOp; result: TxnDeleteResult; more: boolean }
-  | { op: AccountSaveOp | AccountArchiveOp; result: AccountWriteResult; more: boolean };
+  | { op: AccountSaveOp | AccountArchiveOp; result: AccountWriteResult; more: boolean }
+  | { op: SubSaveOp; result: SubSaveResult; more: boolean }
+  | { op: SubDeleteOp; result: SubDeleteResult; more: boolean };
 
 export const txnKey = (id: string) => `txn:${id}`;
 export const accountKey = (id: string) => `account:${id}`;
+export const subKey = (id: string) => `sub:${id}`;
 
 export function keyOf(w: MoneyWrite): string {
-  return w.kind === "txn-save" || w.kind === "txn-delete" ? txnKey(w.txn.id) : accountKey(w.account.id);
+  switch (w.kind) {
+    case "txn-save":
+    case "txn-delete":
+      return txnKey(w.txn.id);
+    case "sub-save":
+    case "sub-delete":
+      return subKey(w.subscription.id);
+    case "account-save":
+    case "account-archive":
+      return accountKey(w.account.id);
+  }
 }
 
+/** A save or delete of one row that carries the whole row: txns and subscriptions. */
+const isRowWrite = (kind: MoneyOp["kind"]) => kind === "txn-save" || kind === "txn-delete" || kind === "sub-save" || kind === "sub-delete";
+
 /**
- * Whether a new op makes an older queued one redundant: a txn save or delete
- * drops saves of the same txn that were never sent and aren't in flight (a
- * save carries the whole txn, and a delete makes any unsent save moot). A
+ * Whether a new op makes an older queued one redundant: a txn (or
+ * subscription) save or delete drops saves of the same row that were never
+ * sent and aren't in flight (a save carries the whole row, and a delete makes
+ * any unsent save moot). A
  * tried save stays: it may already be on the server, so it goes first and the
  * newer op lands on top of it. Account ops never drop anything: they are
  * rare, and a txn queued after one may need it on the server.
  */
 export function supersedes(next: MoneyOp, old: MoneyOp, inFlight: string | null): boolean {
-  if (next.kind !== "txn-save" && next.kind !== "txn-delete") return false;
-  return old.kind === "txn-save" && old.key === next.key && !old.tried && old.opId !== inFlight;
+  if (!isRowWrite(next.kind)) return false;
+  return (old.kind === "txn-save" || old.kind === "sub-save") && old.key === next.key && !old.tried && old.opId !== inFlight;
 }
 
 /** The device side of the queue. Every step is atomic across tabs. */

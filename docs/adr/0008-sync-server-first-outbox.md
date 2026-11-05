@@ -35,6 +35,7 @@ Quick-add on a phone in a dead zone is the main way money gets entered. Before t
 - Replays are safe because ids are made on the client: a save is an upsert, deleting a row that is gone counts as done, archiving sets a flag.
 - Money has no conflict rule beyond last write wins per row: one owner, and money rows are small and rarely edited on two devices at once. No revision table.
 - Undo stays in front of the queue: a delete is queued only when its undo toast runs out.
+- Subscriptions joined the same queue on 2026-11-05 (T36), as two more op kinds: save and delete. They follow the transaction rules, so a subscription on a new account lands after the account.
 
 ## Consequences
 

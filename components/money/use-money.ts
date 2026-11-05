@@ -2,13 +2,25 @@
 
 import * as React from "react";
 import { useQuery } from "@tanstack/react-query";
+import { create } from "zustand";
 import { useAccount } from "@/components/shell/account";
 import { toast } from "@/components/ui/toaster";
 import { useNow } from "@/hooks/use-now";
 import { fetchJson } from "@/lib/fetch-json";
 import { todayIn, type Day } from "@/lib/money/dates";
 import { olderRange } from "@/lib/money/periods";
-import { MONEY_KEY, MONEY_RANGE_KEY, applyPending, applyPendingAccounts, type Account, type MoneyPayload, type Txn, type TxnRangePayload } from "@/lib/money/money";
+import {
+  MONEY_KEY,
+  MONEY_RANGE_KEY,
+  applyPending,
+  applyPendingAccounts,
+  applyPendingSubscriptions,
+  type Account,
+  type MoneyPayload,
+  type Txn,
+  type TxnRangePayload,
+} from "@/lib/money/money";
+import type { Subscription } from "@/lib/money/subscriptions";
 import { useMoneyRuntime } from "./money-provider";
 import { describeTxn, useMoneyLocal } from "./money-runtime";
 
@@ -48,9 +60,10 @@ export function useMoney(options: { enabled?: boolean } = {}) {
   });
   const pending = useMoneyLocal((s) => s.txns);
   const accounts = useMoneyLocal((s) => s.accounts);
+  const subs = useMoneyLocal((s) => s.subs);
   const data = React.useMemo(
-    () => (query.data ? applyPendingAccounts(applyPending(query.data, pending), accounts) : null),
-    [query.data, pending, accounts],
+    () => (query.data ? applyPendingSubscriptions(applyPendingAccounts(applyPending(query.data, pending), accounts), subs) : null),
+    [query.data, pending, accounts, subs],
   );
   return { data, failed: query.isError && !query.data, refetch: query.refetch };
 }
@@ -191,3 +204,76 @@ export function useAccountApi() {
 
   return { save, setArchived };
 }
+
+/**
+ * Subscription writes (FR-MONEY-8): shown at once, then queued behind every
+ * money write before them, so one on a new account lands after it. Taking
+ * one away (delete, cancel) comes with an Undo (user rule, 2026-11-05).
+ */
+export function useSubscriptionApi() {
+  const runtime = useMoneyRuntime();
+
+  const save = React.useCallback(
+    (sub: Subscription) => {
+      runtime.saveSubscription(sub);
+    },
+    [runtime],
+  );
+
+  /** Hides at once; the delete is queued only when the toast runs out. Undo or × brings it back. */
+  const remove = React.useCallback(
+    (sub: Subscription) => {
+      const before = runtime.hideSubscription(sub.id);
+      const cancel = () => {
+        runtime.unhideSubscription(sub.id, before);
+      };
+      toast({
+        id: `undo-delete-sub:${sub.id}`,
+        title: `Deleted ${sub.name}`,
+        action: { label: "Undo", onClick: cancel },
+        onClose: cancel,
+        closeLabel: "Cancel delete",
+        onExpire: () => {
+          runtime.deleteSubscription(sub);
+        },
+      });
+    },
+    [runtime],
+  );
+
+  /** Pause, resume or cancel. Cancelling says so with an Undo back to how it was. */
+  const setStatus = React.useCallback(
+    (sub: Subscription, status: Subscription["status"]) => {
+      runtime.saveSubscription({ ...sub, status });
+      if (status !== "cancelled") return;
+      toast({
+        id: `undo-cancel-sub:${sub.id}`,
+        title: `Cancelled ${sub.name}`,
+        body: "Kept in the list, with no more renewals or reminders.",
+        action: {
+          label: "Undo",
+          onClick: () => {
+            runtime.saveSubscription(sub);
+          },
+        },
+      });
+    },
+    [runtime],
+  );
+
+  return { save, remove, setStatus };
+}
+
+/**
+ * The palette's "New subscription": a request the subscriptions page picks
+ * up, whether it is already open or mounts after the hop, then clears.
+ */
+export const useNewSubscription = create<{ asked: boolean; ask: () => void; clear: () => void }>((set) => ({
+  asked: false,
+  ask: () => {
+    set({ asked: true });
+  },
+  clear: () => {
+    set({ asked: false });
+  },
+}));

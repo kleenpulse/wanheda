@@ -57,20 +57,23 @@ export type MoneyPage = "entries" | "analytics";
 export function MoneyApp({ view }: { view: MoneyPage }) {
   const { data, failed, refetch } = useMoney();
   if (!data) {
-    if (failed) {
-      return (
-        <div role="alert" className="bento flex flex-col items-start gap-3 p-5">
-          <p className="text-[14px] text-foreground">Money could not load.</p>
-          <p className="text-[13px] text-ink-2">The server didn&apos;t answer. Nothing is shown rather than old or sample figures.</p>
-          <button type="button" onClick={() => void refetch()} className={buttonClass("surface", "pill-sm")}>
-            Try again
-          </button>
-        </div>
-      );
-    }
+    if (failed) return <MoneyLoadFailed onRetry={() => void refetch()} />;
     return <MoneySkeleton />;
   }
   return <MoneyView payload={data} view={view} />;
+}
+
+/** The first load failed and nothing is on the device: say so, never show sample figures. */
+export function MoneyLoadFailed({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div role="alert" className="bento flex flex-col items-start gap-3 p-5">
+      <p className="text-[14px] text-foreground">Money could not load.</p>
+      <p className="text-[13px] text-ink-2">The server didn&apos;t answer. Nothing is shown rather than old or sample figures.</p>
+      <button type="button" onClick={onRetry} className={buttonClass("surface", "pill-sm")}>
+        Try again
+      </button>
+    </div>
+  );
 }
 
 function MoneySkeleton() {
