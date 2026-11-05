@@ -8,7 +8,7 @@ import { deleteNote, saveNote } from "@/actions/notes";
 import { useAccount } from "@/components/shell/account";
 import { toast } from "@/components/ui/toaster";
 import {
-  EMPTY_CONTENT,
+  isBlank,
   NOTES_KEY,
   contentOf,
   displayTitle,
@@ -258,7 +258,7 @@ function createNotesRuntime(qc: QueryClient, demo: boolean): NotesRuntime {
     const id = crypto.randomUUID();
     const note = draftNote(id, Date.now(), { ...content, ...(content.tags ? { tags: normalizeTags(content.tags) } : {}) });
     setOverlay(id, note);
-    if (!sameContent(note, EMPTY_CONTENT)) schedule(id, true);
+    if (!isBlank(note)) schedule(id, true);
     return id;
   };
 
@@ -278,7 +278,9 @@ function createNotesRuntime(qc: QueryClient, demo: boolean): NotesRuntime {
         continue;
       }
       const base = cachedNote(qc, id) ?? draftNote(id, op.queuedAt);
-      setOverlay(id, { ...base, ...contentOf(op.write), id, version: op.write.baseVersion, editedAt: op.write.editedAt });
+      // An op queued before the board existed has no place: the note keeps its own.
+      const board = "board" in op.write ? op.write.board : base.board;
+      setOverlay(id, { ...base, ...contentOf(op.write), board, id, version: op.write.baseVersion, editedAt: op.write.editedAt });
       setStatus(id, isOnline() ? "saving" : "queued");
     }
   };
@@ -387,7 +389,7 @@ function createNotesRuntime(qc: QueryClient, demo: boolean): NotesRuntime {
     },
     discardIfEmpty(id) {
       const local = useLocal.getState().overlay[id];
-      if (local && local.version === 0 && sameContent(local, EMPTY_CONTENT) && !queued.has(id)) dropOverlay(id);
+      if (local && local.version === 0 && isBlank(local) && !queued.has(id)) dropOverlay(id);
     },
     flushAll,
     dismissConflict() {

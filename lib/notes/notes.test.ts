@@ -5,7 +5,9 @@ import {
   clampEditedAt,
   displayTitle,
   draftNote,
+  isBlank,
   excerpt,
+  sameContent,
   noteWriteSchema,
   parseCapture,
   prefixTsQuery,
@@ -44,9 +46,39 @@ describe("noteWriteSchema", () => {
       { ...valid, baseVersion: -1 },
       { ...valid, tags: Array.from({ length: 21 }, (_, i) => `t${String(i)}`) },
       { ...valid, tags: ["x".repeat(33)] },
+      { ...valid, board: { x: 0, y: 0, w: 100, h: 200 } },
+      { ...valid, board: { x: 0.5, y: 0, w: 240, h: 192 } },
+      { ...valid, board: { x: 200_000, y: 0, w: 240, h: 192 } },
+      { ...valid, board: { x: 0, y: 0, w: 240, h: 192, z: 1 } },
     ]) {
       expect(noteWriteSchema.safeParse(bad).success).toBe(false);
     }
+  });
+
+  it("takes a board place, none, or a write queued before the board existed", () => {
+    const place = { x: -48, y: 24, w: 240, h: 192 };
+    expect(noteWriteSchema.parse({ ...valid, board: place }).board).toEqual(place);
+    expect(noteWriteSchema.parse({ ...valid, board: null }).board).toBeNull();
+    const { board: _none, ...old } = valid;
+    expect(noteWriteSchema.parse(old).board).toBeUndefined();
+  });
+});
+
+describe("board place in content", () => {
+  it("counts in sameContent, not in isBlank (nor do a pin or a colour)", () => {
+    const placed = note({ board: { x: 0, y: 0, w: 240, h: 192 } });
+    expect(sameContent(placed, note())).toBe(false);
+    expect(isBlank(placed)).toBe(true);
+    expect(isBlank(note({ pinned: true, color: "mint" }))).toBe(true);
+    expect(isBlank(note({ bodyMd: "x" }))).toBe(false);
+    expect(isBlank(note({ tags: ["x"] }))).toBe(false);
+  });
+
+  it("treats a place missing from an old device copy as none", () => {
+    const old = { ...note() } as Partial<Note>;
+    delete old.board;
+    expect(sameContent(old as Note, note())).toBe(true);
+    expect(writeOf(old as Note).board).toBeNull();
   });
 });
 
@@ -79,6 +111,13 @@ describe("resolveWrite (SPEC V23)", () => {
     expect(resolveWrite(current, { ...stale, editedAt: NOW + 1 })).toEqual({ kind: "conflict", winner: "incoming" });
     expect(resolveWrite(current, { ...stale, editedAt: NOW - 1 })).toEqual({ kind: "conflict", winner: "server" });
     expect(resolveWrite(current, { ...stale, editedAt: NOW })).toEqual({ kind: "conflict", winner: "server" });
+  });
+
+  it("applies a stale write that only moves the sticky: a move never sends text to history", () => {
+    const moved = { ...writeOf(current, 2), board: { x: 24, y: 48, w: 240, h: 192 }, editedAt: NOW - 5 };
+    expect(resolveWrite(current, moved)).toEqual({ kind: "update" });
+    // Text that differs too is still a conflict, settled by edit time.
+    expect(resolveWrite(current, { ...moved, title: "stale text" })).toEqual({ kind: "conflict", winner: "server" });
   });
 });
 

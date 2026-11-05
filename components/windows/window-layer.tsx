@@ -3,6 +3,7 @@
 import * as React from "react";
 import { AnimatePresence } from "motion/react";
 import { MiniWindow } from "@/components/windows/mini-window";
+import { NoteWindow } from "@/components/windows/note-window";
 import { TimerWindow } from "@/components/windows/timer-window";
 import { windowDef, type WindowId } from "@/lib/modules";
 import { defaultPlacement, type Bounds } from "@/lib/windows/geometry";
@@ -11,6 +12,7 @@ import { useWindows } from "@/lib/windows/store";
 /** Each window's body, keyed by id, so a manifest window without one fails typecheck. */
 const BODIES: Record<WindowId, React.ComponentType> = {
   "timer.window": TimerWindow,
+  "notes.note": NoteWindow,
 };
 
 function useLayerBounds(ref: React.RefObject<HTMLElement | null>): Bounds | null {

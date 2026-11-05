@@ -81,6 +81,18 @@
 	--color-warn: var(--warn);
 	--color-ok: var(--ok);
 	--color-em-scroll: var(--em-scroll);
+	--color-sticky-plain: var(--sticky-plain);
+	--color-sticky-amber: var(--sticky-amber);
+	--color-sticky-rose: var(--sticky-rose);
+	--color-sticky-sky: var(--sticky-sky);
+	--color-sticky-mint: var(--sticky-mint);
+	--color-sticky-violet: var(--sticky-violet);
+	--color-sticky-plain-mark: var(--sticky-plain-mark);
+	--color-sticky-amber-mark: var(--sticky-amber-mark);
+	--color-sticky-rose-mark: var(--sticky-rose-mark);
+	--color-sticky-sky-mark: var(--sticky-sky-mark);
+	--color-sticky-mint-mark: var(--sticky-mint-mark);
+	--color-sticky-violet-mark: var(--sticky-violet-mark);
 
 	--radius-sm: calc(var(--radius) * 0.6);
 	--radius-md: calc(var(--radius) * 0.8);
@@ -226,6 +238,23 @@
 	--ok: #2f8f5b;
 	--em-scroll: #cfcfca;
 
+	/* Sticky notes: a data palette, never the signal (SPEC T31, V15). Fills
+	   carry ink (>= 11:1) and ink-2 (>= 4.6:1); marks pass the dataviz
+	   validator (all pairs, CVD, >= 3:1) on every light surface. Bench light
+	   shares these. */
+	--sticky-plain: #fcfcfc;
+	--sticky-amber: #ffeed0;
+	--sticky-rose: #ffebf0;
+	--sticky-sky: #e0f7ff;
+	--sticky-mint: #e2fbe9;
+	--sticky-violet: #f5eeff;
+	--sticky-plain-mark: var(--ink-2);
+	--sticky-amber-mark: #c47d04;
+	--sticky-rose-mark: #cb3468;
+	--sticky-sky-mark: #008dbe;
+	--sticky-mint-mark: #1a7244;
+	--sticky-violet-mark: #642da4;
+
 	--shadow-card-value: none;
 	--shadow-lift-value: 0 14px 34px -16px rgb(17 17 17 / 0.22);
 	--shadow-glow-value: 0 0 0 1px rgb(232 96 60 / 0.28), 0 10px 30px -10px rgb(232 96 60 / 0.5);
@@ -295,6 +324,22 @@
 	--warn: #f2b35b;
 	--ok: #5fd3a6;
 	--em-scroll: #2a3d3d;
+
+	/* Sticky notes, dark: opaque fills so their contrast is measurable over
+	   glass. Ink >= 11:1, ink-2 >= 6.4:1; marks validated on Nebula and Bench
+	   dark surfaces. Bench dark shares these. */
+	--sticky-plain: #262626;
+	--sticky-amber: #372818;
+	--sticky-rose: #382226;
+	--sticky-sky: #152c37;
+	--sticky-mint: #1d2d22;
+	--sticky-violet: #2c243a;
+	--sticky-plain-mark: var(--ink-2);
+	--sticky-amber-mark: #c7852a;
+	--sticky-rose-mark: #d95b7f;
+	--sticky-sky-mark: #218cb5;
+	--sticky-mint-mark: #1e7546;
+	--sticky-violet-mark: #7a53b4;
 
 	--shadow-card-value: inset 0 1px 0 rgb(255 255 255 / 0.05), 0 24px 60px -32px rgb(0 0 0 / 0.75);
 	--shadow-lift-value: inset 0 1px 0 rgb(255 255 255 / 0.07), 0 26px 50px -24px rgb(0 0 0 / 0.85);
@@ -372,6 +417,16 @@
 	--orb-4: #939aa2;
 	--em-scroll: #c3c9cf;
 
+	/* Bench light stickies: deeper tints than Ember's papers (user
+	   2026-11-05: darker on Bench). Ink >= 13.9:1, ink-2 >= 5.4:1; marks
+	   inherited from :root, still >= 3:1 on Bench's white card. */
+	--sticky-plain: #e8e8e8;
+	--sticky-amber: #ffe2bd;
+	--sticky-rose: #ffdce4;
+	--sticky-sky: #ceeefe;
+	--sticky-mint: #d1f1db;
+	--sticky-violet: #ece2ff;
+
 	--shadow-card-value: none;
 	--shadow-lift-value: 0 14px 34px -16px rgb(22 25 29 / 0.22);
 	--shadow-glow-value: 0 0 0 1px rgb(168 85 247 / 0.28), 0 10px 30px -10px rgb(168 85 247 / 0.45);
@@ -432,6 +487,16 @@
 	--orb-3: #f754f1;
 	--orb-4: #6c737c;
 	--em-scroll: #464d56;
+
+	/* Bench dark stickies: deeper fills, sunk towards the graphite (user
+	   2026-11-05: darker on Bench). Ink >= 13.6:1, ink-2 >= 9.5:1; marks
+	   inherited from .dark, now >= 3:1 on their own fills too. */
+	--sticky-plain: #1b1b1b;
+	--sticky-amber: #251807;
+	--sticky-rose: #281318;
+	--sticky-sky: #061d28;
+	--sticky-mint: #0f1f14;
+	--sticky-violet: #1d162a;
 
 	--shadow-card-value: none;
 	--shadow-lift-value: 0 22px 44px -22px rgb(0 0 0 / 0.8);

@@ -1,4 +1,4 @@
-import { CloudSun, Clock, House, NotebookPen, Settings, StickyNote, Sunrise, Timer, type LucideIcon } from "lucide-react";
+import { CloudSun, Clock, House, Pin, Settings, StickyNote, Sunrise, Timer, type LucideIcon } from "lucide-react";
 import type { Route } from "next";
 
 // The module registry (FRD 4.2). The shell builds the rail, the tab bar, the
@@ -74,8 +74,8 @@ const HOME = {
   route: "/",
   blurb: "Your board",
   pinned: true,
-  // Placeholders until their modules land: the note becomes the Notes app's
-  // pinned notes, and "today" grows spend and renewals with Money.
+  windows: [],
+  // "today" is a placeholder: it grows spend and renewals with Money.
   widgets: [
     {
       id: "home.clock",
@@ -99,10 +99,11 @@ const HOME = {
       size: { w: 4, h: 4, minW: 3, minH: 3 },
     },
     {
+      // The id predates the Notes app and is stored in layouts, so it stays.
       id: "home.note",
-      title: "Quick note",
-      blurb: "A scratchpad on this device",
-      icon: NotebookPen,
+      title: "Pinned notes",
+      blurb: "Your pinned notes, and a quick new one",
+      icon: Pin,
       size: { w: 8, h: 2, minW: 3, minH: 2 },
     },
   ],
@@ -115,6 +116,7 @@ const NOTES = {
   route: "/notes",
   blurb: "Sticky notes and quick capture",
   widgets: [],
+  windows: [{ id: "notes.note", title: "Note", icon: StickyNote, size: { w: 340, h: 440, minW: 280, minH: 280 } }],
 } as const satisfies ModuleManifest;
 
 /** The apps, in rail order. */
@@ -150,11 +152,11 @@ export function isWidgetId(id: string): id is WidgetId {
   return WIDGET_IDS.has(id);
 }
 
-/** Every mini-window id the registry offers. Renderers are keyed by it, so a missing one fails typecheck. */
-export type WindowId = (typeof TOOLS)[number]["windows"][number]["id"];
+/** Every mini-window id the registry offers, tools' and apps'. Renderers are keyed by it, so a missing one fails typecheck. */
+export type WindowId = (typeof TOOLS)[number]["windows"][number]["id"] | (typeof MODULES)[number]["windows"][number]["id"];
 
-/** Every mini window on offer. */
-export const WINDOWS: readonly (WindowDef & { id: WindowId })[] = TOOLS.flatMap((t) => t.windows);
+/** Every mini window on offer: tools first, then apps. */
+export const WINDOWS: readonly (WindowDef & { id: WindowId })[] = [...TOOLS.flatMap((t) => t.windows), ...MODULES.flatMap((m) => m.windows)];
 
 const WINDOW_DEFS: ReadonlyMap<string, WindowDef & { id: WindowId }> = new Map(WINDOWS.map((w) => [w.id, w]));
 

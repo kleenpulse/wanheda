@@ -13,6 +13,8 @@ import {
   resolveWrite,
   type Note,
   type NoteColor,
+  type BoardPlace,
+  type IncomingWrite,
   type NoteContent,
   type NoteWrite,
 } from "./notes";
@@ -38,6 +40,17 @@ function isColor(value: string): value is NoteColor {
   return (NOTE_COLORS as readonly string[]).includes(value);
 }
 
+function placeOf(r: Pick<Row, "boardX" | "boardY" | "boardW" | "boardH">): BoardPlace | null {
+  const { boardX: x, boardY: y, boardW: w, boardH: h } = r;
+  return x === null || y === null || w === null || h === null ? null : { x, y, w, h };
+}
+
+/** A note's content as table columns: the board place is four nullable ints. */
+function columnsOf(c: NoteContent) {
+  const { board, ...rest } = c;
+  return { ...rest, boardX: board?.x ?? null, boardY: board?.y ?? null, boardW: board?.w ?? null, boardH: board?.h ?? null };
+}
+
 function toNote(r: Row): Note {
   return {
     id: r.id,
@@ -47,6 +60,7 @@ function toNote(r: Row): Note {
     pinned: r.pinned,
     archived: r.archived,
     tags: r.tags,
+    board: placeOf(r),
     version: r.version,
     editedAt: r.editedAt.getTime(),
     createdAt: r.createdAt.getTime(),
@@ -100,18 +114,23 @@ const ATTEMPTS = 3;
  * read, so a write racing in between makes it read again (up to 3 times)
  * instead of overwriting blind.
  */
-export async function saveNote(userId: string, input: NoteWrite, now = Date.now()): Promise<SaveOutcome | null> {
+export async function saveNote(userId: string, input: IncomingWrite, now = Date.now()): Promise<SaveOutcome | null> {
   const db = getDb();
   if (!db) return null;
-  const write: NoteWrite = { ...input, editedAt: clampEditedAt(input.editedAt, now) };
-  const content = contentOf(write);
-  const editedAt = new Date(write.editedAt);
+  const editedAt = new Date(clampEditedAt(input.editedAt, now));
 
   for (let attempt = 0; attempt < ATTEMPTS; attempt++) {
     // By id alone: an id that belongs to someone else must be refused, not "inserted" into a conflict.
-    const [row] = await db.select(NOTE_COLUMNS).from(note).where(eq(note.id, write.id)).limit(1);
+    const [row] = await db.select(NOTE_COLUMNS).from(note).where(eq(note.id, input.id)).limit(1);
     if (row && row.userId !== userId) return { kind: "not-yours" };
     const current = row ? toNote(row) : null;
+    // A write without a place (queued before the board existed) keeps the note's.
+    const write: NoteWrite = {
+      ...input,
+      editedAt: editedAt.getTime(),
+      board: input.board === undefined ? (current?.board ?? null) : input.board,
+    };
+    const content = columnsOf(contentOf(write));
     const resolution = resolveWrite(current, write);
 
     switch (resolution.kind) {
@@ -158,7 +177,7 @@ export async function saveNote(userId: string, input: NoteWrite, now = Date.now(
       }
     }
   }
-  throw new Error(`saveNote: note ${write.id} kept changing; gave up after ${String(ATTEMPTS)} reads`);
+  throw new Error(`saveNote: note ${input.id} kept changing; gave up after ${String(ATTEMPTS)} reads`);
 }
 
 /**
@@ -172,7 +191,7 @@ export async function saveNote(userId: string, input: NoteWrite, now = Date.now(
 async function replaceKeepingHistory(
   userId: string,
   current: Note,
-  content: NoteContent,
+  content: ReturnType<typeof columnsOf>,
   editedAt: Date,
 ): Promise<Note | undefined> {
   const db = getDb();

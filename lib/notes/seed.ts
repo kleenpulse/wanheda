@@ -15,6 +15,7 @@ export function seedNotes(now: number): Note[] {
     pinned: false,
     archived: false,
     tags: [],
+    board: null,
     version: 1,
     editedAt: at(ago),
     createdAt: at(ago + DAY),
