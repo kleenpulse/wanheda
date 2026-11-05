@@ -1,6 +1,6 @@
 # Latest hand-off
 
-**Newest:** [2026-11-05-phase-1-exit.md](2026-11-05-phase-1-exit.md) — Phase 1 exit (T28, branch `phase-1/exit`): palette reaches every command, timer → island → navigation and Lighthouse a11y 100 proven; Settings in Raven's layout; dock clearance; live Home wallpapers (second session). Open: the owner round trip on another device, then the Phase 1 done hand-off and Phase 2 planning.
+**Newest:** [2026-11-05-phase-2-notes-core.md](2026-11-05-phase-2-notes-core.md) — Phase 2 checkpoint 1 (T29, branch `phase-2/notes-core`): notes list + Markdown editor with checklists, palette quick capture and full-text search, V23 conflict rule; `0003_notes.sql` applied to Neon. Open: the owner check in a browser, then T30 (offline outbox). Phase 1 closed in [2026-11-05-phase-1-done.md](2026-11-05-phase-1-done.md).
 
 Read the hand-off first, then verify it against the repo before trusting it (git, tripwire, typecheck, tests). The Builder and Reviewer prompts below are copied from it.
 
@@ -13,16 +13,14 @@ commit; no multi-round reviews or push/merge checks; commit, push and PRs only o
 word; a short hand-off + continuation prompt after every PR. No worktrees: branch off main in
 D:\Vxrcel\wanheda itself. One checkpoint per session: after its PR merges, stop and hand over.
 
-Phase 1 exit, then Phase 2. Last PR: T28 Phase 1 exit (branch phase-1/exit). Read
-docs/handoff/2026-11-05-phase-1-exit.md and SPEC.md §T (T28) and §B (B3, B4).
+Phase 2, checkpoint 2: T30 `phase-2/offline`. Read docs/handoff/2026-11-05-phase-2-notes-core.md,
+SPEC.md §T (T29, T30), §V (V23) and the P2 CP1 lines in §I, and ADR-0008.
 
-Start: `git fetch`; check new commits on origin/main with
-`sh scripts/forged-commits.sh a1463b9..origin/main` before pulling. If the exit PR is merged,
-fast-forward main. Ask the user for the owner round trip result (next step 2 in the hand-off);
-when it passes, mark T28 `x` and write docs/handoff/<date>-phase-1-done.md. Then plan Phase 2
-(FRD §10 Phase 2, D:\Vxrcel\wanheda\FRD.md) into SPEC §T checkpoints with the spec skill and
-`git switch -c phase-2/<slug>` for the first one. Migrations: generate and show the SQL; apply
-only on the user's go-ahead, with `bun --env-file=.env.local run db:migrate`.
+Start: `git fetch`; check new commits with `sh scripts/forged-commits.sh 50e3e9e..origin/main`
+before pulling; fast-forward main. Ask the user for the owner check of T29 (next step 2 in the
+hand-off); when it passes, mark T29 `x`. Then `git switch -c phase-2/offline` off main and build
+T30. No migration is planned for T30; if one turns out to be needed, generate and show the SQL
+and apply only on the user's go-ahead with `bun --env-file=.env.local run db:migrate`.
 ```
 
 ### Reviewer prompt
@@ -32,7 +30,7 @@ You are the REVIEWER session for Wanheda at D:\Vxrcel\wanheda. Use the diff-revi
 read-only (review the PR diff with gh / git show, never switch the Builder's branch). Lean mode
 (user, 2026-11-04): review only when the user asks, one pass per PR, FIX-level findings only, no
 push or merge checks. Your LGTM is not the user's approval. Context:
-docs/handoff/2026-11-05-phase-1-exit.md, SPEC.md §V and §B (B3, B4). The live wallpapers in
-this PR came from a second session and had no Builder review: give them the closest look
-(canvas/WebGL lifecycle, reduced motion, V15 no raw colours).
+docs/handoff/2026-11-05-phase-2-notes-core.md, SPEC.md §V (V7, V9, V17, V23). Look hardest at
+lib/notes/store.ts saveNote (the version-conditional steps and the batch) and at
+lib/notes/sync.ts NoteSender (rebasing a waiting write only after its predecessor landed).
 ```

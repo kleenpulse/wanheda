@@ -842,3 +842,90 @@ html[data-motion="reduce"]::view-transition-old(*),
 html[data-motion="reduce"]::view-transition-new(*) {
 	animation: none !important;
 }
+
+/* Note Markdown (components/notes/note-markdown.tsx). Tokens only. */
+.note-md {
+	font-size: 14.5px;
+	line-height: 1.6;
+	color: var(--foreground);
+	overflow-wrap: anywhere;
+}
+.note-md > * + * { margin-top: 0.75em; }
+.note-md h1, .note-md h2, .note-md h3, .note-md h4 {
+	font-family: var(--font-display);
+	line-height: 1.25;
+	letter-spacing: -0.01em;
+}
+.note-md h1 { font-size: 1.45em; }
+.note-md h2 { font-size: 1.25em; }
+.note-md h3 { font-size: 1.1em; }
+.note-md h4 { font-size: 1em; }
+.note-md * + :is(h1, h2, h3, h4) { margin-top: 1.25em; }
+.note-md ul, .note-md ol { padding-left: 1.4em; }
+.note-md ul { list-style: disc; }
+.note-md ol { list-style: decimal; }
+.note-md li + li, .note-md li > ul, .note-md li > ol { margin-top: 0.25em; }
+.note-md li::marker { color: var(--ink-3); }
+.note-md ul:has(> .task-item) { list-style: none; padding-left: 0.1em; }
+.note-md .task-item { display: flex; align-items: flex-start; gap: 0.6em; }
+.note-md .task-item ul:has(> .task-item) { padding-left: 1.6em; }
+.note-md a {
+	color: var(--signal-ink);
+	text-decoration: underline;
+	text-decoration-color: color-mix(in oklab, var(--signal-ink) 40%, transparent);
+	text-underline-offset: 2px;
+}
+.note-md blockquote {
+	border-left: 2px solid var(--border);
+	padding-left: 0.9em;
+	color: var(--ink-2);
+}
+.note-md code {
+	font-family: var(--font-mono);
+	font-size: 0.88em;
+	padding: 0.1em 0.35em;
+	border-radius: 6px;
+	background: var(--card-nested);
+}
+.note-md pre {
+	font-family: var(--font-mono);
+	font-size: 0.85em;
+	padding: 0.9em 1em;
+	border-radius: 14px;
+	background: var(--card-nested);
+	overflow-x: auto;
+}
+.note-md pre code { padding: 0; background: none; font-size: inherit; }
+.note-md hr { border: 0; border-top: 1px solid var(--border); }
+.note-md table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.note-md th, .note-md td { border-bottom: 1px solid var(--border); padding: 0.35em 0.6em; text-align: left; }
+.note-md th { font-weight: 600; }
+.note-md del { color: var(--ink-3); }
+.note-check {
+	appearance: none;
+	flex-shrink: 0;
+	display: grid;
+	place-content: center;
+	width: 1.05em;
+	height: 1.05em;
+	margin-top: 0.28em;
+	border-radius: 6px;
+	border: 1.5px solid var(--ink-3);
+	background: var(--card);
+	cursor: pointer;
+	transition: background-color 120ms var(--ease-out-quint), border-color 120ms var(--ease-out-quint);
+}
+.note-check::after {
+	content: "";
+	width: 0.32em;
+	height: 0.58em;
+	margin-top: -0.12em;
+	border: solid var(--inverse-foreground);
+	border-width: 0 2px 2px 0;
+	transform: rotate(45deg) scale(0);
+	transition: transform 120ms var(--ease-out-quint);
+}
+.note-check:checked { background: var(--inverse); border-color: var(--inverse); }
+.note-check:checked::after { transform: rotate(45deg) scale(1); }
+.note-check:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.note-check:disabled { cursor: default; }

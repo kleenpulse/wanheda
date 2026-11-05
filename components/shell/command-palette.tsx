@@ -20,6 +20,8 @@ import {
   Play,
   Repeat,
   Search,
+  SquarePen,
+  StickyNote,
   Sun,
   Timer as TimerIcon,
   Wallpaper,
@@ -27,6 +29,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { signOutOk } from "@/components/auth/account-actions";
+import { useNoteSearch, useNotesApi } from "@/components/notes/notes-provider";
 import { useNotifications } from "@/components/notifications/notifications-provider";
 import { usePrefs } from "@/components/prefs/prefs-provider";
 import { useAccount } from "@/components/shell/account";
@@ -38,6 +41,7 @@ import { useActivity } from "@/lib/activity/store";
 import { MINUTE, formatDuration, isDone, isRunning, parseTimerQuery } from "@/lib/activity/timer";
 import { BOARD_EDIT_HREF } from "@/lib/board/edit";
 import { MODULES, SYSTEM_PAGES, WINDOWS } from "@/lib/modules";
+import { parseCapture } from "@/lib/notes/notes";
 import { ACCENT_PRESETS, SKINS, SKIN_LABELS, TIMER_MODE_LABELS, WALLPAPERS, WALLPAPER_LABELS } from "@/lib/prefs/prefs";
 import { TIMER_MODES } from "@/lib/activity/timer";
 import { cn } from "@/lib/utils";
@@ -47,7 +51,8 @@ import { useWindows } from "@/lib/windows/store";
   The command palette (FR-SHELL-3): apps from the module registry, timers on
   the activity bus, mini windows, the board, every appearance pref, theme and
   shell commands. Typing a duration ("25",
-  "10 min", "1h30") offers to start that timer. Ctrl/⌘K toggles it anywhere;
+  "10 min", "1h30") offers to start that timer; "note buy SSD" saves a note
+  on Enter (FR-NOTES-3); any other words also search note bodies (FR-NOTES-7). Ctrl/⌘K toggles it anywhere;
   `/` opens it when you're not typing.
 */
 
@@ -66,6 +71,9 @@ const THEMES: { choice: ThemeChoice; title: string; short: string; icon: LucideI
 
 export function CommandPalette({ railExpanded, onToggleRail }: { railExpanded: boolean; onToggleRail: () => void }) {
   const { open, setOpen } = usePalette();
+  // The highlighted item, controlled so a quick capture or the best note hit
+  // can take it over cmdk's own fuzzy ranking (which loosely matches anything).
+  const [selected, setSelected] = React.useState("");
 
   React.useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -86,7 +94,12 @@ export function CommandPalette({ railExpanded, onToggleRail }: { railExpanded: b
   return (
     <Command.Dialog
       open={open}
-      onOpenChange={setOpen}
+      onOpenChange={(next) => {
+        if (next) setSelected("");
+        setOpen(next);
+      }}
+      value={selected}
+      onValueChange={setSelected}
       label="Command palette"
       loop
       overlayClassName="fixed inset-0 z-50 bg-background/50 backdrop-blur-[2px] data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=closed]:animate-out data-[state=closed]:fade-out-0"
@@ -99,6 +112,7 @@ export function CommandPalette({ railExpanded, onToggleRail }: { railExpanded: b
       {/* Mounted per open, so the query starts empty every time. */}
       {open && (
         <PaletteBody
+          select={setSelected}
           railExpanded={railExpanded}
           onToggleRail={onToggleRail}
           close={() => {
@@ -111,10 +125,12 @@ export function CommandPalette({ railExpanded, onToggleRail }: { railExpanded: b
 }
 
 function PaletteBody({
+  select,
   railExpanded,
   onToggleRail,
   close,
 }: {
+  select: (value: string) => void;
   railExpanded: boolean;
   onToggleRail: () => void;
   close: () => void;
@@ -133,6 +149,16 @@ function PaletteBody({
   // The body mounts per open, so "done" is judged as of opening.
   const [openedAt] = React.useState(Date.now);
   const typedTimer = parseTimerQuery(query);
+  const notesApi = useNotesApi();
+  const captured = parseCapture(query);
+  const noteSearch = useNoteSearch(query, typedTimer === null && captured === null);
+  const firstHit = noteSearch.kind === "hits" ? noteSearch.hits[0]?.id : undefined;
+  const preferred = captured !== null ? "note-capture" : firstHit ? `note-hit-${firstHit}` : null;
+  React.useEffect(() => {
+    if (preferred) select(preferred);
+  }, [preferred, select]);
+  // cmdk's empty state ignores force-mounted rows, so it is ours to hide when they show.
+  const forcedRows = captured !== null || noteSearch.kind === "failed" || (noteSearch.kind === "hits" && noteSearch.hits.length > 0);
 
   const run = (fn: () => void) => () => {
     close();
@@ -147,12 +173,16 @@ function PaletteBody({
           autoFocus
           value={query}
           onValueChange={setQuery}
-          placeholder="Search apps and commands, or type 25 for a timer"
+          placeholder="Search apps, commands and notes. 25 starts a timer, note … saves one"
           className="h-12 w-full rounded-full bg-sheet pr-5 pl-12 text-[15px] text-foreground ring-1 ring-border outline-none placeholder:text-ink-3 focus-visible:ring-2 focus-visible:ring-ring dark:bg-card-nested dark:ring-glass-border"
         />
       </div>
       <Command.List className="mt-2 max-h-[min(24rem,60svh)] overflow-y-auto overscroll-contain">
-        <Command.Empty className="px-3 py-6 text-center text-[13px] text-ink-2">Nothing by that name.</Command.Empty>
+        {!forcedRows && (
+          <Command.Empty className="px-3 py-6 text-center text-[13px] text-ink-2">
+            {noteSearch.kind === "loading" ? "Searching notes" : "Nothing by that name."}
+          </Command.Empty>
+        )}
 
         {typedTimer !== null && !PRESETS.some((min) => min * MINUTE === typedTimer) && (
           <Command.Group heading="Start" forceMount>
@@ -163,6 +193,44 @@ function PaletteBody({
               title={`Start a ${formatDuration(typedTimer)} timer`}
               onSelect={run(() => startTimer(typedTimer))}
             />
+          </Command.Group>
+        )}
+
+        {captured !== null && (
+          <Command.Group heading="Capture" forceMount>
+            <Item
+              forceMount
+              value="note-capture"
+              icon={StickyNote}
+              title={`Save note: ${captured.length > 60 ? `${captured.slice(0, 59)}…` : captured}`}
+              hint="Enter"
+              onSelect={run(() => {
+                notesApi.capture(captured);
+              })}
+            />
+          </Command.Group>
+        )}
+
+        {noteSearch.kind === "failed" && (
+          <Command.Group heading="Notes" forceMount>
+            <Item forceMount disabled value="note-search-failed" icon={StickyNote} title="Note search failed" hint="Try again" onSelect={() => undefined} />
+          </Command.Group>
+        )}
+        {noteSearch.kind === "hits" && noteSearch.hits.length > 0 && (
+          <Command.Group heading="Notes" forceMount>
+            {noteSearch.hits.map((hit) => (
+              <Item
+                key={hit.id}
+                forceMount
+                value={`note-hit-${hit.id}`}
+                icon={StickyNote}
+                title={hit.title}
+                {...(hit.snippet ? { hint: hit.snippet } : {})}
+                onSelect={run(() => {
+                  router.push(`/notes?n=${hit.id}`);
+                })}
+              />
+            ))}
           </Command.Group>
         )}
 
@@ -220,6 +288,18 @@ function PaletteBody({
               onSelect={run(() => startTimer(min * MINUTE))}
             />
           ))}
+        </Command.Group>
+
+        <Command.Group heading="Notes">
+          <Item
+            value="notes-new"
+            keywords={["note", "new", "create", "sticky", "write", "capture"]}
+            icon={SquarePen}
+            title="New note"
+            onSelect={run(() => {
+              router.push(`/notes?n=${notesApi.create()}`);
+            })}
+          />
         </Command.Group>
 
         <Command.Group heading="Notifications">
@@ -453,6 +533,7 @@ function Item({
   title,
   hint,
   forceMount,
+  disabled,
   onSelect,
 }: {
   value: string;
@@ -461,6 +542,7 @@ function Item({
   title: string;
   hint?: string;
   forceMount?: boolean;
+  disabled?: boolean;
   onSelect: () => void;
 }) {
   return (
@@ -468,14 +550,15 @@ function Item({
       value={value}
       keywords={[title, ...(keywords ?? [])]}
       {...(forceMount ? { forceMount: true } : {})}
+      {...(disabled ? { disabled: true } : {})}
       onSelect={onSelect}
       className="flex h-11 cursor-pointer items-center gap-3 rounded-[14px] px-2 text-ink-2 outline-none data-[selected=true]:bg-signal-soft data-[selected=true]:text-foreground"
     >
       <span className="grid size-8 shrink-0 place-items-center rounded-full bg-card-nested text-ink-2 ring-1 ring-border dark:ring-glass-border">
         <Icon className="size-4" strokeWidth={1.75} aria-hidden />
       </span>
-      <span className="truncate text-[13.5px] font-medium text-foreground">{title}</span>
-      {hint ? <span className="ml-auto shrink-0 truncate pl-3 text-[12px] text-ink-3">{hint}</span> : null}
+      <span className="min-w-0 truncate text-[13.5px] font-medium text-foreground">{title}</span>
+      {hint ? <span className="ml-auto max-w-[45%] min-w-0 shrink-0 truncate pl-3 text-[12px] text-ink-3">{hint}</span> : null}
     </Command.Item>
   );
 }

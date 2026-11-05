@@ -1,4 +1,4 @@
-import { CloudSun, Clock, House, NotebookPen, Settings, Sunrise, Timer, type LucideIcon } from "lucide-react";
+import { CloudSun, Clock, House, NotebookPen, Settings, StickyNote, Sunrise, Timer, type LucideIcon } from "lucide-react";
 import type { Route } from "next";
 
 // The module registry (FRD 4.2). The shell builds the rail, the tab bar, the
@@ -108,8 +108,17 @@ const HOME = {
   ],
 } as const satisfies ModuleManifest;
 
-/** The apps, in rail order. Phase 1 has no app modules yet, only Home. */
-export const MODULES = [HOME] as const satisfies readonly ModuleManifest[];
+const NOTES = {
+  id: "notes",
+  title: "Notes",
+  icon: StickyNote,
+  route: "/notes",
+  blurb: "Sticky notes and quick capture",
+  widgets: [],
+} as const satisfies ModuleManifest;
+
+/** The apps, in rail order. */
+export const MODULES = [HOME, NOTES] as const satisfies readonly ModuleManifest[];
 
 const TIMER = {
   id: "timer",
