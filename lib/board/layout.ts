@@ -131,6 +131,8 @@ const SEED_RAW: Record<Breakpoint, RawItem[]> = {
     { i: "money.today", x: 0, y: 4, w: 4, h: 2 },
     { i: "money.budget", x: 4, y: 4, w: 4, h: 4 },
     { i: "money.renewals", x: 8, y: 4, w: 4, h: 4 },
+    { i: "income.mrr", x: 0, y: 6, w: 4, h: 2 },
+    { i: "income.net-new", x: 0, y: 8, w: 4, h: 3 },
   ],
   md: [
     { i: "home.clock", x: 0, y: 0, w: 4, h: 2 },
@@ -140,6 +142,8 @@ const SEED_RAW: Record<Breakpoint, RawItem[]> = {
     { i: "money.today", x: 0, y: 6, w: 4, h: 2 },
     { i: "money.budget", x: 4, y: 6, w: 4, h: 4 },
     { i: "money.renewals", x: 0, y: 8, w: 4, h: 4 },
+    { i: "income.mrr", x: 4, y: 10, w: 4, h: 2 },
+    { i: "income.net-new", x: 0, y: 12, w: 4, h: 3 },
   ],
   sm: [
     { i: "home.clock", x: 0, y: 0, w: 4, h: 2 },
@@ -149,6 +153,8 @@ const SEED_RAW: Record<Breakpoint, RawItem[]> = {
     { i: "money.today", x: 0, y: 11, w: 4, h: 2 },
     { i: "money.budget", x: 0, y: 13, w: 4, h: 4 },
     { i: "money.renewals", x: 0, y: 17, w: 4, h: 4 },
+    { i: "income.mrr", x: 0, y: 21, w: 4, h: 2 },
+    { i: "income.net-new", x: 0, y: 23, w: 4, h: 3 },
   ],
 };
 

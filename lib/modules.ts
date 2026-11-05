@@ -1,4 +1,4 @@
-import { CalendarClock, CloudSun, Clock, DollarSign, House, NotebookPen, Pin, Settings, Sunrise, Target, Timer, Wallet, type LucideIcon } from "lucide-react";
+import { CalendarClock, ChartColumnStacked, CloudSun, Clock, DollarSign, House, NotebookPen, Pin, Settings, Sunrise, Target, Timer, TrendingUp, Wallet, type LucideIcon } from "lucide-react";
 import type { Route } from "next";
 
 // The module registry (FRD 4.2). The shell builds the rail, the tab bar, the
@@ -152,8 +152,33 @@ const MONEY = {
   activities: ["money-alert"],
 } as const satisfies ModuleManifest;
 
+const INCOME = {
+  id: "income",
+  title: "Income",
+  icon: TrendingUp,
+  route: "/income",
+  blurb: "MRR, customers and revenue from your products",
+  widgets: [
+    {
+      id: "income.mrr",
+      title: "MRR",
+      blurb: "Monthly recurring revenue now, and its last 30 days",
+      icon: TrendingUp,
+      size: { w: 4, h: 2, minW: 3, minH: 2, maxH: 4 },
+    },
+    {
+      id: "income.net-new",
+      title: "Net new MRR",
+      blurb: "This month's MRR movements: new, expansion, churn",
+      icon: ChartColumnStacked,
+      size: { w: 4, h: 3, minW: 3, minH: 2, maxH: 4 },
+    },
+  ],
+  windows: [],
+} as const satisfies ModuleManifest;
+
 /** The apps, in rail order. */
-export const MODULES = [HOME, MONEY, NOTES] as const satisfies readonly ModuleManifest[];
+export const MODULES = [HOME, MONEY, INCOME, NOTES] as const satisfies readonly ModuleManifest[];
 
 const TIMER = {
   id: "timer",

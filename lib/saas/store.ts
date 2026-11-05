@@ -1,6 +1,6 @@
 import "server-only";
 import { createHash } from "node:crypto";
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, sql } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { billingEvent, connector, metricSnapshot, mrrMovement, processedEvent, product } from "@/lib/db/schema";
 import { CATEGORY_COLORS } from "@/lib/money/categories";
@@ -15,7 +15,8 @@ import {
   type ProductColor,
   type ProductWrite,
 } from "./connectors";
-import type { Movement } from "./mrr";
+import type { IncomeMovement, IncomeProduct, IncomeSnapshot } from "./income";
+import type { EngineEvent, Movement, MovementKind } from "./mrr";
 import type { BillingEventInput } from "./polar/events";
 import { seal, unseal } from "./seal";
 
@@ -474,4 +475,79 @@ export async function countEvents(connectorId: string): Promise<number | null> {
   if (!db) return null;
   const rows = await db.select({ n: sql<number>`count(*)::int` }).from(billingEvent).where(eq(billingEvent.connectorId, connectorId));
   return rows[0]?.n ?? 0;
+}
+
+export interface IncomeFacts {
+  products: IncomeProduct[];
+  connectors: { id: string; config: PolarConfig }[];
+  movements: IncomeMovement[];
+  snapshots: IncomeSnapshot[];
+  /** Order and refund snapshots per connector, for revenueFrom() with that connector's product map. */
+  revenueEvents: Map<string, EngineEvent[]>;
+}
+
+/**
+ * Everything the income dashboard reads (T42), in one batch: the owner's
+ * products (archived ones too: their history stays), connectors, every MRR
+ * movement, metric_snapshot rows from `sinceDay` on, and the order and refund
+ * log for revenue. Null without a database.
+ */
+export async function loadIncome(userId: string, sinceDay: string): Promise<IncomeFacts | null> {
+  const db = getDb();
+  if (!db) return null;
+  const [productRows, connectorRows, movementRows, snapshotRows, eventRows] = await db.batch([
+    db.select().from(product).where(eq(product.userId, userId)).orderBy(asc(product.createdAt)),
+    db.select({ id: connector.id, config: connector.config }).from(connector).where(eq(connector.userId, userId)).orderBy(asc(connector.createdAt)),
+    db
+      .select({
+        productId: mrrMovement.productId,
+        occurredAt: mrrMovement.occurredAt,
+        customerRef: mrrMovement.customerRef,
+        kind: mrrMovement.kind,
+        deltaMrrMinor: mrrMovement.deltaMrrMinor,
+        currency: mrrMovement.currency,
+      })
+      .from(mrrMovement)
+      .where(eq(mrrMovement.userId, userId))
+      .orderBy(asc(mrrMovement.occurredAt)),
+    db
+      .select()
+      .from(metricSnapshot)
+      .where(and(eq(metricSnapshot.userId, userId), gte(metricSnapshot.onDate, sinceDay))),
+    db
+      .select({
+        id: billingEvent.id,
+        connectorId: billingEvent.connectorId,
+        eventId: billingEvent.eventId,
+        kind: billingEvent.kind,
+        occurredAt: billingEvent.occurredAt,
+        objectId: billingEvent.objectId,
+        payload: billingEvent.payload,
+      })
+      .from(billingEvent)
+      .where(and(eq(billingEvent.userId, userId), inArray(billingEvent.kind, ["order", "refund"]))),
+  ]);
+  const withHistory = new Set(movementRows.map((m) => m.productId));
+  const revenueEvents = new Map<string, EngineEvent[]>();
+  for (const e of eventRows) {
+    const list = revenueEvents.get(e.connectorId) ?? [];
+    list.push({ id: e.id, eventId: e.eventId, kind: e.kind as EngineEvent["kind"], occurredAt: e.occurredAt, objectId: e.objectId, payload: (e.payload ?? {}) as Record<string, unknown> });
+    revenueEvents.set(e.connectorId, list);
+  }
+  return {
+    products: productRows.filter((p) => !p.archived || withHistory.has(p.id)).map((p) => ({ ...toProduct(p), archived: p.archived })),
+    connectors: connectorRows.map((c) => ({ id: c.id, config: parsePolarConfig(c.config) })),
+    movements: movementRows.map((m) => ({ ...m, occurredAt: m.occurredAt.toISOString(), kind: m.kind as MovementKind })),
+    snapshots: snapshotRows.map((s) => ({
+      productId: s.productId,
+      onDate: s.onDate,
+      source: s.source === "polar" ? "polar" : "computed",
+      currency: s.currency,
+      mrrMinor: s.mrrMinor,
+      customers: s.customers,
+      arpaMinor: s.arpaMinor,
+      otherCurrencies: s.source === "computed" && typeof s.extra === "object" && s.extra !== null && "byCurrency" in s.extra,
+    })),
+    revenueEvents,
+  };
 }

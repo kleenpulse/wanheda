@@ -9,6 +9,9 @@ import { mrrAt, type EngineEvent, type Movement } from "./mrr";
 // history stays quiet. Text never carries an amount (V25 privacy), except the
 // milestone's own label.
 
+/** Every income notice opens the dashboard (T42). */
+export const INCOME_HREF = "/income";
+
 export const ALERT_WINDOW_MS = 48 * 3_600_000;
 
 /** MRR milestones in major units. */
@@ -42,9 +45,9 @@ export function incomeAlerts(input: AlertInput): NewNotice[] {
   for (const m of input.movements) {
     if (!recent(m.occurredAt.getTime())) continue;
     if (m.kind === "new") {
-      out.push({ kind: "income", title: "New customer", body: name(m.productId), href: null, dedupeKey: `saas:${m.productId}:new:${m.customerRef}` });
+      out.push({ kind: "income", title: "New customer", body: name(m.productId), href: INCOME_HREF, dedupeKey: `saas:${m.productId}:new:${m.customerRef}` });
     } else if (m.kind === "churn") {
-      out.push({ kind: "income", title: "A customer left", body: name(m.productId), href: null, dedupeKey: `saas:${m.productId}:churn:${m.customerRef}:${day(m.occurredAt)}` });
+      out.push({ kind: "income", title: "A customer left", body: name(m.productId), href: INCOME_HREF, dedupeKey: `saas:${m.productId}:churn:${m.customerRef}:${day(m.occurredAt)}` });
     }
   }
 
@@ -74,7 +77,7 @@ export function incomeAlerts(input: AlertInput): NewNotice[] {
       kind: "income",
       title: "A payment failed",
       body: name(productId),
-      href: null,
+      href: INCOME_HREF,
       dedupeKey: `saas:${productId}:failed:${subscription}:${runStart.occurredAt.toISOString()}`,
     });
   }
@@ -99,7 +102,7 @@ export function incomeAlerts(input: AlertInput): NewNotice[] {
       if (before >= minor || after < minor) continue;
       const label = milestoneLabel(major, currency);
       const who = scope === "all" ? "Your products" : name(scope);
-      out.push({ kind: "income", title: `${label} MRR`, body: `${who} passed ${label} MRR`, href: null, dedupeKey: `saas:${scope}:mrr:${currency}${major}` });
+      out.push({ kind: "income", title: `${label} MRR`, body: `${who} passed ${label} MRR`, href: INCOME_HREF, dedupeKey: `saas:${scope}:mrr:${currency}${major}` });
     }
   }
   return out;
