@@ -1,6 +1,6 @@
 # Latest hand-off
 
-**Newest:** [2026-11-05-phase-2-notes-core.md](2026-11-05-phase-2-notes-core.md) — Phase 2 checkpoint 1 (T29, branch `phase-2/notes-core`): notes list + Markdown editor with checklists, palette quick capture and full-text search, V23 conflict rule; `0003_notes.sql` applied to Neon. Open: the owner check in a browser, then T30 (offline outbox). Phase 1 closed in [2026-11-05-phase-1-done.md](2026-11-05-phase-1-done.md).
+**Newest:** [2026-11-05-phase-2-offline.md](2026-11-05-phase-2-offline.md) — Phase 2 checkpoint 2 (T30, branch `phase-2/offline`): Dexie outbox for every note write (FIFO, one tab sends, survives a closed tab), device copy of the list, pull on focus/reconnect/30 s, conflict toast, History panel with restore, sync chip; plus all ten PR #10 review fixes (SPEC B5–B8). No migration. Open: the owner offline check in a browser, then T31 (board). T29 closed after its owner check.
 
 Read the hand-off first, then verify it against the repo before trusting it (git, tripwire, typecheck, tests). The Builder and Reviewer prompts below are copied from it.
 
@@ -13,14 +13,15 @@ commit; no multi-round reviews or push/merge checks; commit, push and PRs only o
 word; a short hand-off + continuation prompt after every PR. No worktrees: branch off main in
 D:\Vxrcel\wanheda itself. One checkpoint per session: after its PR merges, stop and hand over.
 
-Phase 2, checkpoint 2: T30 `phase-2/offline`. Read docs/handoff/2026-11-05-phase-2-notes-core.md,
-SPEC.md §T (T29, T30), §V (V23) and the P2 CP1 lines in §I, and ADR-0008.
+Phase 2, checkpoint 3: T31 `phase-2/board`. Read docs/handoff/2026-11-05-phase-2-offline.md,
+SPEC.md §T (T30, T31), §V (V15, V17, V23), the P2 CP1 and CP2 lines in §I, and ADR-0008.
 
-Start: `git fetch`; check new commits with `sh scripts/forged-commits.sh 50e3e9e..origin/main`
-before pulling; fast-forward main. Ask the user for the owner check of T29 (next step 2 in the
-hand-off); when it passes, mark T29 `x`. Then `git switch -c phase-2/offline` off main and build
-T30. No migration is planned for T30; if one turns out to be needed, generate and show the SQL
-and apply only on the user's go-ahead with `bun --env-file=.env.local run db:migrate`.
+Start: `git fetch`; check new commits with `sh scripts/forged-commits.sh bb929c8..origin/main`
+before pulling; fast-forward main. Ask the user for the owner check of T30 (next step 2 in the
+hand-off); when it passes, mark T30 `x`. Then `git switch -c phase-2/board` off main and build
+T31. Board moves and resizes go through the outbox (`api.update`); the board columns already
+exist, so no migration is planned. If one turns out to be needed, generate and show the SQL and
+apply only on the user's go-ahead with `bun --env-file=.env.local run db:migrate`.
 ```
 
 ### Reviewer prompt
@@ -30,7 +31,9 @@ You are the REVIEWER session for Wanheda at D:\Vxrcel\wanheda. Use the diff-revi
 read-only (review the PR diff with gh / git show, never switch the Builder's branch). Lean mode
 (user, 2026-11-04): review only when the user asks, one pass per PR, FIX-level findings only, no
 push or merge checks. Your LGTM is not the user's approval. Context:
-docs/handoff/2026-11-05-phase-2-notes-core.md, SPEC.md §V (V7, V9, V17, V23). Look hardest at
-lib/notes/store.ts saveNote (the version-conditional steps and the batch) and at
-lib/notes/sync.ts NoteSender (rebasing a waiting write only after its predecessor landed).
+docs/handoff/2026-11-05-phase-2-offline.md, SPEC.md §V (V7, V9, V17, V23) and §B (B5–B8). Look
+hardest at lib/notes/outbox.ts #drain (rebase on the landed version, hold on failure) and
+supersedes, lib/notes/local-store.ts (each step one transaction across tabs),
+components/notes/notes-provider.tsx applyEvent (overlay drop vs rebase, deleted-here skip) and
+lib/notes/store.ts replaceKeepingHistory.
 ```

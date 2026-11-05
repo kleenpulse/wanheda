@@ -9,8 +9,8 @@ import { cn } from "@/lib/utils";
 /*
   A note's Markdown, read-only except for its checklists (FR-NOTES-5): GFM
   (tables, task lists, strikethrough, autolinks), sanitized, raw HTML never
-  rendered. A task box toggles the source line it came from; positions survive
-  sanitizing, so the line is exact even with code blocks and nesting.
+  rendered. A task box toggles the source item it came from; positions survive
+  sanitizing, so the offset is exact even with code blocks and nesting.
 */
 
 const REMARK = [remarkGfm];
@@ -22,34 +22,23 @@ export function NoteMarkdown({
   className,
 }: {
   body: string;
-  /** 1-based source line of the task item. Absent: boxes are read-only. */
-  onToggleTask?: (line: number) => void;
+  /** Called with the task item's source offset. Absent: boxes are read-only. */
+  onToggleTask?: (offset: number) => void;
   className?: string;
 }) {
   const components = React.useMemo<Components>(
     () => ({
-      // The li draws its own box, which knows its line; drop the parser's.
+      // The li draws its own box, which knows its offset; drop the parser's.
       input: () => null,
       li({ node, className: liClass, children, ...rest }) {
         const isTask = typeof liClass === "string" && liClass.includes("task-list-item");
         if (!isTask) return <li {...rest}>{children}</li>;
         const box = node?.children.find((c) => c.type === "element" && c.tagName === "input");
         const checked = box?.type === "element" && Boolean(box.properties.checked);
-        const line = node?.position?.start.line;
         return (
-          <li {...rest} className="task-item" data-line={line}>
-            <input
-              type="checkbox"
-              checked={checked}
-              disabled={!onToggleTask || line === undefined}
-              onChange={() => {
-                if (line !== undefined) onToggleTask?.(line);
-              }}
-              aria-label={checked ? "Done, untick" : "Not done, tick"}
-              className="note-check"
-            />
-            <span className={cn("min-w-0", checked && "text-ink-3 line-through")}>{children}</span>
-          </li>
+          <TaskItem {...rest} checked={checked} offset={node?.position?.start.offset} toggle={onToggleTask}>
+            {children}
+          </TaskItem>
         );
       },
       a({ node: _node, children, ...rest }) {
@@ -69,5 +58,33 @@ export function NoteMarkdown({
         {body}
       </ReactMarkdown>
     </div>
+  );
+}
+
+/** One checklist item. Its box is named by its own text, so a screen reader can tell items apart. */
+function TaskItem({
+  checked,
+  offset,
+  toggle,
+  children,
+  ...rest
+}: React.ComponentProps<"li"> & { checked: boolean; offset: number | undefined; toggle: ((offset: number) => void) | undefined }) {
+  const textId = React.useId();
+  return (
+    <li {...rest} className="task-item" data-offset={offset}>
+      <input
+        type="checkbox"
+        checked={checked}
+        disabled={!toggle || offset === undefined}
+        onChange={() => {
+          if (offset !== undefined) toggle?.(offset);
+        }}
+        aria-labelledby={textId}
+        className="note-check"
+      />
+      <span id={textId} className={cn("min-w-0", checked && "text-ink-3 line-through")}>
+        {children}
+      </span>
+    </li>
   );
 }

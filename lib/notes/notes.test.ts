@@ -13,8 +13,8 @@ import {
   searchLocal,
   searchTerms,
   sortNotes,
-  taskLines,
-  toggleTaskAtLine,
+  taskItems,
+  toggleTaskAt,
   writeOf,
   type Note,
 } from "./notes";
@@ -86,9 +86,10 @@ describe("checklists", () => {
   const body = ["# Today", "- [ ] buy SSD", "  - [x] compare prices", "```", "- [ ] not a task", "```", "> 1. [X] quoted", "plain"].join(
     "\n",
   );
+  const at = (b: string, line: number) => taskItems(b).find((t) => t.line === line)?.offset ?? -1;
 
   it("finds task items outside code fences, nested, ordered and quoted", () => {
-    expect(taskLines(body)).toEqual([
+    expect(taskItems(body).map(({ line, checked }) => ({ line, checked }))).toEqual([
       { line: 2, checked: false },
       { line: 3, checked: true },
       { line: 7, checked: true },
@@ -97,14 +98,29 @@ describe("checklists", () => {
     expect(checklistProgress("no tasks")).toBeNull();
   });
 
-  it("toggles only a real task line", () => {
-    const ticked = toggleTaskAtLine(body, 2);
+  it("agrees with remark-gfm on the edge cases", () => {
+    const none = [
+      "- [ ]",
+      "- [ ] ",
+      "para\n\n    - [ ] indented code",
+      "> ```\n> - [ ] fenced in a quote\n> ```",
+      "<div>\n- [ ] html block\n</div>",
+      "```\n- [ ] still code\n```js\n- [ ] still code\n```",
+    ];
+    for (const b of none) expect(checklistProgress(b), b).toBeNull();
+    expect(taskItems("- > - [ ] x")).toEqual([{ offset: 4, line: 1, checked: false }]);
+    expect(checklistProgress("- [ ] a\r\n- [x] b\r\n")).toEqual({ done: 1, total: 2 });
+  });
+
+  it("toggles only a real task item", () => {
+    const ticked = toggleTaskAt(body, at(body, 2));
     expect(ticked.split("\n")[1]).toBe("- [x] buy SSD");
-    expect(toggleTaskAtLine(ticked, 2)).toBe(body);
-    expect(toggleTaskAtLine(body, 7).split("\n")[6]).toBe("> 1. [ ] quoted");
-    expect(toggleTaskAtLine(body, 5)).toBe(body); // inside the fence
-    expect(toggleTaskAtLine(body, 1)).toBe(body);
-    expect(toggleTaskAtLine(body, 99)).toBe(body);
+    expect(toggleTaskAt(ticked, at(ticked, 2))).toBe(body);
+    expect(toggleTaskAt(body, at(body, 7)).split("\n")[6]).toBe("> 1. [ ] quoted");
+    expect(toggleTaskAt(body, body.indexOf("- [ ] not a task"))).toBe(body);
+    expect(toggleTaskAt(body, 0)).toBe(body);
+    expect(toggleTaskAt(body, 9999)).toBe(body);
+    expect(toggleTaskAt("- > - [ ] x", 4)).toBe("- > - [x] x");
   });
 });
 
@@ -140,6 +156,7 @@ describe("search", () => {
     expect(prefixTsQuery("a' & b | !c:* (d)")).toBe("a:* & b:* & c:* & d:*");
     expect(prefixTsQuery("ünïcode 2tb")).toBe("ünïcode:* & 2tb:*");
     expect(prefixTsQuery("  !!! ")).toBeNull();
+    expect(prefixTsQuery("Buy SSD", "any")).toBe("buy:* | ssd:*");
     expect(searchTerms("a b c d e f g h i j")).toHaveLength(8);
   });
 
