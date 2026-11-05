@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { create } from "zustand";
 import { useAccount } from "@/components/shell/account";
 import { toast } from "@/components/ui/toaster";
+import { useHydrated } from "@/hooks/use-hydrated";
 import { useNow } from "@/hooks/use-now";
 import { fetchJson } from "@/lib/fetch-json";
 import { todayIn, type Day } from "@/lib/money/dates";
@@ -61,11 +62,16 @@ export function useMoney(options: { enabled?: boolean } = {}) {
   const pending = useMoneyLocal((s) => s.txns);
   const accounts = useMoneyLocal((s) => s.accounts);
   const subs = useMoneyLocal((s) => s.subs);
+  // The server renders without the payload. If the page's Prefetch hydrates
+  // first, the cache already holds it in the hydration pass, and painting it
+  // there would not match the server (React #418). Hops never hydrate, so they
+  // still paint from the cache at once (V24).
+  const hydrated = useHydrated();
   const data = React.useMemo(
-    () => (query.data ? applyPendingSubscriptions(applyPendingAccounts(applyPending(query.data, pending), accounts), subs) : null),
-    [query.data, pending, accounts, subs],
+    () => (hydrated && query.data ? applyPendingSubscriptions(applyPendingAccounts(applyPending(query.data, pending), accounts), subs) : null),
+    [hydrated, query.data, pending, accounts, subs],
   );
-  return { data, failed: query.isError && !query.data, refetch: query.refetch };
+  return { data, failed: hydrated && query.isError && !query.data, refetch: query.refetch };
 }
 
 export interface Ledger {
