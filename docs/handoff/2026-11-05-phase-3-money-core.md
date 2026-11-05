@@ -89,7 +89,7 @@ never native <select> or <input type="date">.
 Start: `git fetch`; check new commits with `sh scripts/forged-commits.sh d0bc942..origin/main`
 before pulling; fast-forward main. Owner mode works (seed verified on Neon). Every destructive
 action gets a confirm dialog or an undo (user rule; delete uses the Undo toast, see
-components/ui/toaster.tsx onDismiss). Then `git switch -c phase-3/periods` and build T35: today|week|month|custom
+components/ui/toaster.tsx: the row hides, Undo and × (onClose) cancel, the delete commits only in onExpire). Then `git switch -c phase-3/periods` and build T35: today|week|month|custom
 views with previous-period compare, totals per category|account|payee, virtualised txn list
 (edit and undoable delete already exist), accounts (add, archive, opening balance, balance), and the charts (load the dataviz
 skill first). Decide whether money writes get a Dexie outbox like notes (ADR-0008) and say why.
