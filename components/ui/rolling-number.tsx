@@ -7,6 +7,7 @@ import {
 	useReducedMotionConfig,
 	type Variants,
 } from "motion/react";
+import { useHydrated } from "@/hooks/use-hydrated";
 import { EASE_OUT } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
@@ -47,7 +48,10 @@ export function RollingNumber({
 	value: number;
 	className?: string;
 }) {
-	const reduce = useReducedMotionConfig() ?? false;
+	// MotionConfig "user" reads the OS setting on the client's first render; the
+	// server can't, so wait for hydration or the two trees differ (React #418).
+	const hydrated = useHydrated();
+	const reduce = (useReducedMotionConfig() ?? false) && hydrated;
 	// The previous render's text and value (React's "storing information from
 	// previous renders" pattern): sets the roll direction and which places are new.
 	const [seen, setSeen] = React.useState<Seen>({

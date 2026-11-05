@@ -8,21 +8,12 @@ import { SettingRow, SettingsCard } from "@/components/settings/setting-row";
 import { TimerModeSetting } from "@/components/settings/timer-mode";
 import { revealTheme, type ThemeChoice } from "@/components/theme-toggle";
 import { Segmented } from "@/components/ui/segmented";
+import { useHydrated } from "@/hooks/use-hydrated";
 import { ACCENT_PRESETS, PICKER_FALLBACK, SKINS, SKIN_LABELS, WALLPAPERS, WALLPAPER_LABELS, parseAccent } from "@/lib/prefs/prefs";
 import { cn } from "@/lib/utils";
 
 const SKIN_OPTIONS = SKINS.map((value) => ({ value, label: SKIN_LABELS[value] }));
 const WALLPAPER_OPTIONS = WALLPAPERS.map((value) => ({ value, label: WALLPAPER_LABELS[value] }));
-
-const subscribeNone = () => () => {};
-/** False on the server and in the hydration pass, true after: for values only the client knows. */
-function useHydrated() {
-  return React.useSyncExternalStore(
-    subscribeNone,
-    () => true,
-    () => false,
-  );
-}
 
 /** Sample rows that wear the current skin and accent, so a change shows before you leave the page. */
 const PREVIEW = [
