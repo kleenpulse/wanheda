@@ -1,6 +1,6 @@
 # Latest hand-off
 
-**Newest:** [2026-11-05-phase-2-done.md](2026-11-05-phase-2-done.md) — **Phase 2 done** (T30–T33 `x`, owner checks passed 2026-11-05). Branch `phase-2/exit`: board fixes from the T31 run (sticky controls fade instead of `display: none`, so no text jump and the colour menu stays anchored; ink-tint hover; selected ring = sticky mark; visible menu highlight; global hand cursor), Figtree display face with uppercase 900 page titles. Next: commit + PR on the user's word, then Phase 3 (Money I) in a fresh session: ask FRD open questions 3 and 4 first, then plan Phase 3 in SPEC.
+**Newest:** [2026-11-05-phase-2-done.md](2026-11-05-phase-2-done.md) — **Phase 2 done** (T30–T33 `x`, owner checks passed 2026-11-05). Branch `phase-2/exit`: board fixes from the T31 run (sticky controls fade instead of `display: none`, so no text jump and the colour menu stays anchored; ink-tint hover; selected ring = sticky mark; visible menu highlight; global hand cursor), Figtree display face with uppercase 900 page titles. PR #14 (`40f694d`). Next: user merges, then Phase 3 (Money I) in a fresh session: ask FRD open questions 3 and 4 first, then plan Phase 3 in SPEC.
 
 Read the hand-off first, then verify it against the repo before trusting it (git, tripwire, typecheck, tests). The Builder and Reviewer prompts below are copied from it.
 
