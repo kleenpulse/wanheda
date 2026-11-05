@@ -3,7 +3,7 @@
 import * as React from "react";
 import { Maximize, Minus, Pin, PinOff, Plus } from "lucide-react";
 import { useNotesApi } from "@/components/notes/notes-provider";
-import { COLOR_LABEL, NoteColorMenu, STICKY_FILL, STICKY_MARK, StickyProgress } from "@/components/notes/sticky";
+import { COLOR_LABEL, NoteColorMenu, STICKY_FILL, STICKY_MARK, STICKY_RING, StickyProgress } from "@/components/notes/sticky";
 import { buttonClass } from "@/components/ui/button";
 import { useAnimationLoop } from "@/hooks/use-animation-loop";
 import { useReducedMotion } from "@/hooks/use-reduced-motion";
@@ -41,6 +41,9 @@ import { cn } from "@/lib/utils";
 const CAMERA_KEY = "wanheda-notes-board-camera";
 const PAN_STEP = 48;
 const DRAG_SLOP = 4;
+// Ghost buttons sit on any sticky fill, so their hover is a tint of the ink rather than a fixed surface.
+const STICKY_BUTTON =
+  "size-8 hover:bg-foreground/8 hover:text-foreground dark:hover:bg-foreground/12 data-popup-open:bg-foreground/8 data-popup-open:text-foreground dark:data-popup-open:bg-foreground/12";
 const KEYS: Record<string, StickyKey> = { ArrowLeft: "left", ArrowRight: "right", ArrowUp: "up", ArrowDown: "down" };
 
 export interface NotesBoardHandle {
@@ -580,7 +583,7 @@ const StickyNote = React.memo(function StickyNote({
         "group absolute flex cursor-grab flex-col overflow-hidden rounded-[18px] text-foreground shadow-lift ring-1 ring-border outline-none dark:ring-glass-border",
         "focus-visible:ring-2 focus-visible:ring-ring data-dragging:cursor-grabbing data-dragging:opacity-95",
         STICKY_FILL[note.color],
-        selected && "ring-2 ring-signal-ink dark:ring-signal",
+        selected && cn("ring-2", STICKY_RING[note.color]),
       )}
       style={{ left: place.x, top: place.y, width: place.w, height: place.h, zIndex: z }}
     >
@@ -588,27 +591,46 @@ const StickyNote = React.memo(function StickyNote({
       <div className="flex min-h-0 flex-1 flex-col gap-1.5 pt-2 pr-1.5 pb-3 pl-3.5">
         <div className="flex items-start gap-1">
           <h3 className="min-w-0 flex-1 truncate pt-1.5 text-[14px] leading-snug font-medium">{title}</h3>
-          {note.pinned ? <Pin aria-hidden className="mt-2 size-3.5 shrink-0 text-ink-2 group-focus-within:hidden group-hover:hidden pointer-coarse:hidden" strokeWidth={1.75} /> : null}
-          <span className="hidden shrink-0 items-center group-focus-within:flex group-hover:flex pointer-coarse:flex">
-            <NoteColorMenu
-              color={note.color}
-              onPick={(color) => {
-                api.update(note.id, { color });
-              }}
-            />
-            <button
-              type="button"
-              data-no-drag
-              aria-pressed={note.pinned}
-              onClick={() => {
-                api.update(note.id, { pinned: !note.pinned });
-              }}
-              className={buttonClass("ghost", "circle-sm", "size-8")}
-              title={note.pinned ? "Unpin" : "Pin"}
+          {/* The controls stay laid out and only fade: hiding them with display:none made the header grow on hover (text jumped)
+              and pulled the colour menu's anchor away, so the menu flew to the corner while it was open or closing. */}
+          <span className="relative flex shrink-0 items-center">
+            {note.pinned ? (
+              <Pin
+                aria-hidden
+                className={cn(
+                  "pointer-events-none absolute top-2.5 right-2.5 size-3.5 text-ink-2 transition-opacity duration-150",
+                  "group-focus-within:opacity-0 group-hover:opacity-0 group-has-data-popup-open:opacity-0 pointer-coarse:opacity-0",
+                )}
+                strokeWidth={1.75}
+              />
+            ) : null}
+            <span
+              className={cn(
+                "flex items-center opacity-0 transition-opacity duration-150",
+                "group-focus-within:opacity-100 group-hover:opacity-100 has-data-popup-open:opacity-100 pointer-coarse:opacity-100",
+              )}
             >
-              {note.pinned ? <PinOff aria-hidden strokeWidth={1.75} /> : <Pin aria-hidden strokeWidth={1.75} />}
-              <span className="sr-only">{note.pinned ? "Unpin" : "Pin"}</span>
-            </button>
+              <NoteColorMenu
+                color={note.color}
+                className={STICKY_BUTTON}
+                onPick={(color) => {
+                  api.update(note.id, { color });
+                }}
+              />
+              <button
+                type="button"
+                data-no-drag
+                aria-pressed={note.pinned}
+                onClick={() => {
+                  api.update(note.id, { pinned: !note.pinned });
+                }}
+                className={buttonClass("ghost", "circle-sm", STICKY_BUTTON)}
+                title={note.pinned ? "Unpin" : "Pin"}
+              >
+                {note.pinned ? <PinOff aria-hidden strokeWidth={1.75} /> : <Pin aria-hidden strokeWidth={1.75} />}
+                <span className="sr-only">{note.pinned ? "Unpin" : "Pin"}</span>
+              </button>
+            </span>
           </span>
         </div>
         {text ? (

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Instrument_Sans, Poppins } from "next/font/google";
+import { Figtree, Geist, Geist_Mono, Poppins } from "next/font/google";
 import { MotionProvider } from "@/components/providers/motion-provider";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import { prefsBootScript } from "@/lib/prefs/prefs";
@@ -8,8 +8,9 @@ import "./globals.css";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
-const instrumentSans = Instrument_Sans({
-  variable: "--font-instrument-sans",
+// Display face, as in the portfolio (user 2026-11-05). Variable font: every weight up to 900.
+const figtree = Figtree({
+  variable: "--font-figtree",
   subsets: ["latin"],
   display: "swap",
 });
@@ -32,7 +33,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${geistSans.variable} ${geistMono.variable} ${instrumentSans.variable} ${poppins.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${figtree.variable} ${poppins.variable} h-full antialiased`}
     >
       <head>
         {/* Before first paint: the shell fallback's rail width (lib/shell/rail.ts). */}
