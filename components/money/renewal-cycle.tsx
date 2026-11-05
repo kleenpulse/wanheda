@@ -124,7 +124,7 @@ export function PinnedCycle({ subscriptions, today, base }: { subscriptions: rea
           if (v) writePin(v);
         }}
       >
-        <SelectTrigger aria-label="Subscription shown on Home" className="h-7 max-w-36 rounded-pill bg-sheet pr-2 pl-3 text-[12px] text-foreground shadow-sm">
+        <SelectTrigger aria-label="Subscription shown on Home" className="h-7 max-w-36 rounded-pill bg-inverse pr-2 pl-3 text-[12px] text-inverse-foreground shadow-sm ring-0 hover:bg-inverse dark:bg-inverse dark:hover:bg-inverse">
           <Pin aria-hidden className="size-3 shrink-0 text-signal" />
           <SelectValue />
         </SelectTrigger>
@@ -196,12 +196,15 @@ function LiquidFace({
       <div className="flex items-center justify-between gap-3">
         <span className="min-w-0 truncate text-[14px] font-medium">{sub.name}</span>
         <span className="tabular shrink-0 text-[13px] font-semibold">
-          {used} / {length} days
+          <span className="font-figure">
+            {used} / {length}
+          </span>{" "}
+          days
         </span>
       </div>
       <div className={cn("grid place-items-center py-5", fill && "flex-1")}>
         {/* Home's widget has the room: the figure goes bigger there (user 2026-11-05). */}
-        <span className={cn("tabular font-display leading-none font-black tracking-[-0.03em]", fill ? "text-[124px]" : "text-[84px]")}>
+        <span className={cn("tabular font-figure leading-none font-extrabold tracking-[-0.04em]", fill ? "text-[112px]" : "text-[76px]")}>
           {Math.round(progress * 100)}
           <span className={fill ? "text-[52px]" : "text-[36px]"}>%</span>
         </span>

@@ -19,7 +19,7 @@ export function MoneyText({ value, className, roll = false, ...options }: { valu
   const mask = useMask();
   const text = formatMoney(value, options);
   return (
-    <span data-money data-masked={mask.hidden || undefined} className={cn("tabular", className)}>
+    <span data-money data-masked={mask.hidden || undefined} className={cn("tabular font-figure", className)}>
       {mask.hidden ? mask.show(text) : roll ? <RollingNumber text={text} value={value.minor} /> : text}
     </span>
   );

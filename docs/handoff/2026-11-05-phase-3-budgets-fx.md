@@ -52,6 +52,7 @@ Another session (`wanheda-f7`, gone by the end) left uncommitted UI work in the 
 ## Drafted for SPEC (needs the user's OK, then the spec skill applies it)
 
 - T38 → x with the build notes above.
+- V15: five fonts (user 2026-11-05): + JetBrains Mono (`font-figure`) for every amount (`<MoneyText>`, chart axis ticks), percentages (billing-cycle figure, Δ %, budget % used, island budget figure) and the Home clock; weights up to 800.
 - V25 + privacy: hidden figures show `••••` with sign and currency (`maskMoney`), `data-masked`; CSS hides unmasked `[data-money]` while `html[data-privacy]` (no flash).
 - V26 + analytics "all in base": each entry converted at its day's rate and rounded once, then added; headline totals, budgets and Home are exact sums rounded once. Source fawazahmed0, fetched on read, ≥ 2024-03-02.
 - V31 + budget alerts: raised on shell load, after a txn save and after a budget save; only the highest level reached; island card until dismissed or the month ends.

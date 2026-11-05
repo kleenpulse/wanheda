@@ -182,7 +182,7 @@ export function Delta({ cur, prev, goodWhenUp, against, className }: { cur: numb
     <span className={cn("inline-flex items-center gap-1 text-[12px]", className)}>
       <span className={cn("inline-flex items-center gap-0.5 font-medium", good === null ? "text-ink-2" : good ? "text-ok" : "text-warn")}>
         {flat ? null : <Icon aria-hidden className="size-3.5" strokeWidth={2} />}
-        <span className="tabular">{flat ? "Same" : `${String(Math.abs(pct))}%`}</span>
+        <span className={cn("tabular", !flat && "font-figure")}>{flat ? "Same" : `${String(Math.abs(pct))}%`}</span>
         <span className="sr-only">{flat ? "" : up ? " more" : " less"}</span>
       </span>
       <span className="truncate text-ink-2">{against}</span>

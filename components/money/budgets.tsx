@@ -167,7 +167,15 @@ function BudgetRow({ p, categories, onEdit }: { p: BudgetProgress; categories: R
               </>
             )}
           </p>
-          <p className="tabular text-[12px] text-ink-3">{pct === null ? "No budget left" : `${String(pct)} % used`}</p>
+          <p className="tabular text-[12px] text-ink-3">
+            {pct === null ? (
+              "No budget left"
+            ) : (
+              <>
+                <span className="font-figure">{pct}%</span> used
+              </>
+            )}
+          </p>
         </div>
         <button type="button" onClick={onEdit} aria-label={`Edit the ${name} budget`} className={buttonClass("ghost", "circle-sm", "size-8 shrink-0")}>
           <Pencil aria-hidden />

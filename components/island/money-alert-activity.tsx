@@ -75,7 +75,7 @@ function BudgetCard({ alert }: { alert: BudgetAlertView }) {
           <p className="text-xs font-medium text-island-foreground/70">Budget</p>
           <p className="truncate text-lg leading-tight font-semibold text-island-foreground">{alert.name}</p>
         </div>
-        <p className="tabular shrink-0 text-[1.75rem] leading-none font-light text-signal">{alert.level === 100 ? "Used up" : "80 %"}</p>
+        <p className={cn("tabular shrink-0 text-[1.75rem] leading-none font-light text-signal", alert.level !== 100 && "font-figure")}>{alert.level === 100 ? "Used up" : "80%"}</p>
       </div>
       <div className="flex flex-wrap gap-2">
         <IslandButton
@@ -184,7 +184,7 @@ export function moneyAlertActivity(alert: MoneyAlert, today: Day): IslandActivit
       label: `${alert.name} budget`,
       status: alert.level === 100 ? ", used up" : ", 80 % used",
       leading: <Target aria-hidden className="size-3.5 text-signal" />,
-      trailing: <span className="tabular text-sm font-semibold text-signal">{alert.level === 100 ? "100%" : "80%"}</span>,
+      trailing: <span className="tabular font-figure text-sm font-semibold text-signal">{alert.level === 100 ? "100%" : "80%"}</span>,
       expanded: <BudgetCard alert={alert} />,
     };
   }

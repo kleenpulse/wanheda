@@ -25,6 +25,8 @@
 	--font-mono: var(--font-geist-mono), ui-monospace, monospace;
 	--font-display: var(--font-figtree), var(--font-geist-sans), ui-sans-serif, sans-serif;
 	--font-heading: var(--font-display);
+	/* Figures: amounts, percentages and the clock (user choice, 2026-11-05). `font-figure`. */
+	--font-figure: var(--font-jetbrains-mono), var(--font-geist-mono), ui-monospace, monospace;
 	/* Readout microtype face (user choice, 2026-11-04; SPEC V15). */
 	--font-label: var(--font-poppins), var(--font-geist-sans), ui-sans-serif, sans-serif;
 	--color-sidebar-ring: var(--sidebar-ring);
