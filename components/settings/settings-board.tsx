@@ -3,9 +3,10 @@
 import * as React from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { motion } from "motion/react";
-import { ChevronLeft, ChevronRight, Keyboard, Palette, Timer, UserRound, Wallet, type LucideIcon } from "lucide-react";
+import { ChevronLeft, ChevronRight, Keyboard, Palette, PlugZap, Timer, UserRound, Wallet, type LucideIcon } from "lucide-react";
 import { AddPasskeyButton, SignOutButton } from "@/components/auth/account-actions";
 import { AppearanceSection, PrefsNote, TimersSection } from "@/components/settings/appearance-prefs";
+import { ConnectionsSection } from "@/components/settings/connections-section";
 import { MoneySection } from "@/components/settings/money-prefs";
 import { SettingRow, SettingsCard } from "@/components/settings/setting-row";
 import { useAccount } from "@/components/shell/account";
@@ -20,7 +21,7 @@ import { cn } from "@/lib/utils";
   deep links and Back work and switching never waits on the server.
 */
 
-const GROUPS = ["Preferences", "You"] as const;
+const GROUPS = ["Preferences", "Data", "You"] as const;
 
 interface Section {
   label: string;
@@ -53,6 +54,12 @@ const SECTIONS = {
     icon: Wallet,
   },
   keyboard: { label: "Keyboard", blurb: "The shortcuts that work anywhere in Wanheda.", group: "Preferences", icon: Keyboard },
+  connections: {
+    label: "Connections",
+    blurb: "Polar and the products it bills for.",
+    group: "Data",
+    icon: PlugZap,
+  },
   account: { label: "Account", blurb: "Who is signed in, passkeys and signing out.", group: "You", icon: UserRound },
 } as const satisfies Record<string, Section>;
 
@@ -289,6 +296,7 @@ const BODIES: Record<SectionId, () => React.ReactNode> = {
   timers: TimersSection,
   money: MoneySection,
   keyboard: KeyboardSection,
+  connections: ConnectionsSection,
   account: AccountSection,
 };
 

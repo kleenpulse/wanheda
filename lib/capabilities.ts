@@ -1,4 +1,5 @@
 import { parseOwnerEmails } from "@/lib/auth/allowlist";
+import { sealKeyBytes } from "@/lib/saas/seal-key";
 import { parseLocation, type WeatherLocation } from "@/lib/weather/location";
 
 // One question, one shape: "does this deployment have the credentials for X?"
@@ -10,7 +11,7 @@ import { parseLocation, type WeatherLocation } from "@/lib/weather/location";
 // None of these vars is NEXT_PUBLIC_, so server code reads them at runtime and
 // one build serves demo, locked and gated by env alone. Keep it that way.
 
-export type Capability = "db" | "auth";
+export type Capability = "db" | "auth" | "connectors";
 
 const MIN_SECRET_LENGTH = 32;
 
@@ -36,6 +37,11 @@ export function weatherLocation(): WeatherLocation | null {
 /** The owner allowlist. Empty means nobody may sign up or in. */
 export function ownerEmails(): ReadonlySet<string> {
   return parseOwnerEmails(process.env.OWNER_EMAILS);
+}
+
+/** The key that seals connector secrets (SPEC V33), or null if unset or malformed. */
+export function connectorSealKey(): Uint8Array | null {
+  return sealKeyBytes(process.env.CONNECTOR_SEAL_KEY);
 }
 
 export interface AuthSettings {
@@ -71,6 +77,8 @@ const PREDICATES: Record<Capability, () => boolean> = {
   db: () => databaseUrl() !== undefined,
   // Better Auth stores users and sessions in the database, so auth needs both.
   auth: () => PREDICATES.db() && authSettings() !== null,
+  // Billing connectors keep sealed secrets in the database, so they need both.
+  connectors: () => PREDICATES.db() && connectorSealKey() !== null,
 };
 
 /** Is this capability configured? Sync, never throws. */
