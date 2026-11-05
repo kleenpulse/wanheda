@@ -8,7 +8,7 @@ import { Tip } from "@/components/ui/tooltip";
 import { toDecimalString } from "@/lib/money/currency";
 import { dayLabel, type Day } from "@/lib/money/dates";
 import { categoryPath, totals, type Account, type Category, type Txn } from "@/lib/money/money";
-import { NONE } from "@/lib/money/reports";
+import { NONE, normalPayee } from "@/lib/money/reports";
 import { cn } from "@/lib/utils";
 import type { ListFilter } from "./breakdown";
 import { CategoryMark, MoneyText } from "./money-text";
@@ -45,7 +45,7 @@ function matches(t: Txn, q: string, categories: ReadonlyMap<string, Category>, a
 
 function passes(t: Txn, f: ListFilter, categories: ReadonlyMap<string, Category>): boolean {
   if (f.by === "account") return t.accountId === f.key;
-  if (f.by === "payee") return t.payee.trim().replace(/\s+/g, " ").toLowerCase() === f.key;
+  if (f.by === "payee") return normalPayee(t.payee) === f.key;
   const c = t.categoryId ? categories.get(t.categoryId) : undefined;
   if (f.key === NONE) return !c;
   return c?.id === f.key || c?.parentId === f.key;

@@ -14,7 +14,8 @@ import { CategoryMark, categoryBg, MoneyText } from "./money-text";
 // than the FRD's donut: bars on one baseline compare parts more exactly, and
 // the list already carries every name and figure (dataviz: part-to-whole).
 // A category bar wears its own colour (colour follows the entity); accounts
-// and payees are one series, so one hue. Each row filters the list below.
+// and payees are one series, so one hue. Each row opens the entries it sums
+// (the analytics page sends `onPick` to the entries page, filtered).
 
 export interface ListFilter {
   by: GroupBy;
