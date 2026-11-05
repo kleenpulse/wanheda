@@ -16,12 +16,18 @@ import { useMoneyApi } from "./use-money";
 
 // The period's txns by day (FR-MONEY-5), filtered by a search and by the row
 // picked in the breakdown. Past VIRTUAL_AFTER rows only the rows near the
-// viewport are rendered (SPEC T35); every row and day header has a fixed
-// height, so the offsets are exact without measuring.
+// viewport are rendered (SPEC T35). Each day is its own card, with a gap
+// between days (as in T34's list, user 2026-11-05). Every part of a card has
+// a fixed height (frame, day header, rows), so the virtual list windows whole
+// days at offsets that are exact without measuring.
 
 export const VIRTUAL_AFTER = 200;
 const DAY_H = 40;
 const ROW_H = 56;
+/** Space between two day cards (mt-4). */
+const DAY_GAP = 16;
+/** A card's border (bento: 1 px each side) and bottom padding (pb-1.5). */
+const CARD_FRAME = 2 + 6;
 const OVERSCAN_PX = 600;
 
 /** A txn being edited, and the pencil it was opened from (the dialog grows out of it). */
@@ -30,7 +36,10 @@ export interface Editing {
   origin: DOMRect;
 }
 
-type Item = { kind: "day"; day: Day; txns: Txn[] } | { kind: "txn"; txn: Txn };
+interface DayGroup {
+  day: Day;
+  txns: Txn[];
+}
 
 function matches(t: Txn, q: string, categories: ReadonlyMap<string, Category>, accounts: ReadonlyMap<string, Account>): boolean {
   const c = t.categoryId ? categories.get(t.categoryId) : undefined;
@@ -63,7 +72,7 @@ function upperBound(offsets: readonly number[], y: number): number {
   return lo;
 }
 
-/** Which items to render: all of them, or past the threshold only those near the viewport. */
+/** Which days to render: all of them, or past the threshold only those near the viewport. */
 function useWindowed(offsets: readonly number[], enabled: boolean) {
   const ref = React.useRef<HTMLDivElement>(null);
   const count = offsets.length - 1;
@@ -119,20 +128,19 @@ export function TxnList({
     [txns, filter, deferred, categories, accounts],
   );
 
-  const { items, offsets } = React.useMemo(() => {
-    const items: Item[] = [];
-    let day = null as Extract<Item, { kind: "day" }> | null;
+  const { groups, offsets } = React.useMemo(() => {
+    const groups: DayGroup[] = [];
     for (const t of shown) {
-      if (day?.day !== t.postedOn) {
-        day = { kind: "day", day: t.postedOn, txns: [] };
-        items.push(day);
-      }
-      day.txns.push(t);
-      items.push({ kind: "txn", txn: t });
+      const last = groups.at(-1);
+      if (last?.day === t.postedOn) last.txns.push(t);
+      else groups.push({ day: t.postedOn, txns: [t] });
     }
+    // Each day's offset includes the gap above it, so a slice starting there lines up.
     const offsets = [0];
-    for (const it of items) offsets.push((offsets.at(-1) ?? 0) + (it.kind === "day" ? DAY_H : ROW_H));
-    return { items, offsets };
+    groups.forEach((g, i) => {
+      offsets.push((offsets.at(-1) ?? 0) + (i > 0 ? DAY_GAP : 0) + CARD_FRAME + DAY_H + ROW_H * g.txns.length);
+    });
+    return { groups, offsets };
   }, [shown]);
 
   const virtual = shown.length > VIRTUAL_AFTER;
@@ -140,32 +148,36 @@ export function TxnList({
   const [start, end] = range;
   const total = offsets.at(-1) ?? 0;
 
-  const renderItem = (it: Item) => {
-    if (it.kind === "txn") {
-      return (
-        <TxnRow
-          key={it.txn.id}
-          txn={it.txn}
-          category={it.txn.categoryId ? (categories.get(it.txn.categoryId) ?? null) : null}
-          categories={categories}
-          account={accounts.get(it.txn.accountId)}
-          onEdit={onEdit}
-        />
-      );
-    }
-    const dayTotals = totals(it.txns, categories, it.day, it.day);
+  const renderDay = (g: DayGroup, i: number) => {
+    const dayTotals = totals(g.txns, categories, g.day, g.day);
     return (
-      <li key={`day:${it.day}`} className="flex h-10 items-end justify-between gap-3 px-3 pb-1.5">
-        <h4 className="readout">{dayLabel(it.day, today)}</h4>
-        {/* The day's total only when it adds something: with one spend it would repeat the row (user 2026-11-05). */}
-        {dayTotals.spendCount > 1 ? (
-          <span className="readout flex gap-2">
-            Spent
-            {dayTotals.spend.map((m) => (
-              <MoneyText roll key={m.currency} value={m} />
-            ))}
-          </span>
-        ) : null}
+      <li key={g.day} aria-labelledby={`money-day-${g.day}`} className={cn("bento px-1.5 pb-1.5", i > 0 && "mt-4")}>
+        <div className="flex h-10 items-end justify-between gap-3 px-3 pb-1.5">
+          <h4 id={`money-day-${g.day}`} className="readout">
+            {dayLabel(g.day, today)}
+          </h4>
+          {/* The day's total only when it adds something: with one spend it would repeat the row (user 2026-11-05). */}
+          {dayTotals.spendCount > 1 ? (
+            <span className="readout flex gap-2">
+              Spent
+              {dayTotals.spend.map((m) => (
+                <MoneyText roll key={m.currency} value={m} />
+              ))}
+            </span>
+          ) : null}
+        </div>
+        <ul className="flex flex-col">
+          {g.txns.map((t) => (
+            <TxnRow
+              key={t.id}
+              txn={t}
+              category={t.categoryId ? (categories.get(t.categoryId) ?? null) : null}
+              categories={categories}
+              account={accounts.get(t.accountId)}
+              onEdit={onEdit}
+            />
+          ))}
+        </ul>
       </li>
     );
   };
@@ -208,15 +220,13 @@ export function TxnList({
           )}
         </div>
       ) : (
-        <div className="bento p-1.5 pt-0">
-          <div ref={ref} style={virtual ? { height: total, position: "relative" } : undefined}>
-            <ul
-              className={cn("flex flex-col", virtual && "absolute inset-x-0 top-0")}
-              style={virtual ? { transform: `translateY(${String(offsets[start] ?? 0)}px)` } : undefined}
-            >
-              {items.slice(start, end).map(renderItem)}
-            </ul>
-          </div>
+        <div ref={ref} style={virtual ? { height: total, position: "relative" } : undefined}>
+          <ul
+            className={cn("flex flex-col", virtual && "absolute inset-x-0 top-0")}
+            style={virtual ? { transform: `translateY(${String(offsets[start] ?? 0)}px)` } : undefined}
+          >
+            {groups.slice(start, end).map((g, i) => renderDay(g, start + i))}
+          </ul>
         </div>
       )}
       {shown.length > 0 ? (
