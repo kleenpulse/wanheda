@@ -367,7 +367,7 @@ function Timeline({ events, today }: { events: readonly SubEvent[]; today: Day }
             const n = daysBetween(today, d.on);
             return (
               <li key={d.on} className="relative grid grid-cols-[14px_minmax(0,1fr)] gap-x-3 pb-4 last:pb-0">
-                {i < days.length - 1 ? <span aria-hidden className="absolute top-4 bottom-0 left-[6.5px] w-px bg-border dark:bg-glass-border" /> : null}
+                {i < days.length - 1 ? <span aria-hidden className="absolute top-4 bottom-0 left-[6.5px] w-px bg-border" /> : null}
                 <span aria-hidden className={cn("mt-1 size-3.5 rounded-full ring-2 ring-sheet", n <= 3 ? "bg-signal" : "bg-ink-3/50")} />
                 <div className="min-w-0">
                   <p className="flex items-baseline justify-between gap-2">
@@ -728,7 +728,7 @@ function SubscriptionForm({
                 <span>No category</span>
               </SelectItem>
               {options.map(({ c, child }) => (
-                <SelectItem key={c.id} value={c.id} className={child ? "ml-5" : undefined}>
+                <SelectItem key={c.id} value={c.id} className={child ? "pl-7" : undefined}>
                   <CategoryMark category={c} className="size-7 text-[14px]" />
                   <span>{c.name}</span>
                 </SelectItem>

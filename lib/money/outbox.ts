@@ -1,10 +1,13 @@
 import type { Notice } from "@/lib/notifications/notifications";
-import type { Account, Txn } from "./money";
+import type { Budget } from "./budgets";
+import type { Account, Category, Txn } from "./money";
+import type { Rule } from "./rules";
 import type { Subscription } from "./subscriptions";
 
 /*
   The money outbox (ADR-0008, SPEC V28). Every money write (a txn saved or
-  deleted, an account saved or archived, a subscription saved or deleted) is
+  deleted, an account saved or archived, a subscription, budget or rule saved
+  or deleted) is
   stored on the device first, then
   sent in order, one at a time, when the device is online: on a new write, on
   focus, on reconnect and on a 30 s tick. Nothing leaves the queue until the
@@ -22,18 +25,25 @@ import type { Subscription } from "./subscriptions";
   for tests and as a fallback.
 */
 
-export type TxnSaveResult = { ok: true; txn: Txn } | { ok: false; reason: "demo" | "invalid" | "archived-account" | "failed" };
+/** `notices`: budget alerts the save made due (V31). Optional: an op stored before T38 has none. */
+export type TxnSaveResult = { ok: true; txn: Txn; notices?: Notice[] } | { ok: false; reason: "demo" | "invalid" | "archived-account" | "failed" };
 export type TxnDeleteResult = { ok: true } | { ok: false; reason: "demo" | "invalid" | "failed" };
 export type AccountWriteResult = { ok: true; account: Account } | { ok: false; reason: "demo" | "invalid" | "failed" };
+export type CategorySaveResult = { ok: true; category: Category } | { ok: false; reason: "demo" | "invalid" | "failed" };
 /** `notices`: reminders the save made due (V31), for the notification centre. */
 export type SubSaveResult = { ok: true; subscription: Subscription; notices: Notice[] } | { ok: false; reason: "demo" | "invalid" | "failed" };
 export type SubDeleteResult = { ok: true } | { ok: false; reason: "demo" | "invalid" | "failed" };
+/** `taken`: that category (or overall) already has a budget. */
+export type BudgetSaveResult = { ok: true; budget: Budget; notices: Notice[] } | { ok: false; reason: "demo" | "invalid" | "taken" | "failed" };
+export type RuleSaveResult = { ok: true; rule: Rule } | { ok: false; reason: "demo" | "invalid" | "failed" };
+/** A delete of a budget or a rule. */
+export type PlanDeleteResult = { ok: true } | { ok: false; reason: "demo" | "invalid" | "failed" };
 
 interface OpBase {
   /** Queue order, given by the store. */
   seq?: number;
   opId: string;
-  /** `txn:<id>`, `account:<id>` or `sub:<id>`: what the op writes. */
+  /** `txn:<id>`, `account:<id>`, `sub:<id>`, `budget:<id>` or `rule:<id>`: what the op writes. */
   key: string;
   queuedAt: number;
   /** Sent before with no answer. It may have landed, so it is resent as is, before anything after it. */
@@ -47,7 +57,13 @@ export type AccountSaveOp = OpBase & { kind: "account-save"; account: Account };
 export type AccountArchiveOp = OpBase & { kind: "account-archive"; account: Account };
 export type SubSaveOp = OpBase & { kind: "sub-save"; subscription: Subscription };
 export type SubDeleteOp = OpBase & { kind: "sub-delete"; subscription: Subscription };
-export type MoneyOp = TxnSaveOp | TxnDeleteOp | AccountSaveOp | AccountArchiveOp | SubSaveOp | SubDeleteOp;
+/** A category the owner names in the form. Never dropped, like account ops: a txn queued after it may use it. */
+export type CategorySaveOp = OpBase & { kind: "category-save"; category: Category };
+export type BudgetSaveOp = OpBase & { kind: "budget-save"; budget: Budget };
+export type BudgetDeleteOp = OpBase & { kind: "budget-delete"; budget: Budget };
+export type RuleSaveOp = OpBase & { kind: "rule-save"; rule: Rule };
+export type RuleDeleteOp = OpBase & { kind: "rule-delete"; rule: Rule };
+export type MoneyOp = TxnSaveOp | TxnDeleteOp | AccountSaveOp | AccountArchiveOp | CategorySaveOp | SubSaveOp | SubDeleteOp | BudgetSaveOp | BudgetDeleteOp | RuleSaveOp | RuleDeleteOp;
 
 /** An op as the caller hands it in: the outbox stamps the rest. */
 export type MoneyWrite =
@@ -55,8 +71,13 @@ export type MoneyWrite =
   | { kind: "txn-delete"; txn: Txn }
   | { kind: "account-save"; account: Account }
   | { kind: "account-archive"; account: Account }
+  | { kind: "category-save"; category: Category }
   | { kind: "sub-save"; subscription: Subscription }
-  | { kind: "sub-delete"; subscription: Subscription };
+  | { kind: "sub-delete"; subscription: Subscription }
+  | { kind: "budget-save"; budget: Budget }
+  | { kind: "budget-delete"; budget: Budget }
+  | { kind: "rule-save"; rule: Rule }
+  | { kind: "rule-delete"; rule: Rule };
 
 export type MoneyResult<O extends MoneyOp = MoneyOp> = O extends TxnSaveOp
   ? TxnSaveResult
@@ -66,19 +87,34 @@ export type MoneyResult<O extends MoneyOp = MoneyOp> = O extends TxnSaveOp
       ? SubSaveResult
       : O extends SubDeleteOp
         ? SubDeleteResult
-        : AccountWriteResult;
+        : O extends BudgetSaveOp
+          ? BudgetSaveResult
+          : O extends RuleSaveOp
+            ? RuleSaveResult
+            : O extends BudgetDeleteOp | RuleDeleteOp
+              ? PlanDeleteResult
+              : O extends CategorySaveOp
+                ? CategorySaveResult
+                : AccountWriteResult;
 
 /** One answered op, for the client to fold into its view (and pass to other tabs). */
 export type MoneyEvent =
   | { op: TxnSaveOp; result: TxnSaveResult; more: boolean }
   | { op: TxnDeleteOp; result: TxnDeleteResult; more: boolean }
   | { op: AccountSaveOp | AccountArchiveOp; result: AccountWriteResult; more: boolean }
+  | { op: CategorySaveOp; result: CategorySaveResult; more: boolean }
   | { op: SubSaveOp; result: SubSaveResult; more: boolean }
-  | { op: SubDeleteOp; result: SubDeleteResult; more: boolean };
+  | { op: SubDeleteOp; result: SubDeleteResult; more: boolean }
+  | { op: BudgetSaveOp; result: BudgetSaveResult; more: boolean }
+  | { op: RuleSaveOp; result: RuleSaveResult; more: boolean }
+  | { op: BudgetDeleteOp | RuleDeleteOp; result: PlanDeleteResult; more: boolean };
 
 export const txnKey = (id: string) => `txn:${id}`;
 export const accountKey = (id: string) => `account:${id}`;
 export const subKey = (id: string) => `sub:${id}`;
+export const categoryKey = (id: string) => `category:${id}`;
+export const budgetKey = (id: string) => `budget:${id}`;
+export const ruleKey = (id: string) => `rule:${id}`;
 
 export function keyOf(w: MoneyWrite): string {
   switch (w.kind) {
@@ -91,11 +127,20 @@ export function keyOf(w: MoneyWrite): string {
     case "account-save":
     case "account-archive":
       return accountKey(w.account.id);
+    case "category-save":
+      return categoryKey(w.category.id);
+    case "budget-save":
+    case "budget-delete":
+      return budgetKey(w.budget.id);
+    case "rule-save":
+    case "rule-delete":
+      return ruleKey(w.rule.id);
   }
 }
 
-/** A save or delete of one row that carries the whole row: txns and subscriptions. */
-const isRowWrite = (kind: MoneyOp["kind"]) => kind === "txn-save" || kind === "txn-delete" || kind === "sub-save" || kind === "sub-delete";
+/** A save or delete of one row that carries the whole row: everything but accounts and categories. */
+const isRowWrite = (kind: MoneyOp["kind"]) => kind !== "account-save" && kind !== "account-archive" && kind !== "category-save";
+const isRowSave = (kind: MoneyOp["kind"]) => kind === "txn-save" || kind === "sub-save" || kind === "budget-save" || kind === "rule-save";
 
 /**
  * Whether a new op makes an older queued one redundant: a txn (or
@@ -108,7 +153,7 @@ const isRowWrite = (kind: MoneyOp["kind"]) => kind === "txn-save" || kind === "t
  */
 export function supersedes(next: MoneyOp, old: MoneyOp, inFlight: string | null): boolean {
   if (!isRowWrite(next.kind)) return false;
-  return (old.kind === "txn-save" || old.kind === "sub-save") && old.key === next.key && !old.tried && old.opId !== inFlight;
+  return isRowSave(old.kind) && old.key === next.key && !old.tried && old.opId !== inFlight;
 }
 
 /** The device side of the queue. Every step is atomic across tabs. */

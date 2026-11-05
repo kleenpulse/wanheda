@@ -27,11 +27,17 @@ import {
   Sun,
   Timer as TimerIcon,
   DollarSign,
+  Download,
+  Eye,
+  EyeOff,
+  Target,
   Wallpaper,
+  Wand2,
   X,
   type LucideIcon,
 } from "lucide-react";
 import { signOutOk } from "@/components/auth/account-actions";
+import { togglePrivacy, usePrivacy } from "@/components/money/privacy";
 import { lastAccountId, newTxn, useMoney, useMoneyApi, useNewSubscription } from "@/components/money/use-money";
 import { useNoteSearch, useNotesApi } from "@/components/notes/notes-provider";
 import { useNotifications } from "@/components/notifications/notifications-provider";
@@ -169,6 +175,7 @@ function PaletteBody({
   const moneyQuery = typedTimer === null && captured === null && looksLikeQuickAdd(query) ? query : null;
   const money = useMoney({ enabled: moneyQuery !== null });
   const moneyApi = useMoneyApi();
+  const privacy = usePrivacy();
   const quick =
     moneyQuery !== null && money.data
       ? parseQuickAdd(moneyQuery, {
@@ -412,6 +419,41 @@ function PaletteBody({
             title="Open subscriptions"
             onSelect={run(() => {
               router.push("/money/subscriptions");
+            })}
+          />
+          <Item
+            value="money-privacy"
+            keywords={["privacy", "hide", "show", "amounts", "blur", "figures", "screen", "share"]}
+            icon={privacy ? Eye : EyeOff}
+            title={privacy ? "Show amounts" : "Hide amounts (privacy mode)"}
+            hint="H"
+            onSelect={run(togglePrivacy)}
+          />
+          <Item
+            value="money-budgets"
+            keywords={["budget", "budgets", "limit", "spending", "month", "envelope"]}
+            icon={Target}
+            title="Open budgets"
+            onSelect={run(() => {
+              router.push("/money/budgets");
+            })}
+          />
+          <Item
+            value="money-rules"
+            keywords={["rules", "rule", "auto", "categorise", "categorize", "payee", "tag"]}
+            icon={Wand2}
+            title="Open rules"
+            onSelect={run(() => {
+              router.push("/money/rules");
+            })}
+          />
+          <Item
+            value="money-export"
+            keywords={["export", "download", "csv", "json", "backup", "money"]}
+            icon={Download}
+            title="Export money (CSV, JSON)"
+            onSelect={run(() => {
+              router.push("/settings?s=money");
             })}
           />
         </Command.Group>

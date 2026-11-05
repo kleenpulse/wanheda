@@ -1,6 +1,6 @@
 # Latest hand-off
 
-**Newest:** [2026-11-05-phase-3-import.md](2026-11-05-phase-3-import.md). **Phase 3 CP4 import built, PR #20 open** (`phase-3/import`, off main `3fa1a58`, commit `8fd541b`): statement import (Web Worker read of CSV / XLSX / HTML-table, saved mappings, 12 bank presets, preview with new / already here / skipped, one-transaction import per V32, "already imported on <date>", undo with confirm) and recurring suggestions on Subscriptions (`detected_from_txn` set by the server). Reviewer: FIX (ref key length) → LGTM. Vitest 52 files / 647, typecheck, tripwire, build all pass. Not done: browser run, owner import against Neon. SPEC T37 + §B B15–B17 drafted in the hand-off, waiting for the user's OK. PR #19 merged as `3fa1a58`. Next: merge #20, then T38 in a new session.
+**Newest:** [2026-11-05-phase-3-budgets-fx.md](2026-11-05-phase-3-budgets-fx.md). **Phase 3 CP5 (T38) built, PR #21 open** (`phase-3/budgets-fx`, off main `e52e152`, commit `76307c5`, all in one PR with the UI session's edits by the user's choice): daily FX (fawazahmed0, fetched on read) with converted headline totals and an "all in base" analytics mode; budgets with rollover, 80/100 % alerts (centre + island) and the pace-line budget level; rules on entry and import; privacy mode as dots (H, palette, top-bar eye on every page); base currency in Settings; CSV/JSON export; Home widgets (spent today, budgets, pinned billing-cycle card); "Other" → name a real category; stronger dark dock shadow. No new SQL. Vitest 58 files / 690, typecheck, tripwire, build pass; demo browser run done; owner run on Neon not done. SPEC T37 draft applied in the tree; T38 draft in the hand-off.
 
 Read the hand-off first, then verify it against the repo before trusting it (git, tripwire, typecheck, tests). The Builder and Reviewer prompts below are copied from it.
 
@@ -13,14 +13,14 @@ commit; commit, push and PRs only on the user's word; a short hand-off + continu
 after every PR. No worktrees: branch off main in D:\Vxrcel\wanheda itself. One checkpoint per
 session: after its PR merges, stop and hand over. House goal (CLAUDE.md): native-app feel, V24.
 
-Read docs/handoff/2026-11-05-phase-3-import.md first. PR #20 (T37 import) was open at
-hand-off. Start: `git fetch`; check new commits with `sh scripts/forged-commits.sh
-3fa1a58..origin/main` before pulling; fast-forward main. Another session was making UI
-changes in the working tree: check `git status` and leave its files alone unless the user says.
-If the user OKs the SPEC draft in the hand-off, apply it with the spec skill. Then Phase 3 CP5:
-T38 (budgets + 80/100 % alerts, rules, FX daily + base-currency picker, privacy mode, Home money
-widgets, export) on branch phase-3/budgets-fx. Any new package: pinned, >= 7 days old,
-supply-chain read first. Any new SQL: generate, show it, apply only on the user's go-ahead.
+Read docs/handoff/2026-11-05-phase-3-budgets-fx.md first. T38 is PR #21 (phase-3/budgets-fx,
+`76307c5`, with the UI session's edits in the same PR). Start:
+`git fetch`; check new commits with `sh scripts/forged-commits.sh e52e152..origin/main` before
+pulling. If T38 is merged, fast-forward main and, on the user's OK, apply the SPEC draft with the
+spec skill. Then Phase 3 exit T39 (same statement twice ⇒ 0 rows and says so; sub due in 3 d ⇒
+island + notification; month totals = hand count; recurrence from 3 months imported; all of
+lib/money unit-tested; Phase 3 done hand-off with Phase 4 prompts). Never bunx a tool that is not
+pinned in package.json. Any new SQL: generate, show it, apply only on the user's go-ahead.
 ```
 
 ### Reviewer prompt
@@ -29,6 +29,8 @@ supply-chain read first. Any new SQL: generate, show it, apply only on the user'
 You are the REVIEWER session for Wanheda at D:\Vxrcel\wanheda. Use the diff-reviewer skill;
 read-only. Lean mode: review when the user asks, one pass per PR, bugs and edge cases only,
 verdict LGTM / LGTM with nits / FIX, sent to the Builder. Your LGTM is not the user's approval.
-Target: the post-push / post-merge check of PR #20 (phase-3/import), then the next T38 PR.
-Context: docs/handoff/2026-11-05-phase-3-import.md, SPEC.md V12, V24, V28, V32.
+Target: the T38 PR (phase-3/budgets-fx): FX conversion and fetch (lib/money/fx.ts, fx-store.ts),
+budgets + alerts, rules on entry and import, outbox ops (budget/rule/category), privacy masking,
+export (CSV injection), Home widgets. Context: docs/handoff/2026-11-05-phase-3-budgets-fx.md,
+SPEC.md V24–V32.
 ```

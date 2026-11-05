@@ -3,9 +3,10 @@
 import * as React from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { motion } from "motion/react";
-import { ChevronLeft, ChevronRight, Keyboard, Palette, Timer, UserRound, type LucideIcon } from "lucide-react";
+import { ChevronLeft, ChevronRight, Keyboard, Palette, Timer, UserRound, Wallet, type LucideIcon } from "lucide-react";
 import { AddPasskeyButton, SignOutButton } from "@/components/auth/account-actions";
 import { AppearanceSection, PrefsNote, TimersSection } from "@/components/settings/appearance-prefs";
+import { MoneySection } from "@/components/settings/money-prefs";
 import { SettingRow, SettingsCard } from "@/components/settings/setting-row";
 import { useAccount } from "@/components/shell/account";
 import { Kbd } from "@/components/ui/kbd";
@@ -44,6 +45,12 @@ const SECTIONS = {
     group: "Preferences",
     icon: Timer,
     prefs: true,
+  },
+  money: {
+    label: "Money",
+    blurb: "The base currency, hiding amounts and the export.",
+    group: "Preferences",
+    icon: Wallet,
   },
   keyboard: { label: "Keyboard", blurb: "The shortcuts that work anywhere in Wanheda.", group: "Preferences", icon: Keyboard },
   account: { label: "Account", blurb: "Who is signed in, passkeys and signing out.", group: "You", icon: UserRound },
@@ -226,6 +233,7 @@ const SHORTCUTS: readonly { keys: readonly string[]; label: string; description:
   { keys: ["Ctrl", "K"], label: "Command palette", description: "Open or close it from anywhere. ⌘K on a Mac." },
   { keys: ["/"], label: "Command palette, while not typing", description: "Opens it when no text field has focus." },
   { keys: ["["], label: "Sidebar", description: "Expand or collapse the rail." },
+  { keys: ["H"], label: "Privacy mode", description: "Shows every amount as dots on this device, while no text field has focus." },
   { keys: ["←", "→"], label: "Island activities", description: "Step through live activities while the island is open." },
   { keys: ["Esc"], label: "Close", description: "Closes the palette, the island card, a mini window or the notification centre." },
 ];
@@ -279,6 +287,7 @@ function AccountSection() {
 const BODIES: Record<SectionId, () => React.ReactNode> = {
   appearance: AppearanceSection,
   timers: TimersSection,
+  money: MoneySection,
   keyboard: KeyboardSection,
   account: AccountSection,
 };

@@ -2,29 +2,29 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { CalendarClock, ExternalLink } from "lucide-react";
+import { CalendarClock, ExternalLink, Target } from "lucide-react";
 import { useIsland, type IslandActivity } from "@/components/island/live-activity";
 import { MoneyText } from "@/components/money/money-text";
 import { useMoney } from "@/components/money/use-money";
 import { useNotifications } from "@/components/notifications/notifications-provider";
 import { useNow } from "@/hooks/use-now";
+import { BUDGETS_HREF, budgetName, parseBudgetAlertKey, type Budget } from "@/lib/money/budgets";
 import { daysBetween, DEFAULT_TIME_ZONE, shortDayLabel, todayIn, type Day } from "@/lib/money/dates";
+import { byId, type Category } from "@/lib/money/money";
 import { dueLabel, parseAlertKey, SUBSCRIPTIONS_HREF, type SubEventKind, type Subscription } from "@/lib/money/subscriptions";
 import type { Notice } from "@/lib/notifications/notifications";
 import { cn } from "@/lib/utils";
 
 // The island's `money-alert` (V31): derived from the same facts as the
-// notification centre, the unread subscription reminders, so the two never
-// disagree. One stays until it is dismissed (marked read) or its day passes.
-// When the money cache is on the device, a subscription since paused,
-// cancelled or deleted drops out, and the card can show the amount.
+// notification centre, the unread money notices, so the two never disagree.
+// A subscription reminder stays until it is dismissed (marked read) or its
+// day passes; a budget alert until it is dismissed or its month ends. When
+// the money cache is on the device, a subscription since paused, cancelled or
+// deleted drops out (as does a deleted budget), and the card can show more.
 
-export interface MoneyAlert {
-  notice: Notice;
-  on: Day;
-  kind: SubEventKind;
-  sub: Subscription | undefined;
-}
+export type MoneyAlert =
+  | { type: "sub"; notice: Notice; on: Day; kind: SubEventKind; sub: Subscription | undefined }
+  | { type: "budget"; notice: Notice; month: string; level: 80 | 100; budget: Budget | undefined; name: string };
 
 export function useMoneyAlerts(): { alerts: MoneyAlert[]; today: Day } {
   const { notices } = useNotifications();
@@ -33,22 +33,74 @@ export function useMoneyAlerts(): { alerts: MoneyAlert[]; today: Day } {
   const now = useNow(60_000);
   const today = todayIn(data?.timeZone ?? DEFAULT_TIME_ZONE, now === null ? new Date() : new Date(now));
   const subs = data?.subscriptions;
+  const budgets = data?.budgets;
+  const categories = data?.categories;
   const alerts = React.useMemo(() => {
     const out: MoneyAlert[] = [];
+    const cats: ReadonlyMap<string, Category> = byId(categories ?? []);
     for (const notice of notices) {
       if (notice.kind !== "money" || notice.readAt !== null) continue;
       const key = parseAlertKey(notice.dedupeKey);
-      if (!key || key.on < today) continue;
-      const sub = subs?.find((s) => s.id === key.subId);
-      if (subs && (!sub || sub.status !== "active")) continue;
-      out.push({ notice, on: key.on, kind: key.kind, sub });
+      if (key) {
+        if (key.on < today) continue;
+        const sub = subs?.find((s) => s.id === key.subId);
+        if (subs && (!sub || sub.status !== "active")) continue;
+        out.push({ type: "sub", notice, on: key.on, kind: key.kind, sub });
+        continue;
+      }
+      const b = parseBudgetAlertKey(notice.dedupeKey);
+      if (!b || b.month !== today.slice(0, 7)) continue;
+      const budget = budgets?.find((x) => (b.target === "all" ? x.categoryId === null : x.id === b.target));
+      if (budgets && !budget) continue;
+      out.push({ type: "budget", notice, month: b.month, level: b.level, budget, name: budget ? budgetName(budget, cats) : notice.title });
     }
-    return out.sort((a, b) => (a.on < b.on ? -1 : a.on > b.on ? 1 : 0));
-  }, [notices, subs, today]);
+    // Renewals by date first, then budgets (fullest first).
+    const at = (a: MoneyAlert) => (a.type === "sub" ? a.on : "9999");
+    return out.sort((a, b) => (at(a) < at(b) ? -1 : at(a) > at(b) ? 1 : a.type === "budget" && b.type === "budget" ? b.level - a.level : 0));
+  }, [notices, subs, budgets, categories, today]);
   return { alerts, today };
 }
 
-function AlertCard({ alert, today }: { alert: MoneyAlert; today: Day }) {
+type SubAlertView = Extract<MoneyAlert, { type: "sub" }>;
+type BudgetAlertView = Extract<MoneyAlert, { type: "budget" }>;
+
+function BudgetCard({ alert }: { alert: BudgetAlertView }) {
+  const { collapse } = useIsland();
+  const { markRead } = useNotifications();
+  const router = useRouter();
+  return (
+    <div className="flex flex-col gap-4 p-5">
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <p className="text-xs font-medium text-island-foreground/70">Budget</p>
+          <p className="truncate text-lg leading-tight font-semibold text-island-foreground">{alert.name}</p>
+        </div>
+        <p className={cn("tabular shrink-0 text-[1.75rem] leading-none font-light text-signal", alert.level !== 100 && "font-figure")}>{alert.level === 100 ? "Used up" : "80%"}</p>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <IslandButton
+          tone="signal"
+          onClick={() => {
+            collapse();
+            router.push(BUDGETS_HREF);
+          }}
+        >
+          Open
+        </IslandButton>
+        <IslandButton
+          onClick={() => {
+            collapse();
+            markRead([alert.notice.id]);
+          }}
+        >
+          Dismiss
+        </IslandButton>
+      </div>
+    </div>
+  );
+}
+
+function AlertCard({ alert, today }: { alert: SubAlertView; today: Day }) {
   const { collapse } = useIsland();
   const { markRead } = useNotifications();
   const router = useRouter();
@@ -126,6 +178,16 @@ function shortDue(on: Day, today: Day): string {
 }
 
 export function moneyAlertActivity(alert: MoneyAlert, today: Day): IslandActivity {
+  if (alert.type === "budget") {
+    return {
+      id: `money:${alert.notice.id}`,
+      label: `${alert.name} budget`,
+      status: alert.level === 100 ? ", used up" : ", 80 % used",
+      leading: <Target aria-hidden className="size-3.5 text-signal" />,
+      trailing: <span className="tabular font-figure text-sm font-semibold text-signal">{alert.level === 100 ? "100%" : "80%"}</span>,
+      expanded: <BudgetCard alert={alert} />,
+    };
+  }
   const name = alert.sub?.name ?? alert.notice.title;
   return {
     id: `money:${alert.notice.id}`,

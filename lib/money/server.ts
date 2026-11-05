@@ -24,6 +24,8 @@ export async function moneyFor(owner: Owner): Promise<MoneyPayload> {
       txns: [],
       priorMinor: {},
       subscriptions: [],
+      budgets: [],
+      rules: [],
     };
   }
   return {
@@ -37,6 +39,8 @@ export async function moneyFor(owner: Owner): Promise<MoneyPayload> {
     priorMinor: loaded.priorMinor,
     windowTruncated: loaded.truncated,
     subscriptions: loaded.subscriptions,
+    budgets: loaded.budgets,
+    rules: loaded.rules,
   };
 }
 

@@ -18,7 +18,7 @@ export function ClockWidget() {
     <WidgetCard title="Clock" icon={Clock} note={zone}>
       <div className="flex flex-1 flex-col justify-end">
         {/* Same box before mount, so the card doesn't jump when the time arrives. */}
-        <p className="font-display text-kpi tabular text-foreground" aria-live="off">
+        <p className="font-figure text-kpi tabular text-foreground" aria-live="off">
           {now === null ? <span className="invisible">00:00</span> : <time dateTime={new Date(now).toISOString()}>{time.format(now)}</time>}
         </p>
         <p className="mt-1.5 truncate text-[13px] text-ink-2">{now === null ? " " : date.format(now)}</p>

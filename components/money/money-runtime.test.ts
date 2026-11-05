@@ -9,6 +9,7 @@ import { seedMoney } from "@/lib/money/seed";
 import { createMoneyRuntime, useMoneyLocal } from "./money-runtime";
 
 vi.mock("@/actions/money", () => ({}));
+vi.mock("@/actions/plans", () => ({}));
 vi.mock("@/components/ui/toaster", () => ({ toast: vi.fn() }));
 vi.mock("@/lib/notifications/inbox", () => ({ pushNotices: vi.fn() }));
 

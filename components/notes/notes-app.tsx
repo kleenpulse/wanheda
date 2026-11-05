@@ -11,7 +11,7 @@ import { Kbd } from "@/components/ui/kbd";
 import { buttonClass } from "@/components/ui/button";
 import { Segmented } from "@/components/ui/segmented";
 import { useNow } from "@/hooks/use-now";
-import { checklistProgress, displayTitle, excerpt, type Note } from "@/lib/notes/notes";
+import { checklistProgress, displayTitle, excerpt, isBlank, type Note } from "@/lib/notes/notes";
 import { relativeTime } from "@/lib/notifications/notifications";
 import { cn } from "@/lib/utils";
 
@@ -94,6 +94,12 @@ export function NotesApp() {
   const selected = url.id ? (notes.find((n) => n.id === url.id) ?? null) : null;
 
   const newNote = () => {
+    // The open note is already an empty "New note": keep it instead of swapping in another
+    // (the old draft drops a tick late, so both would flash in the list).
+    if (selected && !selected.archived && selected.version === 0 && isBlank(selected)) {
+      rootRef.current?.querySelector<HTMLTextAreaElement>('article[aria-label="Note"] textarea')?.focus();
+      return;
+    }
     // On the board, the new sticky lands in the middle of the view.
     const place = url.view === "board" ? boardRef.current?.centerPlace() : undefined;
     const view = url.view === "archive" ? "notes" : url.view;

@@ -1,39 +1,54 @@
 import type { QueryClient } from "@tanstack/react-query";
 import { create } from "zustand";
-import { archiveAccount, deleteSubscription, deleteTxn, saveAccount, saveSubscription, saveTxn } from "@/actions/money";
+import { archiveAccount, deleteSubscription, deleteTxn, saveAccount, saveCategory, saveSubscription, saveTxn } from "@/actions/money";
+import { deleteBudget, deleteRule, saveBudget, saveRule } from "@/actions/plans";
 import { toast } from "@/components/ui/toaster";
+import { budgetWriteOf, upsertBudgetIn, type Budget } from "@/lib/money/budgets";
 import { formatMoney } from "@/lib/money/currency";
 import {
   MONEY_KEY,
   MONEY_RANGE_KEY,
   removeSubscription,
   removeTxn,
+  categoryWriteOf,
   upsertAccount,
+  upsertCategory,
   upsertSubscription,
   upsertTxn,
   writeOf,
   type Account,
+  type Category,
   type MoneyPayload,
   type PendingAccounts,
+  type PendingBudgets,
+  type PendingCategories,
+  type PendingRules,
   type PendingSubscriptions,
   type PendingTxns,
   type Txn,
   type TxnRangePayload,
 } from "@/lib/money/money";
+import { ruleWriteOf, upsertRuleIn, type Rule } from "@/lib/money/rules";
 import { subscriptionWriteOf, type Subscription } from "@/lib/money/subscriptions";
 import { pushNotices } from "@/lib/notifications/inbox";
 import {
+  budgetKey,
   MemoryMoneyStore,
   MoneyOutbox,
+  ruleKey,
   subKey,
   txnKey,
   type AccountWriteResult,
+  type BudgetSaveResult,
+  type CategorySaveResult,
   type MoneyEvent,
   type MoneyOp,
   type MoneyOutboxOptions,
   type MoneyQueueStore,
   type MoneyResult,
   type MoneyWrite,
+  type PlanDeleteResult,
+  type RuleSaveResult,
   type SubDeleteResult,
   type SubSaveResult,
   type TxnDeleteResult,
@@ -62,16 +77,20 @@ interface MoneyLocal {
   accounts: PendingAccounts;
   /** Subscription writes not yet confirmed, like `txns`. */
   subs: PendingSubscriptions;
+  budgets: PendingBudgets;
+  rules: PendingRules;
+  categories: PendingCategories;
   /** Ops waiting in the outbox, across tabs. */
   queued: number;
 }
 
-export const useMoneyLocal = create<MoneyLocal>(() => ({ txns: {}, accounts: {}, subs: {}, queued: 0 }));
+export const useMoneyLocal = create<MoneyLocal>(() => ({ txns: {}, accounts: {}, subs: {}, budgets: {}, rules: {}, categories: {}, queued: 0 }));
 
-/** The two overlays of whole rows: txns and subscriptions share their rules. */
-type RowLayer = "txns" | "subs";
+/** The overlays of whole rows: txns, subscriptions, budgets and rules share their rules. */
+export type RowLayer = "txns" | "subs" | "budgets" | "rules";
+type Row = Txn | Subscription | Budget | Rule;
 
-function setPendingRow(layer: RowLayer, id: string, row: Txn | Subscription | null) {
+function setPendingRow(layer: RowLayer, id: string, row: Row | null) {
   useMoneyLocal.setState((s) => ({ [layer]: { ...s[layer], [id]: row } }));
 }
 
@@ -95,6 +114,18 @@ function setPendingAccount(account: Account) {
   useMoneyLocal.setState((s) => ({ accounts: { ...s.accounts, [account.id]: account } }));
 }
 
+function setPendingCategory(c: Category) {
+  useMoneyLocal.setState((s) => ({ categories: { ...s.categories, [c.id]: c } }));
+}
+
+function clearPendingCategory(id: string) {
+  useMoneyLocal.setState((s) => {
+    if (!(id in s.categories)) return s;
+    const { [id]: _gone, ...rest } = s.categories;
+    return { categories: rest };
+  });
+}
+
 function clearPendingAccount(id: string) {
   useMoneyLocal.setState((s) => {
     if (!(id in s.accounts)) return s;
@@ -114,9 +145,24 @@ function describeSub(s: Subscription): string {
   return s.name || "subscription";
 }
 
+/** How a budget or a rule is named in a toast. */
+function describePlan(w: { budget: Budget } | { rule: Rule }): string {
+  return "rule" in w ? `rule "${w.rule.payeeContains}"` : "budget";
+}
+
 /** Sends one op through its server action. A thrown request counts as failed. */
 function sendOp(op: MoneyOp): Promise<MoneyResult> {
   switch (op.kind) {
+    case "category-save":
+      return saveCategory(categoryWriteOf(op.category));
+    case "budget-save":
+      return saveBudget(budgetWriteOf(op.budget));
+    case "budget-delete":
+      return deleteBudget({ id: op.budget.id });
+    case "rule-save":
+      return saveRule(ruleWriteOf(op.rule));
+    case "rule-delete":
+      return deleteRule({ id: op.rule.id });
     case "sub-save":
       return saveSubscription(subscriptionWriteOf(op.subscription));
     case "sub-delete":
@@ -167,6 +213,16 @@ export interface MoneyRuntime {
   /** `account.archived` is the state wanted. */
   archiveAccount: (account: Account) => void;
   saveSubscription: (sub: Subscription) => void;
+  /** A category named in the form. Queued before the txn that uses it, so it lands first. */
+  saveCategory: (category: Category) => void;
+  saveBudget: (budget: Budget) => void;
+  /** The undo window ran out: the delete is queued. */
+  deleteBudget: (budget: Budget) => void;
+  saveRule: (rule: Rule) => void;
+  deleteRule: (rule: Rule) => void;
+  /** Hides a budget or rule while its undo toast runs. Returns what was shown, for `unhideRow`. */
+  hideRow: (layer: "budgets" | "rules", id: string) => Budget | Rule | null | undefined;
+  unhideRow: (layer: "budgets" | "rules", id: string, before: Budget | Rule | null | undefined) => void;
   /** Like `hideTxn`, for a subscription's undo toast. */
   hideSubscription: (id: string) => Subscription | null | undefined;
   unhideSubscription: (id: string, before: Subscription | null | undefined) => void;
@@ -238,6 +294,69 @@ export function createMoneyRuntime(qc: QueryClient, demo: boolean, overrides: Pa
   /** What an answered op means for this tab's view. Runs in every tab; only the sender's tab speaks. */
   const applyEvent = (event: MoneyEvent, local: boolean) => {
     const { op, more } = event;
+    if (op.kind === "category-save") {
+      const result = event.result as CategorySaveResult;
+      const id = op.category.id;
+      if (result.ok) {
+        const saved = result.category;
+        void confirm(
+          (p) => upsertCategory(p, saved),
+          () => {
+            if (!more) clearPendingCategory(id);
+          },
+        );
+        return;
+      }
+      if (!more) clearPendingCategory(id);
+      if (local) {
+        // Entries still waiting with it fall back to no category, so they land rather than being refused too.
+        for (const t of Object.values(useMoneyLocal.getState().txns)) {
+          if (t?.categoryId === id) enqueue({ kind: "txn-save", txn: { ...t, categoryId: null } });
+        }
+        toast({ title: `Not saved: category ${op.category.name}`, body: "The server refused it. Entries that used it were kept without a category." });
+      }
+      return;
+    }
+    if (op.kind === "budget-save" || op.kind === "rule-save") {
+      const layer = op.kind === "budget-save" ? "budgets" : "rules";
+      const id = op.kind === "budget-save" ? op.budget.id : op.rule.id;
+      const result = event.result as BudgetSaveResult | RuleSaveResult;
+      if (result.ok) {
+        if ("budget" in result) pushNotices(result.notices);
+        void confirm(
+          (p) => ("budget" in result ? { ...p, budgets: upsertBudgetIn(p.budgets ?? [], result.budget) } : { ...p, rules: upsertRuleIn(p.rules ?? [], result.rule) }),
+          () => {
+            settleRow(layer, id, more, false);
+          },
+        );
+        return;
+      }
+      settleRow(layer, id, more, false);
+      if (local) {
+        toast({
+          title: `Not saved: ${describePlan(op)}`,
+          body: result.reason === "taken" ? "That category already has a budget. Edit that one instead." : "The server refused it. Reload and try again.",
+        });
+      }
+      return;
+    }
+    if (op.kind === "budget-delete" || op.kind === "rule-delete") {
+      const layer = op.kind === "budget-delete" ? "budgets" : "rules";
+      const id = op.kind === "budget-delete" ? op.budget.id : op.rule.id;
+      const result = event.result as PlanDeleteResult;
+      if (result.ok) {
+        void confirm(
+          (p) => (layer === "budgets" ? { ...p, budgets: (p.budgets ?? []).filter((b) => b.id !== id) } : { ...p, rules: (p.rules ?? []).filter((r) => r.id !== id) }),
+          () => {
+            settleRow(layer, id, more, true);
+          },
+        );
+        return;
+      }
+      settleRow(layer, id, more, true);
+      if (local) toast({ title: `Not deleted: ${describePlan(op)}`, body: "The server refused it. Reload and try again." });
+      return;
+    }
     if (op.kind === "sub-save") {
       const result = event.result as SubSaveResult;
       const id = op.subscription.id;
@@ -279,6 +398,7 @@ export function createMoneyRuntime(qc: QueryClient, demo: boolean, overrides: Pa
       if (result.ok) {
         const prior = touchesPrior(op.txn);
         const saved = result.txn;
+        if (result.notices) pushNotices(result.notices);
         void confirm(
           (p) => upsertTxn(p, saved),
           () => {
@@ -363,6 +483,11 @@ export function createMoneyRuntime(qc: QueryClient, demo: boolean, overrides: Pa
     else if (w.kind === "txn-delete") setPendingTxn(w.txn.id, null);
     else if (w.kind === "sub-save") setPendingRow("subs", w.subscription.id, w.subscription);
     else if (w.kind === "sub-delete") setPendingRow("subs", w.subscription.id, null);
+    else if (w.kind === "category-save") setPendingCategory(w.category);
+    else if (w.kind === "budget-save") setPendingRow("budgets", w.budget.id, w.budget);
+    else if (w.kind === "budget-delete") setPendingRow("budgets", w.budget.id, null);
+    else if (w.kind === "rule-save") setPendingRow("rules", w.rule.id, w.rule);
+    else if (w.kind === "rule-delete") setPendingRow("rules", w.rule.id, null);
     else setPendingAccount(w.account);
   };
 
@@ -383,6 +508,29 @@ export function createMoneyRuntime(qc: QueryClient, demo: boolean, overrides: Pa
           what: describeSub(w.subscription),
           drop: () => {
             clearPendingRow("subs", w.subscription.id);
+          },
+        };
+      case "category-save":
+        return {
+          what: `category ${w.category.name}`,
+          drop: () => {
+            clearPendingCategory(w.category.id);
+          },
+        };
+      case "budget-save":
+      case "budget-delete":
+        return {
+          what: describePlan(w),
+          drop: () => {
+            clearPendingRow("budgets", w.budget.id);
+          },
+        };
+      case "rule-save":
+      case "rule-delete":
+        return {
+          what: describePlan(w),
+          drop: () => {
+            clearPendingRow("rules", w.rule.id);
           },
         };
       case "account-save":
@@ -406,7 +554,7 @@ export function createMoneyRuntime(qc: QueryClient, demo: boolean, overrides: Pa
       }
       const { what, drop } = describeWrite(w);
       drop();
-      const deleting = w.kind === "txn-delete" || w.kind === "sub-delete";
+      const deleting = w.kind.endsWith("-delete");
       toast({ title: `Not ${deleting ? "deleted" : "saved"}: ${what}`, body: "This device couldn't keep it. Try again." });
     });
   };
@@ -456,7 +604,7 @@ export function createMoneyRuntime(qc: QueryClient, demo: boolean, overrides: Pa
   };
 
   /** Undo: shows the row again. A save of it may still be queued: its local copy shows until it lands. */
-  const unhideRow = (layer: RowLayer, key: string, id: string, before: Txn | Subscription | null | undefined) => {
+  const unhideRow = (layer: RowLayer, key: string, id: string, before: Row | null | undefined) => {
     if (!before) {
       clearPendingRow(layer, id);
       return;
@@ -528,6 +676,51 @@ export function createMoneyRuntime(qc: QueryClient, demo: boolean, overrides: Pa
         return;
       }
       enqueue({ kind: "sub-delete", subscription: sub });
+    },
+    saveCategory(category) {
+      if (demo) {
+        writeCache((p) => upsertCategory(p, category));
+        return;
+      }
+      enqueue({ kind: "category-save", category });
+    },
+    saveBudget(budget) {
+      if (demo) {
+        writeCache((p) => ({ ...p, budgets: upsertBudgetIn(p.budgets ?? [], budget) }));
+        return;
+      }
+      enqueue({ kind: "budget-save", budget });
+    },
+    deleteBudget(budget) {
+      if (demo) {
+        writeCache((p) => ({ ...p, budgets: (p.budgets ?? []).filter((b) => b.id !== budget.id) }));
+        clearPendingRow("budgets", budget.id);
+        return;
+      }
+      enqueue({ kind: "budget-delete", budget });
+    },
+    saveRule(rule) {
+      if (demo) {
+        writeCache((p) => ({ ...p, rules: upsertRuleIn(p.rules ?? [], rule) }));
+        return;
+      }
+      enqueue({ kind: "rule-save", rule });
+    },
+    deleteRule(rule) {
+      if (demo) {
+        writeCache((p) => ({ ...p, rules: (p.rules ?? []).filter((r) => r.id !== rule.id) }));
+        clearPendingRow("rules", rule.id);
+        return;
+      }
+      enqueue({ kind: "rule-delete", rule });
+    },
+    hideRow(layer, id) {
+      const before = useMoneyLocal.getState()[layer][id];
+      setPendingRow(layer, id, null);
+      return before;
+    },
+    unhideRow(layer, id, before) {
+      unhideRow(layer, layer === "budgets" ? budgetKey(id) : ruleKey(id), id, before);
     },
     start,
     boot: () => boot(),

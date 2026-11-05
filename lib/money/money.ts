@@ -1,7 +1,9 @@
 import { z } from "zod";
-import { type CategoryColor, type CategoryKind } from "./categories";
+import { CATEGORY_COLORS, type CategoryColor, type CategoryKind } from "./categories";
 import { assertMinor, CURRENCY_CODES, sumByCurrency, type Currency, type Money } from "./currency";
+import type { Budget } from "./budgets";
 import { isDay, type Day } from "./dates";
+import type { Rule } from "./rules";
 import type { Subscription } from "./subscriptions";
 
 // The money domain (FRD 6.3). Pure: shared by the store, the actions, the
@@ -76,6 +78,10 @@ export interface MoneyPayload {
   windowTruncated?: boolean;
   /** Every subscription, any status. Optional because a cached payload may predate them. */
   subscriptions?: Subscription[];
+  /** Monthly budgets (T38). Optional because a cached payload may predate them. */
+  budgets?: Budget[];
+  /** Categorisation rules (T38), any order: `orderRules` sorts them. Optional like `budgets`. */
+  rules?: Rule[];
 }
 
 /** A page of txns for a range older than the loaded window (`GET /api/money/range`). */
@@ -138,6 +144,61 @@ export const accountWriteSchema = z
   .strict();
 
 export type AccountWrite = z.infer<typeof accountWriteSchema>;
+
+export const CATEGORY_NAME_MAX = 40;
+/** What a category made from a form ("Other" → a name) looks like. */
+export const NEW_CATEGORY_EMOJI = "🏷️";
+
+/**
+ * One category the owner makes (user 2026-11-05: naming "Other" in the form
+ * makes a real category). Top level only, expense or income; never a slug,
+ * so removing it deletes it rather than archiving it (V29).
+ */
+export const categoryWriteSchema = z
+  .object({
+    id: z.uuid(),
+    name: z.string().trim().min(1).max(CATEGORY_NAME_MAX),
+    kind: z.enum(["expense", "income"]),
+    emoji: z.string().trim().min(1).max(16),
+    color: z.enum(CATEGORY_COLORS),
+  })
+  .strict();
+
+export type CategoryWrite = z.infer<typeof categoryWriteSchema>;
+
+export function categoryWriteOf(c: Category): CategoryWrite {
+  return { id: c.id, name: c.name, kind: c.kind === "income" ? "income" : "expense", emoji: c.emoji, color: c.color };
+}
+
+const squashName = (s: string) => s.trim().replace(/\s+/g, " ").toLocaleLowerCase();
+
+/** A live category of this kind with this name (case and spacing ignored), to reuse instead of making a twin. */
+export function findCategoryByName(categories: readonly Category[], name: string, kind: CategoryKind): Category | null {
+  const want = squashName(name);
+  if (want === "") return null;
+  return categories.find((c) => !c.archived && c.kind === kind && squashName(c.name) === want) ?? null;
+}
+
+/** A new top-level category for a typed name. */
+export function newCategory(id: string, name: string, kind: "expense" | "income"): Category {
+  return { id, slug: null, name: name.trim().replace(/\s+/g, " ").slice(0, CATEGORY_NAME_MAX), parentId: null, emoji: NEW_CATEGORY_EMOJI, color: "slate", kind, archived: false };
+}
+
+/** Replaces or adds a category in a payload (optimistic, V24). */
+export function upsertCategory(payload: MoneyPayload, category: Category): MoneyPayload {
+  const i = payload.categories.findIndex((c) => c.id === category.id);
+  const categories = i < 0 ? [...payload.categories, category] : payload.categories.map((c) => (c.id === category.id ? category : c));
+  return { ...payload, categories };
+}
+
+/** Category writes still on their way, by id. */
+export type PendingCategories = Readonly<Record<string, Category>>;
+
+export function applyPendingCategories(payload: MoneyPayload, pending: PendingCategories): MoneyPayload {
+  let next = payload;
+  for (const c of Object.values(pending)) next = upsertCategory(next, c);
+  return next;
+}
 
 /** Replaces or adds an account in a payload (optimistic, V24). */
 export function upsertAccount(payload: MoneyPayload, account: Account): MoneyPayload {
@@ -275,6 +336,36 @@ export type PendingSubscriptions = Readonly<Record<string, Subscription | null>>
 export function applyPendingSubscriptions(payload: MoneyPayload, pending: PendingSubscriptions): MoneyPayload {
   let next = payload;
   for (const [id, sub] of Object.entries(pending)) next = sub ? upsertSubscription(next, sub) : removeSubscription(next, id);
+  return next;
+}
+
+/** Budget writes still on their way: the one to show, or null for one being deleted. */
+export type PendingBudgets = Readonly<Record<string, Budget | null>>;
+/** Rule writes still on their way, like budgets. */
+export type PendingRules = Readonly<Record<string, Rule | null>>;
+
+function layRows<T extends { id: string }>(rows: readonly T[] | undefined, pending: Readonly<Record<string, T | null>>): T[] | undefined {
+  const ids = Object.keys(pending);
+  if (ids.length === 0) return rows as T[] | undefined;
+  let next = [...(rows ?? [])];
+  for (const id of ids) {
+    const row = pending[id];
+    const i = next.findIndex((r) => r.id === id);
+    if (row === null || row === undefined) next = next.filter((r) => r.id !== id);
+    else if (i < 0) next.push(row);
+    else next[i] = row;
+  }
+  return next;
+}
+
+/** The payload with this device's unconfirmed budget and rule writes laid over it (V24). */
+export function applyPendingPlans(payload: MoneyPayload, budgets: PendingBudgets, rules: PendingRules): MoneyPayload {
+  if (Object.keys(budgets).length === 0 && Object.keys(rules).length === 0) return payload;
+  const next: MoneyPayload = { ...payload };
+  const b = layRows(payload.budgets, budgets);
+  const r = layRows(payload.rules, rules);
+  if (b) next.budgets = b;
+  if (r) next.rules = r;
   return next;
 }
 

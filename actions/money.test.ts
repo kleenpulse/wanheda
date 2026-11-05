@@ -4,6 +4,7 @@ const requireOwner = vi.fn();
 const saveStored = vi.fn();
 const deleteStored = vi.fn();
 const removeStored = vi.fn();
+const saveCat = vi.fn();
 const saveSub = vi.fn();
 const deleteSub = vi.fn();
 const raise = vi.fn();
@@ -12,12 +13,13 @@ vi.mock("@/lib/money/store", () => ({
   saveTxn: saveStored,
   deleteTxn: deleteStored,
   removeCategory: removeStored,
+  saveCategory: saveCat,
   saveSubscription: saveSub,
   deleteSubscription: deleteSub,
 }));
-vi.mock("@/lib/money/alerts", () => ({ raiseMoneyAlerts: raise }));
+vi.mock("@/lib/money/alerts", () => ({ raiseMoneyAlerts: raise, raiseBudgetAlerts: vi.fn(() => Promise.resolve([])) }));
 
-const { deleteSubscription, deleteTxn, removeCategory, saveSubscription, saveTxn } = await import("./money");
+const { deleteSubscription, deleteTxn, removeCategory, saveCategory, saveSubscription, saveTxn } = await import("./money");
 
 const owner = { kind: "owner", user: { id: "user-1", email: "o@example.test", name: "O" } };
 const ID = "0b9e1c4e-6f0a-4c39-9a51-2f8d7c3b1a10";
@@ -119,7 +121,7 @@ describe("saveTxn", () => {
     requireOwner.mockResolvedValue(owner);
     const txn = { id: ID };
     saveStored.mockResolvedValueOnce({ kind: "saved", txn });
-    expect(await saveTxn(WRITE)).toEqual({ ok: true, txn });
+    expect(await saveTxn(WRITE)).toEqual({ ok: true, txn, notices: [] });
     expect(saveStored).toHaveBeenCalledWith("user-1", WRITE);
 
     saveStored.mockResolvedValueOnce({ kind: "not-yours" });
@@ -152,5 +154,32 @@ describe("deleteTxn and removeCategory", () => {
     removeStored.mockResolvedValue("archived");
     expect(await removeCategory({ id: ID })).toEqual({ ok: true, kind: "archived" });
     expect(removeStored).toHaveBeenCalledWith("user-1", ID);
+  });
+});
+
+describe("saveCategory", () => {
+  const input = { id: ID, name: "Gym", kind: "expense", emoji: "🏷️", color: "slate" };
+
+  it("stores under the session's user and maps outcomes", async () => {
+    requireOwner.mockResolvedValue(owner);
+    const category = { id: ID, slug: null, name: "Gym", parentId: null, emoji: "🏷️", color: "slate", kind: "expense", archived: false };
+    saveCat.mockReset().mockResolvedValue(category);
+    expect(await saveCategory(input)).toEqual({ ok: true, category });
+    expect(saveCat).toHaveBeenCalledWith("user-1", input);
+    saveCat.mockResolvedValue("not-yours");
+    expect(await saveCategory(input)).toEqual({ ok: false, reason: "invalid" });
+    saveCat.mockResolvedValue(null);
+    expect(await saveCategory(input)).toEqual({ ok: false, reason: "failed" });
+    saveCat.mockRejectedValue(new Error("down"));
+    expect(await saveCategory(input)).toEqual({ ok: false, reason: "failed" });
+  });
+
+  it("refuses demo and bad input before the store", async () => {
+    saveCat.mockReset();
+    requireOwner.mockResolvedValue({ kind: "demo" });
+    expect(await saveCategory(input)).toEqual({ ok: false, reason: "demo" });
+    requireOwner.mockResolvedValue(owner);
+    expect(await saveCategory({ ...input, userId: "other" })).toEqual({ ok: false, reason: "invalid" });
+    expect(saveCat).not.toHaveBeenCalled();
   });
 });

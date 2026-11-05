@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { requireOwner } from "@/lib/auth/owner";
 import type { WidgetId } from "@/lib/modules";
 import { ClockWidget } from "./clock-widget";
+import { MoneyBudgetWidget, MoneyRenewalsWidget, MoneyTodayWidget } from "./money-widgets";
 import { PinnedNotesWidget } from "./pinned-notes-widget";
 import { TodayWidget } from "./today-widget";
 import { WeatherSkeleton, WeatherWidget } from "./weather-widget";
@@ -24,6 +25,9 @@ export function widgetNodes(): Record<WidgetId, React.ReactNode> {
     ),
     "home.today": <TodayWidget />,
     "home.note": <PinnedNotesWidget />,
+    "money.today": <MoneyTodayWidget />,
+    "money.budget": <MoneyBudgetWidget />,
+    "money.renewals": <MoneyRenewalsWidget />,
   };
 }
 

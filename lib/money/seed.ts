@@ -1,5 +1,8 @@
+import type { Budget } from "./budgets";
 import { DEFAULT_CATEGORIES } from "./categories";
-import { addDays, addMonths, daysBetween, DEFAULT_TIME_ZONE, type Day } from "./dates";
+import { addDays, addMonths, daysBetween, DEFAULT_TIME_ZONE, startOfMonth, type Day } from "./dates";
+import { ratesFromTable, type FxRate } from "./fx";
+import type { Rule } from "./rules";
 import type { NewNotice } from "@/lib/notifications/notifications";
 import { compareTxns, type Account, type Category, type MoneyPayload, type Txn } from "./money";
 import { alertNotice, blankSubscription, dueAlerts, type Subscription } from "./subscriptions";
@@ -155,5 +158,46 @@ export function seedMoney(today: Day, timeZone = DEFAULT_TIME_ZONE): MoneyPayloa
     // The demo ledger starts at the window, so opening balances are all there is before it.
     priorMinor: {},
     subscriptions: demoSubscriptions(today),
+    budgets: demoBudgets(today),
+    rules: demoRules(today),
   };
+}
+
+/** Demo's budgets: overall, food and transport, made before the window so rollover has a month to carry. */
+export function demoBudgets(today: Day): Budget[] {
+  const made = Date.parse(`${addMonths(startOfMonth(today), -3)}T12:00:00Z`);
+  const b = (n: number, categoryId: string | null, naira: number, rollover = false): Budget => ({
+    id: demoId(4, n),
+    categoryId,
+    amountMinor: naira * 100,
+    currency: "NGN",
+    rollover,
+    createdAt: made + n,
+  });
+  return [b(1, null, 900_000), b(2, demoCategoryId("food"), 180_000, true), b(3, demoCategoryId("transport"), 90_000)];
+}
+
+export function demoRules(today: Day): Rule[] {
+  const made = Date.parse(`${addMonths(startOfMonth(today), -3)}T12:00:00Z`);
+  return [
+    { id: demoId(5, 1), payeeContains: "uber", categoryId: demoCategoryId("transport"), tags: [], priority: 0, enabled: true, createdAt: made },
+    { id: demoId(5, 2), payeeContains: "shoprite", categoryId: demoCategoryId("groceries"), tags: ["weekly"], priority: 1, enabled: true, createdAt: made + 1 },
+  ];
+}
+
+/**
+ * Demo's FX: one fixed table (USD rates of 2026-11-05) dated before the
+ * window, so every demo entry converts and nothing is fetched.
+ */
+export function demoRates(today: Day): FxRate[] {
+  return ratesFromTable(addMonths(startOfMonth(today), -3), {
+    ngn: 1346.60127178,
+    eur: 0.88802587,
+    gbp: 0.74130979,
+    cad: 1.39521812,
+    ghs: 11.65113931,
+    kes: 129.93883277,
+    zar: 16.35960297,
+    jpy: 157.8973376,
+  });
 }

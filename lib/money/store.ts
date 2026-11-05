@@ -1,7 +1,7 @@
 import "server-only";
 import { and, desc, eq, gte, isNotNull, lt, lte, sql } from "drizzle-orm";
 import { getDb } from "@/lib/db";
-import { category, moneyAccount, subscription, txn, userPrefs } from "@/lib/db/schema";
+import { budget, category, moneyAccount, rule, subscription, txn, userPrefs } from "@/lib/db/schema";
 import { DEFAULT_CATEGORIES, isCategoryColor, isCategoryKind } from "./categories";
 import { assertMinor, isCurrency, MoneyError, type Currency } from "./currency";
 import { addMonths, DEFAULT_TIME_ZONE, isTimeZone, todayIn, type Day } from "./dates";
@@ -13,10 +13,13 @@ import {
   type AccountKind,
   type AccountWrite,
   type Category,
+  type CategoryWrite,
   type Txn,
   type TxnSource,
   type TxnWrite,
 } from "./money";
+import type { Budget } from "./budgets";
+import { ruleActionSchema, ruleMatchSchema, type Rule } from "./rules";
 import { isSubCycle, isSubStatus, type Subscription, type SubscriptionWrite } from "./subscriptions";
 
 // Money persistence. Callers pass the owner's id from requireOwner(), never a
@@ -44,6 +47,8 @@ export type LoadedMoney =
       priorMinor: Record<string, number>;
       truncated: boolean;
       subscriptions: Subscription[];
+      budgets: Budget[];
+      rules: Rule[];
     }
   | { kind: "failed" };
 
@@ -51,6 +56,36 @@ type AccountRow = typeof moneyAccount.$inferSelect;
 type CategoryRow = typeof category.$inferSelect;
 type TxnRow = typeof txn.$inferSelect;
 type SubscriptionRow = typeof subscription.$inferSelect;
+type BudgetRow = typeof budget.$inferSelect;
+type RuleRow = typeof rule.$inferSelect;
+
+export function toBudget(r: BudgetRow): Budget | null {
+  if (!isCurrency(r.currency) || r.period !== "month") return null;
+  return {
+    id: r.id,
+    categoryId: r.categoryId,
+    amountMinor: assertMinor(r.amountMinor),
+    currency: r.currency,
+    rollover: r.rollover,
+    createdAt: r.createdAt.getTime(),
+  };
+}
+
+/** A rule whose stored JSON this build can't read is skipped, not guessed. */
+export function toRule(r: RuleRow): Rule | null {
+  const match = ruleMatchSchema.safeParse(r.match);
+  const action = ruleActionSchema.safeParse(r.action);
+  if (!match.success || !action.success) return null;
+  return {
+    id: r.id,
+    payeeContains: match.data.payeeContains,
+    categoryId: action.data.categoryId,
+    tags: action.data.tags,
+    priority: r.priority,
+    enabled: r.enabled,
+    createdAt: r.createdAt.getTime(),
+  };
+}
 
 function toAccount(r: AccountRow): Account | null {
   if (!isCurrency(r.currency) || !(ACCOUNT_KINDS as readonly string[]).includes(r.kind)) return null;
@@ -159,7 +194,7 @@ async function seedOwner(userId: string, baseCurrency: Currency): Promise<void> 
   ]);
 }
 
-function settingsOf(row: { baseCurrency: string; timeZone: string } | undefined): MoneySettings {
+export function settingsOf(row: { baseCurrency: string; timeZone: string } | undefined): MoneySettings {
   return {
     baseCurrency: row && isCurrency(row.baseCurrency) ? row.baseCurrency : "NGN",
     timeZone: row && isTimeZone(row.timeZone) ? row.timeZone : DEFAULT_TIME_ZONE,
@@ -197,7 +232,7 @@ export async function loadMoney(userId: string, now = new Date()): Promise<Loade
     // Archived seeded rows still count, so this only runs for a new owner or a new default.
     if ((seeded[0]?.n ?? 0) < DEFAULT_CATEGORIES.length || cash.length === 0) await seedOwner(userId, settings.baseCurrency);
 
-    const [accountRows, categoryRows, txnRows, priorRows, subRows] = await db.batch([
+    const [accountRows, categoryRows, txnRows, priorRows, subRows, budgetRows, ruleRows] = await db.batch([
       db.select().from(moneyAccount).where(eq(moneyAccount.userId, userId)).orderBy(moneyAccount.createdAt),
       db.select().from(category).where(eq(category.userId, userId)).orderBy(category.createdAt, category.name),
       db
@@ -213,6 +248,8 @@ export async function loadMoney(userId: string, now = new Date()): Promise<Loade
         .where(and(eq(txn.userId, userId), lt(txn.postedOn, since)))
         .groupBy(txn.accountId),
       db.select().from(subscription).where(eq(subscription.userId, userId)).orderBy(subscription.createdAt),
+      db.select().from(budget).where(eq(budget.userId, userId)).orderBy(budget.createdAt),
+      db.select().from(rule).where(eq(rule.userId, userId)).orderBy(rule.priority, rule.createdAt),
     ]);
     return {
       kind: "loaded",
@@ -226,6 +263,8 @@ export async function loadMoney(userId: string, now = new Date()): Promise<Loade
       truncated: txnRows.length > TXN_LIST_LIMIT,
       priorMinor: Object.fromEntries(priorRows.map((r) => [r.accountId, minorFromText(r.total)])),
       subscriptions: subRows.map(toSubscription).filter(present),
+      budgets: budgetRows.map(toBudget).filter(present),
+      rules: ruleRows.map(toRule).filter(present),
     };
   } catch (error) {
     console.error("loadMoney failed", error);
@@ -351,6 +390,24 @@ export async function removeCategory(userId: string, id: string): Promise<Remove
   return "deleted";
 }
 
+/**
+ * Creates or renames a category the owner made (V28). The id comes from the
+ * client, so a create sent twice lands once; another user's id never matches
+ * the upsert's WHERE. Never a slug: owner-made rows are deleted, not archived
+ * (V29). Null when there is no database.
+ */
+export async function saveCategory(userId: string, w: CategoryWrite): Promise<Category | "not-yours" | null> {
+  const db = getDb();
+  if (!db) return null;
+  const values = { name: w.name, kind: w.kind, emoji: w.emoji, color: w.color };
+  const rows = await db
+    .insert(category)
+    .values({ id: w.id, userId, ...values })
+    .onConflictDoUpdate({ target: category.id, set: { ...values, updatedAt: sql`now()` }, setWhere: eq(category.userId, userId) })
+    .returning();
+  return rows[0] ? toCategory(rows[0]) : "not-yours";
+}
+
 export type SaveAccountOutcome = { kind: "saved"; account: Account } | { kind: "not-yours" };
 
 /**
@@ -451,6 +508,14 @@ export async function deleteSubscription(userId: string, id: string): Promise<tr
   return true;
 }
 
+/** The owner's categories, archived ones too. */
+export async function loadCategories(userId: string): Promise<Category[]> {
+  const db = getDb();
+  if (!db) return [];
+  const rows = await db.select().from(category).where(eq(category.userId, userId));
+  return rows.map(toCategory);
+}
+
 /** What the reminder check needs (V31): the owner's day and their active subscriptions. Null without a database. */
 export async function loadAlertFacts(userId: string, now = new Date()): Promise<{ today: Day; subscriptions: Subscription[] } | null> {
   const db = getDb();
@@ -467,4 +532,54 @@ export async function loadAlertFacts(userId: string, now = new Date()): Promise<
       .where(and(eq(subscription.userId, userId), eq(subscription.status, "active"))),
   ]);
   return { today: todayIn(settingsOf(prefsRows[0]).timeZone, now), subscriptions: subRows.map(toSubscription).filter(present) };
+}
+
+/** Most txns one export holds; past it the export says so in its file name. */
+export const EXPORT_TXN_LIMIT = 200_000;
+
+/**
+ * Everything the owner has in money, for export (FR-MONEY-18): every
+ * account, category, txn (oldest first), subscription, budget and rule.
+ * Null when there is no database or the read failed.
+ */
+export async function loadExport(userId: string): Promise<{
+  settings: MoneySettings;
+  accounts: Account[];
+  categories: Category[];
+  txns: Txn[];
+  truncated: boolean;
+  subscriptions: Subscription[];
+  budgets: Budget[];
+  rules: Rule[];
+} | null> {
+  const db = getDb();
+  if (!db) return null;
+  try {
+    const [prefsRows, accountRows, categoryRows, txnRows, subRows, budgetRows, ruleRows] = await db.batch([
+      db
+        .select({ baseCurrency: userPrefs.baseCurrency, timeZone: userPrefs.timeZone })
+        .from(userPrefs)
+        .where(eq(userPrefs.userId, userId))
+        .limit(1),
+      db.select().from(moneyAccount).where(eq(moneyAccount.userId, userId)).orderBy(moneyAccount.createdAt),
+      db.select().from(category).where(eq(category.userId, userId)).orderBy(category.createdAt, category.name),
+      db.select().from(txn).where(eq(txn.userId, userId)).orderBy(txn.postedOn, txn.createdAt, txn.id).limit(EXPORT_TXN_LIMIT + 1),
+      db.select().from(subscription).where(eq(subscription.userId, userId)).orderBy(subscription.createdAt),
+      db.select().from(budget).where(eq(budget.userId, userId)).orderBy(budget.createdAt),
+      db.select().from(rule).where(eq(rule.userId, userId)).orderBy(rule.priority, rule.createdAt),
+    ]);
+    return {
+      settings: settingsOf(prefsRows[0]),
+      accounts: accountRows.map(toAccount).filter(present),
+      categories: categoryRows.map(toCategory),
+      txns: txnRows.slice(0, EXPORT_TXN_LIMIT).map(toTxn).filter(present),
+      truncated: txnRows.length > EXPORT_TXN_LIMIT,
+      subscriptions: subRows.map(toSubscription).filter(present),
+      budgets: budgetRows.map(toBudget).filter(present),
+      rules: ruleRows.map(toRule).filter(present),
+    };
+  } catch (error) {
+    console.error("loadExport failed", error);
+    return null;
+  }
 }

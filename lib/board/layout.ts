@@ -128,18 +128,27 @@ const SEED_RAW: Record<Breakpoint, RawItem[]> = {
     { i: "home.weather", x: 4, y: 0, w: 4, h: 2 },
     { i: "home.today", x: 8, y: 0, w: 4, h: 4 },
     { i: "home.note", x: 0, y: 2, w: 8, h: 2 },
+    { i: "money.today", x: 0, y: 4, w: 4, h: 2 },
+    { i: "money.budget", x: 4, y: 4, w: 4, h: 4 },
+    { i: "money.renewals", x: 8, y: 4, w: 4, h: 4 },
   ],
   md: [
     { i: "home.clock", x: 0, y: 0, w: 4, h: 2 },
     { i: "home.weather", x: 4, y: 0, w: 4, h: 2 },
     { i: "home.today", x: 0, y: 2, w: 4, h: 4 },
     { i: "home.note", x: 4, y: 2, w: 4, h: 4 },
+    { i: "money.today", x: 0, y: 6, w: 4, h: 2 },
+    { i: "money.budget", x: 4, y: 6, w: 4, h: 4 },
+    { i: "money.renewals", x: 0, y: 8, w: 4, h: 4 },
   ],
   sm: [
     { i: "home.clock", x: 0, y: 0, w: 4, h: 2 },
     { i: "home.weather", x: 0, y: 2, w: 4, h: 2 },
     { i: "home.today", x: 0, y: 4, w: 4, h: 4 },
     { i: "home.note", x: 0, y: 8, w: 4, h: 3 },
+    { i: "money.today", x: 0, y: 11, w: 4, h: 2 },
+    { i: "money.budget", x: 0, y: 13, w: 4, h: 4 },
+    { i: "money.renewals", x: 0, y: 17, w: 4, h: 4 },
   ],
 };
 

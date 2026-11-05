@@ -12,10 +12,13 @@ import { GrowDialog } from "@/components/ui/grow-dialog";
 import { Segmented } from "@/components/ui/segmented";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tip } from "@/components/ui/tooltip";
-import { sumByCurrency, type Currency, type Money } from "@/lib/money/currency";
-import { addDays, type Day } from "@/lib/money/dates";
+import { budgetProgress } from "@/lib/money/budgets";
+import { convertedNet, convertedTotals, inBase } from "@/lib/money/converted";
+import type { Currency, Money } from "@/lib/money/currency";
+import { addDays, todayIn, type Day } from "@/lib/money/dates";
+import type { Converted, FxTable } from "@/lib/money/fx";
 import type { MoneyFilter } from "@/lib/money/list-filter";
-import { byId, totals, TXN_LIST_LIMIT, type Account, type Category, type MoneyPayload, type Txn } from "@/lib/money/money";
+import { byId, TXN_LIST_LIMIT, type Account, type Category, type MoneyPayload, type Txn } from "@/lib/money/money";
 import {
   bucketsOf,
   bucketSizeOf,
@@ -40,10 +43,10 @@ import { Delta } from "./charts/chart-kit";
 import { PaceLine } from "./charts/pace-line";
 import { SpendBars } from "./charts/spend-bars";
 import { SpendHeatmap } from "./charts/spend-heatmap";
-import { MoneyStack } from "./money-text";
+import { ConvertedStack } from "./money-text";
 import { TxnForm } from "./txn-form";
 import { TxnList, type Editing } from "./txn-list";
-import { useLedger, useMoney, useMoneyApi, useToday } from "./use-money";
+import { useFx, useLedger, useMoney, useMoneyApi, useToday, windowFxFrom } from "./use-money";
 import { entriesHref, useListFilter, usePeriod } from "./use-period";
 
 // Money (FRD 6.3): a period (day, week, month or custom, in `?p=`) set
@@ -108,11 +111,20 @@ interface Scope {
   txns: Txn[];
   categories: ReadonlyMap<string, Category>;
   accounts: ReadonlyMap<string, Account>;
+  /** The currency charts and breakdowns are in. */
   currency: Currency;
+  /** The txns charts and breakdowns read: as entered, or all converted into `currency` ("all in …"). */
+  chartTxns: Txn[];
+  /** Per currency, what had no rate and is left out of `chartTxns`. */
+  left: Money[];
+  fx: FxTable;
   against: string;
   /** Older entries are still loading. */
   dim: boolean;
 }
+
+/** "all": every currency converted into the base one (V26). */
+type ChartCurrency = Currency | "all";
 
 /** The period, the txns it needs and the totals both pages head with. */
 function MoneyView({ payload, view }: { payload: MoneyPayload; view: MoneyPage }) {
@@ -128,25 +140,46 @@ function MoneyView({ payload, view }: { payload: MoneyPayload; view: MoneyPage }
   const ledger = useLedger(payload, previous.from, period.to);
   const txns = ledger.txns;
 
-  const currencies = currenciesIn(txns, categories, { from: previous.from, to: period.to }, base);
-  const [picked, setPicked] = React.useState<Currency | null>(null);
-  const currency = picked && currencies.includes(picked) ? picked : (currencies[0] ?? base);
+  // Rates from the earliest day shown (the window's, or an older period's), in their own cache (V24).
+  const windowFrom = windowFxFrom(payload);
+  const fx = useFx(previous.from < windowFrom ? previous.from : windowFrom).table;
 
-  const cur = totals(txns, categories, period.from, period.to);
-  const was = totals(txns, categories, compare.from, compare.to);
-  const baseFirst = (xs: readonly Money[]) => [...xs].sort((a, b) => Number(b.currency === currency) - Number(a.currency === currency));
-  const minorIn = (xs: readonly Money[]) => xs.find((m) => m.currency === currency)?.minor ?? 0;
-  const net = sumByCurrency([...cur.income, ...cur.spend.map((m) => ({ ...m, minor: -m.minor }))]);
+  const currencies = currenciesIn(txns, categories, { from: previous.from, to: period.to }, base);
+  const [picked, setPicked] = React.useState<ChartCurrency | null>(null);
+  const mixed = currencies.length > 1;
+  const chart: ChartCurrency =
+    picked === "all" && mixed ? "all" : picked && picked !== "all" && currencies.includes(picked) ? picked : mixed && !fx.empty ? "all" : (currencies[0] ?? base);
+  const currency = chart === "all" ? base : chart;
+  const converted = React.useMemo(() => (chart === "all" ? inBase(txns, base, fx) : { txns, left: [] }), [chart, txns, base, fx]);
+
+  // Headline totals: always in the base currency, exact, rounded once (V26).
+  const cur = convertedTotals(txns, categories, period.from, period.to, base, fx);
+  const was = convertedTotals(txns, categories, compare.from, compare.to, base, fx);
+  const net = convertedNet(cur);
   const compareTitle = periodTitle(compare, today);
   const against = period.kind === "day" ? `vs ${compareTitle === "Yesterday" ? "yesterday" : compareTitle}` : `vs ${rangeLabel(compare.from, compare.to, today)}`;
-  const zero = { minor: 0, currency };
   const stale = payload.source === "load-failed";
 
-  const scope: Scope = { payload, today, period, previous, compare, txns, categories, accounts, currency, against, dim: ledger.loadingOlder };
+  const scope: Scope = {
+    payload,
+    today,
+    period,
+    previous,
+    compare,
+    txns,
+    categories,
+    accounts,
+    currency,
+    chartTxns: converted.txns,
+    left: converted.left,
+    fx,
+    against,
+    dim: ledger.loadingOlder,
+  };
 
   return (
     <div className="flex flex-col gap-6">
-      <PeriodBar period={period} onChange={setPeriod} today={today} currencies={currencies} currency={currency} onCurrency={setPicked} />
+      <PeriodBar period={period} onChange={setPeriod} today={today} currencies={currencies} base={base} chart={chart} onChart={setPicked} />
 
       {payload.source === "demo" ? null : stale ? (
         <Notice>Showing what this device last loaded. The server didn&apos;t answer.</Notice>
@@ -162,13 +195,13 @@ function MoneyView({ payload, view }: { payload: MoneyPayload; view: MoneyPage }
       ) : null}
 
       <section aria-label="Totals" className="grid grid-cols-1 gap-2.5 @xl:grid-cols-3 @xl:gap-4">
-        <Stat label="Spent" note={rangeLabel(period.from, period.to, today)} values={baseFirst(cur.spend)} zero={zero}>
-          <Delta cur={minorIn(cur.spend)} prev={minorIn(was.spend)} goodWhenUp={false} against={against} />
+        <Stat label="Spent" note={rangeLabel(period.from, period.to, today)} value={cur.spend}>
+          <Delta cur={cur.spend.total.minor} prev={was.spend.total.minor} goodWhenUp={false} against={against} />
         </Stat>
-        <Stat label="Received" note={rangeLabel(period.from, period.to, today)} values={baseFirst(cur.income)} zero={zero}>
-          <Delta cur={minorIn(cur.income)} prev={minorIn(was.income)} goodWhenUp against={against} />
+        <Stat label="Received" note={rangeLabel(period.from, period.to, today)} value={cur.income}>
+          <Delta cur={cur.income.total.minor} prev={was.income.total.minor} goodWhenUp against={against} />
         </Stat>
-        <Stat label="Net" note={cur.count === 1 ? "1 entry" : `${String(cur.count)} entries`} values={baseFirst(net)} zero={zero}>
+        <Stat label="Net" note={cur.count === 1 ? "1 entry" : `${String(cur.count)} entries`} value={net}>
           <span className="text-[12px] text-ink-2">Received minus spent</span>
         </Stat>
       </section>
@@ -245,7 +278,7 @@ function EntriesView({ scope }: { scope: Scope }) {
 
 /** The period's charts and breakdown. A breakdown row opens the entries page filtered to it. */
 function AnalyticsView({ scope }: { scope: Scope }) {
-  const { today, period, previous, compare, txns, categories, accounts, currency, against, dim } = scope;
+  const { payload, today, period, previous, compare, chartTxns: txns, categories, accounts, currency, against, dim, left, fx } = scope;
   const router = useRouter();
   const [by, setBy] = React.useState<GroupBy>("category");
   const [side, setSide] = React.useState<Side>("spend");
@@ -259,9 +292,20 @@ function AnalyticsView({ scope }: { scope: Scope }) {
   const charts = size !== null && period.from <= today ? size : null;
   const daily = React.useMemo(() => dailyTotals(txns, categories, period, currency, "spend"), [txns, categories, period, currency]);
   const prevDaily = React.useMemo(() => dailyTotals(txns, categories, previous, currency, "spend"), [txns, categories, previous.from, previous.to, currency]); // eslint-disable-line react-hooks/exhaustive-deps
+  // A month's overall budget in the chart's currency joins the pace line (FR-MONEY-6).
+  const overall = period.kind === "month" ? payload.budgets?.find((b) => b.categoryId === null && b.currency === currency) : undefined;
+  const budgetLimit = overall
+    ? budgetProgress(overall, scope.txns, categories, period.from, todayIn(payload.timeZone, new Date(overall.createdAt)), fx).limit.minor
+    : undefined;
 
   return (
     <div className="@container/main flex min-w-0 flex-col gap-4">
+      {left.length > 0 ? (
+        <Notice>
+          {left.map((m) => m.currency).join(", ")} entries with no rate on or before their day are left out of these charts. Pick that currency above to see
+          them.
+        </Notice>
+      ) : null}
       {charts ? (
         <div className="grid grid-cols-1 gap-4 @xl/main:grid-cols-2">
           <SpendBars buckets={bucketsOf(period)} values={bucketTotals(daily, bucketsOf(period))} size={charts} currency={currency} today={today} dim={dim} note={`Per ${charts}`} />
@@ -273,6 +317,7 @@ function AnalyticsView({ scope }: { scope: Scope }) {
             currency={currency}
             dim={dim}
             note={`Against ${rangeLabel(previous.from, previous.to, today)}`}
+            budget={budgetLimit}
           />
         </div>
       ) : period.kind === "day" ? (
@@ -326,16 +371,22 @@ function PeriodBar({
   onChange,
   today,
   currencies,
-  currency,
-  onCurrency,
+  base,
+  chart,
+  onChart,
 }: {
   period: Period;
   onChange: (p: Period) => void;
   today: Day;
   currencies: readonly Currency[];
-  currency: Currency;
-  onCurrency: (c: Currency) => void;
+  base: Currency;
+  chart: ChartCurrency;
+  onChart: (c: ChartCurrency) => void;
 }) {
+  const options: { value: ChartCurrency; label: string }[] = [
+    { value: "all", label: `Charts: all in ${base}` },
+    ...currencies.map((c) => ({ value: c, label: `Charts: ${c} only` })),
+  ];
   const next = nextPeriod(period);
   const canNext = next.from <= today;
   const prev = previousPeriod(period);
@@ -353,10 +404,12 @@ function PeriodBar({
           onChange(k === "custom" ? customPeriod(addDays(today, -29), today) : periodAt(k, today));
         }}
       />
+      {/* h-10 like the rest of the row: a taller field re-centres the row and nudges the period pill. */}
       {period.kind === "custom" ? (
         <div className="flex flex-wrap items-center gap-2">
           <div className="w-44">
             <DatePicker
+              className="h-10"
               value={period.from}
               max={period.to}
               today={today}
@@ -370,6 +423,7 @@ function PeriodBar({
           </span>
           <div className="w-44">
             <DatePicker
+              className="h-10"
               value={period.to}
               min={period.from}
               max={today}
@@ -432,21 +486,21 @@ function PeriodBar({
         </div>
       )}
       {currencies.length > 1 ? (
-        <div className="ml-auto w-40">
+        <div className="ml-auto w-52">
           <Select
-            items={currencies.map((c) => ({ value: c, label: `Charts in ${c}` }))}
-            value={currency}
+            items={options}
+            value={chart}
             onValueChange={(v) => {
-              if (v) onCurrency(v);
+              if (v) onChart(v);
             }}
           >
-            <SelectTrigger aria-label="Currency for charts and totals" className="h-10 pl-3">
+            <SelectTrigger aria-label="Currency for charts and breakdowns" className="h-10 pl-3">
               <SelectValue />
             </SelectTrigger>
             <SelectContent align="end">
-              {currencies.map((c) => (
-                <SelectItem key={c} value={c}>
-                  Charts in {c}
+              {options.map((o) => (
+                <SelectItem key={o.value} value={o.value}>
+                  {o.label}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -462,17 +516,16 @@ function PeriodBar({
  * figure right, so the entries start on the first screen. The period note is
  * dropped there; the period bar above already says it.
  */
-function Stat({ label, note, values, zero, children }: { label: string; note: string; values: readonly Money[]; zero: Money; children: React.ReactNode }) {
+function Stat({ label, note, value, children }: { label: string; note: string; value: Converted; children: React.ReactNode }) {
   return (
     <div className="bento grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 px-4 py-3 @xl:flex @xl:flex-col @xl:items-stretch @xl:gap-3 @xl:p-5">
       <div className="flex min-w-0 items-center justify-between gap-3">
         <h3 className="readout">{label}</h3>
         <span className="readout tabular hidden truncate @xl:inline">{note}</span>
       </div>
-      <MoneyStack
+      <ConvertedStack
         roll
-        values={values}
-        fallback={zero}
+        value={value}
         className="col-start-2 row-span-2 row-start-1 items-end text-right font-display text-[22px] leading-none font-semibold tracking-[-0.01em] text-foreground @xl:items-start @xl:text-left @xl:text-[30px]"
       />
       <div className="min-w-0">{children}</div>

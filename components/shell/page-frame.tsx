@@ -1,5 +1,6 @@
 import type * as React from "react";
 import { EmptyMark } from "@/components/shell/empty-mark";
+import { PrivacyButton } from "@/components/money/privacy";
 import { ModeChip } from "@/components/shell/mode-chip";
 import { SyncChip } from "@/components/shell/sync-chip";
 import { cn } from "@/lib/utils";
@@ -55,6 +56,8 @@ export function PageFrame({
           </div>
           <div className="flex shrink-0 items-center gap-3">
             {actions}
+            {/* Show / hide amounts, on every page (user 2026-11-05: app-wide, in the top bar). */}
+            <PrivacyButton className="size-9 shrink-0" />
             <SyncChip />
             <ModeChip />
           </div>

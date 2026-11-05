@@ -54,7 +54,7 @@ export function MenuLinkItem({ className, ...props }: MenuPrimitive.LinkItem.Pro
 }
 
 export function MenuSeparator({ className }: { className?: string }) {
-  return <div role="separator" className={cn("mx-1 my-1 h-px bg-border dark:bg-glass-border", className)} />;
+  return <div role="separator" className={cn("mx-1 my-1 h-px bg-border", className)} />;
 }
 
 /** A non-interactive block at the top of a menu: who, which mode. */

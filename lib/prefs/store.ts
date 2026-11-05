@@ -37,3 +37,14 @@ export async function savePrefs(userId: string, p: Prefs): Promise<boolean> {
     .onConflictDoUpdate({ target: userPrefs.userId, set: { ...values, updatedAt: sql`now()` } });
   return true;
 }
+
+/** Sets the owner's base currency (T38), creating the prefs row if there is none. False without a database. */
+export async function saveBaseCurrency(userId: string, currency: string): Promise<boolean> {
+  const db = getDb();
+  if (!db) return false;
+  await db
+    .insert(userPrefs)
+    .values({ userId, baseCurrency: currency })
+    .onConflictDoUpdate({ target: userPrefs.userId, set: { baseCurrency: currency, updatedAt: sql`now()` } });
+  return true;
+}

@@ -26,6 +26,7 @@ import {
 } from "@/lib/money/import/statement";
 import { IMPORT_SETUP_KEY, splitByPresence, type ImportBatchInfo, type ImportCheck, type ImportSetup } from "@/lib/money/import/write";
 import { defaultAccount, MONEY_KEY, MONEY_RANGE_KEY, removeTxn, upsertTxn, type Account, type MoneyPayload, type Txn } from "@/lib/money/money";
+import { applyRules } from "@/lib/money/rules";
 import { cn } from "@/lib/utils";
 import { MoneyLoadFailed } from "../money-app";
 import { MoneyText } from "../money-text";
@@ -225,20 +226,28 @@ function ImportView({ payload }: { payload: MoneyPayload }) {
     try {
       if (!owner) {
         const at = stamp();
-        const txns: Txn[] = fresh.map((r) => ({
-          id: crypto.randomUUID(),
-          accountId: account.id,
-          postedOn: r.postedOn,
-          amountMinor: r.amountMinor,
-          currency: account.currency,
-          payee: r.payee,
-          categoryId: null,
-          note: "",
-          tags: [],
-          source: "import",
-          transferId: null,
-          createdAt: at,
-        }));
+        // Rules apply as on the server (FR-MONEY-13): category and tags from the first match.
+        const open = new Set(payload.categories.filter((c) => !c.archived).map((c) => c.id));
+        const txns: Txn[] = fresh.map((r) =>
+          applyRules<Txn>(
+            {
+              id: crypto.randomUUID(),
+              accountId: account.id,
+              postedOn: r.postedOn,
+              amountMinor: r.amountMinor,
+              currency: account.currency,
+              payee: r.payee,
+              categoryId: null,
+              note: "",
+              tags: [],
+              source: "import",
+              transferId: null,
+              createdAt: at,
+            },
+            payload.rules ?? [],
+            (id) => open.has(id),
+          ),
+        );
         demoImports.set(analysis.fileKey, { at });
         showImported(qc, txns, false);
         setDone({

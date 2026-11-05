@@ -6,6 +6,7 @@ import type { Currency } from "@/lib/money/currency";
 import { shortDayLabel, type Day } from "@/lib/money/dates";
 import { rangeLabel, type Bucket, type BucketSize } from "@/lib/money/periods";
 import { MoneyText } from "../money-text";
+import { useMask } from "../privacy";
 import { axisMoney, ChartCard, ChartTable, ChartTip, ticksFor, TipRow } from "./chart-kit";
 
 // Spend over time (FR-MONEY-6): one series, so one hue (the signal) and no
@@ -56,6 +57,7 @@ export function SpendBars({
   note?: React.ReactNode;
 }) {
   const [ref, width] = useElementWidth<HTMLDivElement>();
+  const mask = useMask();
   const [active, setActive] = React.useState<number | null>(null);
   const n = buckets.length;
   const lastShown = buckets.findLastIndex((b) => b.from <= today);
@@ -119,8 +121,8 @@ export function SpendBars({
             {ticks.map((t) => (
               <g key={t}>
                 <line x1={PAD_L} x2={width - PAD_R} y1={y(t)} y2={y(t)} className="stroke-border" strokeWidth={1} shapeRendering="crispEdges" />
-                <text data-money x={PAD_L - 8} y={y(t)} dy="0.32em" textAnchor="end" className="tabular fill-ink-3 text-[10.5px]">
-                  {axisMoney(t, currency)}
+                <text data-money data-masked={mask.hidden || undefined} x={PAD_L - 8} y={y(t)} dy="0.32em" textAnchor="end" className="tabular font-figure fill-ink-3 text-[10.5px]">
+                  {mask.show(axisMoney(t, currency))}
                 </text>
               </g>
             ))}

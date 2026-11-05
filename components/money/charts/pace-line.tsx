@@ -5,12 +5,14 @@ import { useElementWidth } from "@/hooks/use-element-width";
 import type { Currency } from "@/lib/money/currency";
 import { shortDayLabel, type Day } from "@/lib/money/dates";
 import { MoneyText } from "../money-text";
+import { useMask } from "../privacy";
 import { axisMoney, ChartCard, ChartTable, ChartTip, ticksFor, TipRow } from "./chart-kit";
 
-// Cumulative spend, this period against the one before (FR-MONEY-6; the
-// budget line joins in T38). Emphasis form: this period in the signal with a
-// 10% wash, the previous one in the de-emphasis grey. Two series, so a
-// legend; one crosshair snaps to the day and the tooltip lists both.
+// Cumulative spend, this period against the one before (FR-MONEY-6), and the
+// month's budget as a dashed level when there is one (T38). Emphasis form:
+// this period in the signal with a 10% wash, the previous one in the
+// de-emphasis grey. A legend; one crosshair snaps to the day and the tooltip
+// lists both.
 
 const PAD_L = 52;
 const PAD_R = 10;
@@ -26,6 +28,7 @@ export function PaceLine({
   currency,
   dim,
   note,
+  budget,
 }: {
   /** Running totals from the first day up to today (or the period's end). */
   current: readonly number[];
@@ -36,11 +39,14 @@ export function PaceLine({
   currency: Currency;
   dim?: boolean;
   note?: React.ReactNode;
+  /** The period's budget in `currency`, drawn as a dashed level. */
+  budget?: number | undefined;
 }) {
   const [ref, width] = useElementWidth<HTMLDivElement>();
+  const mask = useMask();
   const [active, setActive] = React.useState<number | null>(null);
   const len = Math.max(currentDays.length, previousDays.length, 2);
-  const ticks = ticksFor(Math.max(0, ...current, ...previous));
+  const ticks = ticksFor(Math.max(0, ...current, ...previous, budget ?? 0));
   const yMax = ticks.at(-1) ?? 1;
   const plotW = Math.max(0, width - PAD_L - PAD_R);
   const base = PAD_T + PLOT_H;
@@ -77,6 +83,12 @@ export function PaceLine({
         <span aria-hidden className="h-0.5 w-4 rounded-full bg-ink-3" />
         Previous period
       </span>
+      {budget !== undefined ? (
+        <span className="inline-flex items-center gap-1.5">
+          <span aria-hidden className="w-4 border-t-2 border-dashed border-ink-2" />
+          Budget <MoneyText value={{ minor: budget, currency }} />
+        </span>
+      ) : null}
     </div>
   );
 
@@ -127,8 +139,8 @@ export function PaceLine({
             {ticks.map((t) => (
               <g key={t}>
                 <line x1={PAD_L} x2={width - PAD_R} y1={y(t)} y2={y(t)} className="stroke-border" strokeWidth={1} shapeRendering="crispEdges" />
-                <text data-money x={PAD_L - 8} y={y(t)} dy="0.32em" textAnchor="end" className="tabular fill-ink-3 text-[10.5px]">
-                  {axisMoney(t, currency)}
+                <text data-money data-masked={mask.hidden || undefined} x={PAD_L - 8} y={y(t)} dy="0.32em" textAnchor="end" className="tabular font-figure fill-ink-3 text-[10.5px]">
+                  {mask.show(axisMoney(t, currency))}
                 </text>
               </g>
             ))}
@@ -139,6 +151,9 @@ export function PaceLine({
                 </text>
               ) : null,
             )}
+            {budget !== undefined && budget > 0 ? (
+              <line x1={PAD_L} x2={width - PAD_R} y1={y(budget)} y2={y(budget)} strokeDasharray="5 4" strokeWidth={1.5} className="stroke-ink-2" />
+            ) : null}
             {previous.length > 1 ? <path d={line(previous)} fill="none" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" className="stroke-ink-3" /> : null}
             {area ? <path d={area} className="fill-signal/10" /> : null}
             {current.length > 1 ? <path d={line(current)} fill="none" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" className="stroke-signal" /> : null}

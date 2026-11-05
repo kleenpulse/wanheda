@@ -1,26 +1,32 @@
 "use client";
 
 import * as React from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { create } from "zustand";
 import { useAccount } from "@/components/shell/account";
 import { toast } from "@/components/ui/toaster";
 import { useHydrated } from "@/hooks/use-hydrated";
 import { useNow } from "@/hooks/use-now";
 import { fetchJson } from "@/lib/fetch-json";
-import { todayIn, type Day } from "@/lib/money/dates";
+import type { Budget } from "@/lib/money/budgets";
+import { addMonths, startOfMonth, todayIn, type Day } from "@/lib/money/dates";
+import { FX_KEY, FxTable, type FxPayload } from "@/lib/money/fx";
 import { olderRange } from "@/lib/money/periods";
 import {
   MONEY_KEY,
   MONEY_RANGE_KEY,
   applyPending,
   applyPendingAccounts,
+  applyPendingCategories,
+  applyPendingPlans,
   applyPendingSubscriptions,
   type Account,
+  type Category,
   type MoneyPayload,
   type Txn,
   type TxnRangePayload,
 } from "@/lib/money/money";
+import { applyRules, type Rule } from "@/lib/money/rules";
 import type { Subscription } from "@/lib/money/subscriptions";
 import { useMoneyRuntime } from "./money-provider";
 import { describeTxn, useMoneyLocal } from "./money-runtime";
@@ -62,14 +68,23 @@ export function useMoney(options: { enabled?: boolean } = {}) {
   const pending = useMoneyLocal((s) => s.txns);
   const accounts = useMoneyLocal((s) => s.accounts);
   const subs = useMoneyLocal((s) => s.subs);
+  const budgets = useMoneyLocal((s) => s.budgets);
+  const rules = useMoneyLocal((s) => s.rules);
+  const cats = useMoneyLocal((s) => s.categories);
   // The server renders without the payload. If the page's Prefetch hydrates
   // first, the cache already holds it in the hydration pass, and painting it
   // there would not match the server (React #418). Hops never hydrate, so they
   // still paint from the cache at once (V24).
   const hydrated = useHydrated();
   const data = React.useMemo(
-    () => (hydrated && query.data ? applyPendingSubscriptions(applyPendingAccounts(applyPending(query.data, pending), accounts), subs) : null),
-    [hydrated, query.data, pending, accounts, subs],
+    () =>
+      hydrated && query.data
+        ? applyPendingCategories(
+            applyPendingPlans(applyPendingSubscriptions(applyPendingAccounts(applyPending(query.data, pending), accounts), subs), budgets, rules),
+            cats,
+          )
+        : null,
+    [hydrated, query.data, pending, accounts, subs, budgets, rules, cats],
   );
   return { data, failed: hydrated && query.isError && !query.data, refetch: query.refetch };
 }
@@ -131,14 +146,46 @@ export function newTxn(fields: Pick<Txn, "accountId" | "postedOn" | "amountMinor
   return { ...fields, id: crypto.randomUUID(), note: "", source: "manual", transferId: null, createdAt: Date.now() };
 }
 
+/** Whether this device has seen the txn before: an edit, not a new entry. */
+function known(qc: QueryClient, id: string): boolean {
+  if (id in useMoneyLocal.getState().txns) return true;
+  if (qc.getQueryData<MoneyPayload>(MONEY_KEY)?.txns.some((t) => t.id === id)) return true;
+  return qc.getQueriesData<TxnRangePayload>({ queryKey: [MONEY_RANGE_KEY] }).some(([, d]) => d?.txns.some((t) => t.id === id) ?? false);
+}
+
+/**
+ * A new entry with the owner's rules applied (FR-MONEY-13): the first match
+ * sets the category when none was picked, and adds its tags. Edits are left
+ * as the owner made them.
+ */
+function withRules(qc: QueryClient, txn: Txn): Txn {
+  if (known(qc, txn.id)) return txn;
+  const payload = qc.getQueryData<MoneyPayload>(MONEY_KEY);
+  const rules = payload?.rules;
+  if (!payload || !rules || rules.length === 0) return txn;
+  const pendingRules = useMoneyLocal.getState().rules;
+  const live = applyPendingPlans(payload, {}, pendingRules).rules ?? rules;
+  const open = new Set(payload.categories.filter((c) => !c.archived).map((c) => c.id));
+  return applyRules(txn, live, (id) => open.has(id));
+}
+
 export function useMoneyApi() {
   const runtime = useMoneyRuntime();
+  const qc = useQueryClient();
 
   /** Shows at once; the outbox sends it when it can (V24, V28). A newer write to the same id takes over. */
   const save = React.useCallback(
     (txn: Txn) => {
       rememberAccount(txn.accountId);
-      runtime.saveTxn(txn);
+      runtime.saveTxn(withRules(qc, txn));
+    },
+    [runtime, qc],
+  );
+
+  /** A category named in the form: shown at once, queued ahead of the txn that uses it. */
+  const saveCategory = React.useCallback(
+    (category: Category) => {
+      runtime.saveCategory(category);
     },
     [runtime],
   );
@@ -170,7 +217,7 @@ export function useMoneyApi() {
     [runtime],
   );
 
-  return { save, remove };
+  return { save, remove, saveCategory };
 }
 
 /**
@@ -283,3 +330,92 @@ export const useNewSubscription = create<{ asked: boolean; ask: () => void; clea
     set({ asked: false });
   },
 }));
+
+/** How long rates stay fresh: they change once a day. */
+const FX_STALE_MS = 6 * 60 * 60 * 1000;
+
+/**
+ * FX rates from `from` to today (FR-MONEY-14), as a lookup table. Its own
+ * cache, so the money page never waits on it (V24): until it lands, other
+ * currencies show apart, as with no rate (V26). While the server is still
+ * filling older days it asks again every few seconds.
+ */
+export function useFx(from: Day, options: { enabled?: boolean } = {}): { table: FxTable; loading: boolean } {
+  const query = useQuery({
+    queryKey: [FX_KEY, from],
+    queryFn: () => fetchJson<FxPayload>(`/api/money/fx?from=${from}`),
+    staleTime: FX_STALE_MS,
+    enabled: options.enabled ?? true,
+    refetchInterval: (q) => (q.state.data?.incomplete ? 4_000 : false),
+  });
+  const rates = query.data?.rates;
+  const table = React.useMemo(() => new FxTable(rates ?? []), [rates]);
+  return { table, loading: query.isPending && (options.enabled ?? true) };
+}
+
+/** The rates the money window needs: from the month before it (rollover reads last month too). */
+export function windowFxFrom(payload: Pick<MoneyPayload, "since">): Day {
+  return addMonths(startOfMonth(payload.since), -1);
+}
+
+/** Budget writes (FR-MONEY-7): shown at once, queued like every money write. Delete has an Undo. */
+export function useBudgetApi() {
+  const runtime = useMoneyRuntime();
+  const save = React.useCallback(
+    (b: Budget) => {
+      runtime.saveBudget(b);
+    },
+    [runtime],
+  );
+  const remove = React.useCallback(
+    (b: Budget, name: string) => {
+      const before = runtime.hideRow("budgets", b.id);
+      const cancel = () => {
+        runtime.unhideRow("budgets", b.id, before);
+      };
+      toast({
+        id: `undo-delete-budget:${b.id}`,
+        title: `Deleted the ${name} budget`,
+        action: { label: "Undo", onClick: cancel },
+        onClose: cancel,
+        closeLabel: "Cancel delete",
+        onExpire: () => {
+          runtime.deleteBudget(b);
+        },
+      });
+    },
+    [runtime],
+  );
+  return { save, remove };
+}
+
+/** Rule writes (FR-MONEY-13), like budgets. */
+export function useRuleApi() {
+  const runtime = useMoneyRuntime();
+  const save = React.useCallback(
+    (r: Rule) => {
+      runtime.saveRule(r);
+    },
+    [runtime],
+  );
+  const remove = React.useCallback(
+    (r: Rule) => {
+      const before = runtime.hideRow("rules", r.id);
+      const cancel = () => {
+        runtime.unhideRow("rules", r.id, before);
+      };
+      toast({
+        id: `undo-delete-rule:${r.id}`,
+        title: `Deleted the rule for "${r.payeeContains}"`,
+        action: { label: "Undo", onClick: cancel },
+        onClose: cancel,
+        closeLabel: "Cancel delete",
+        onExpire: () => {
+          runtime.deleteRule(r);
+        },
+      });
+    },
+    [runtime],
+  );
+  return { save, remove };
+}
