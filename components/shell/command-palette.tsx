@@ -6,6 +6,7 @@ import { motion } from "motion/react";
 import { usePathname, useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import {
+  BookOpenText,
   AppWindow,
   Bell,
   CalendarClock,
@@ -43,9 +44,10 @@ import { signOutOk } from "@/components/auth/account-actions";
 import { rebuildIncome } from "@/actions/connectors";
 import { useIncome } from "@/components/income/use-income";
 import { togglePrivacy, usePrivacy } from "@/components/money/privacy";
-import { replaceUrlParams } from "@/hooks/use-url-param";
+import { pushUrl, replaceUrlParams } from "@/hooks/use-url-param";
 import { lastAccountId, newTxn, useMoney, useMoneyApi, useNewSubscription } from "@/components/money/use-money";
 import { useNoteSearch, useNotesApi } from "@/components/notes/notes-provider";
+import { useReader } from "@/components/reader/use-reader";
 import { useNotifications } from "@/components/notifications/notifications-provider";
 import { usePrefs } from "@/components/prefs/prefs-provider";
 import { useAccount } from "@/components/shell/account";
@@ -58,6 +60,7 @@ import { useActivity } from "@/lib/activity/store";
 import { MINUTE, formatDuration, isDone, isRunning, parseTimerQuery } from "@/lib/activity/timer";
 import { BOARD_EDIT_HREF } from "@/lib/board/edit";
 import { MODULES, SYSTEM_PAGES, WINDOWS } from "@/lib/modules";
+import { continueReading } from "@/lib/reader/reader";
 import { formatMoney } from "@/lib/money/currency";
 import { todayIn } from "@/lib/money/dates";
 import { byId, categoryPath, type Category, type Txn } from "@/lib/money/money";
@@ -184,6 +187,8 @@ function PaletteBody({
   const privacy = usePrivacy();
   // Cache only: per-product income commands show once Income (or its widget) has loaded.
   const incomeProducts = useIncome({ enabled: false }).data?.products.filter((p) => !p.archived) ?? [];
+  // Cache only, like income: what Reader (or its widget) last loaded.
+  const reading = continueReading(useReader({ enabled: false }).data?.documents ?? [], 5);
   const quick =
     moneyQuery !== null && money.data
       ? parseQuickAdd(moneyQuery, {
@@ -549,6 +554,26 @@ function PaletteBody({
             })}
           />
         </Command.Group>
+
+        {reading.length > 0 ? (
+          <Command.Group heading="Reader">
+            {reading.map((d) => (
+              <Item
+                key={d.id}
+                value={`reader-continue-${d.id}`}
+                keywords={["read", "reading", "continue", "resume", "book", "pdf", d.title, d.author ?? ""]}
+                icon={BookOpenText}
+                title={`Continue ${d.title}`}
+                hint={d.progress ? `${String(d.progress.percent)}%` : "Not started"}
+                onSelect={run(() => {
+                  // On /reader the view follows the param in place; from elsewhere the hop reads it on mount.
+                  if (pathname === "/reader") pushUrl(`/reader?d=${encodeURIComponent(d.id)}`);
+                  else router.push(`/reader?d=${encodeURIComponent(d.id)}`);
+                })}
+              />
+            ))}
+          </Command.Group>
+        ) : null}
 
         <Command.Group heading="Notifications">
           <Item

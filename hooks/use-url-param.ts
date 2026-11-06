@@ -37,3 +37,9 @@ export function replaceUrlParams(patch: Readonly<Record<string, string | null>>)
   window.history.replaceState(null, "", url);
   for (const l of listeners) l();
 }
+
+/** Moves to a URL on the same page with a history entry (Back returns), and tells every reader. */
+export function pushUrl(href: string) {
+  window.history.pushState(null, "", href);
+  for (const l of listeners) l();
+}

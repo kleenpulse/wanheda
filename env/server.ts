@@ -56,6 +56,19 @@ export function createServerEnv(runtimeEnv: RuntimeEnv) {
         .string()
         .refine((raw) => sealKeyBytes(raw) !== null, "CONNECTOR_SEAL_KEY must be 32 bytes, base64")
         .optional(),
+      // Reader files in a private Cloudflare R2 bucket (SPEC V38). All four or
+      // none; without them the files capability is off and the reader is
+      // local-only (decided 2026-11-06).
+      R2_ACCOUNT_ID: z
+        .string()
+        .regex(/^[0-9a-f]{32}$/, "R2_ACCOUNT_ID must be the 32-hex account id")
+        .optional(),
+      R2_ACCESS_KEY_ID: z.string().min(1).optional(),
+      R2_SECRET_ACCESS_KEY: z.string().min(1).optional(),
+      R2_BUCKET: z
+        .string()
+        .regex(/^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/, "R2_BUCKET must be a bucket name")
+        .optional(),
     },
     runtimeEnv: {
       VERCEL_ENV: runtimeEnv.VERCEL_ENV,
@@ -70,6 +83,10 @@ export function createServerEnv(runtimeEnv: RuntimeEnv) {
       WEATHER_LONGITUDE: runtimeEnv.WEATHER_LONGITUDE,
       WEATHER_PLACE: runtimeEnv.WEATHER_PLACE,
       CONNECTOR_SEAL_KEY: runtimeEnv.CONNECTOR_SEAL_KEY,
+      R2_ACCOUNT_ID: runtimeEnv.R2_ACCOUNT_ID,
+      R2_ACCESS_KEY_ID: runtimeEnv.R2_ACCESS_KEY_ID,
+      R2_SECRET_ACCESS_KEY: runtimeEnv.R2_SECRET_ACCESS_KEY,
+      R2_BUCKET: runtimeEnv.R2_BUCKET,
     },
     emptyStringAsUndefined: true,
   });

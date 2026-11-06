@@ -6,6 +6,7 @@ import { ClockWidget } from "./clock-widget";
 import { IncomeMrrWidget, IncomeNetNewWidget } from "./income-widgets";
 import { MoneyBudgetWidget, MoneyRenewalsWidget, MoneyTodayWidget } from "./money-widgets";
 import { PinnedNotesWidget } from "./pinned-notes-widget";
+import { ContinueReadingWidget } from "./reader-widget";
 import { TodayWidget } from "./today-widget";
 import { WeatherSkeleton, WeatherWidget } from "./weather-widget";
 
@@ -31,6 +32,7 @@ export function widgetNodes(): Record<WidgetId, React.ReactNode> {
     "money.renewals": <MoneyRenewalsWidget />,
     "income.mrr": <IncomeMrrWidget />,
     "income.net-new": <IncomeNetNewWidget />,
+    "reader.continue": <ContinueReadingWidget />,
   };
 }
 

@@ -50,6 +50,13 @@
       "when": 1793914154224,
       "tag": "0006_saas",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1793961481479,
+      "tag": "0007_reader",
+      "breakpoints": true
     }
   ]
 }
