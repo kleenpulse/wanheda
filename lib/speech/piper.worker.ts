@@ -58,7 +58,7 @@ async function synth(req: Extract<PiperRequest, { type: "synth" }>): Promise<voi
   }
   const { session, config } = await load(req.voice);
   const t0 = performance.now();
-  const phonemes = await textToPhonemes(req.text, (t) => phonemize(t, "en-us"));
+  const phonemes = await textToPhonemes(req.text, (t) => phonemize(t, config.espeak.voice));
   const ids = phonemeIds(phonemes, config.phoneme_id_map);
   const inf = config.inference;
   const feeds: Record<string, ort.Tensor> = {
@@ -83,6 +83,16 @@ self.onmessage = (e: MessageEvent<PiperRequest>) => {
   const req = e.data;
   if (req.type === "cancel") {
     cancelled.add(req.id);
+    return;
+  }
+  if (req.type === "drop") {
+    // The voice was deleted: free its model once the work ahead of this is done.
+    chain = chain.then(async () => {
+      if (loaded?.voice !== req.voice) return;
+      const { session } = loaded;
+      loaded = null;
+      await session.release().catch(() => undefined);
+    });
     return;
   }
   chain = chain.then(async () => {

@@ -3,13 +3,14 @@
 import * as React from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { motion } from "motion/react";
-import { BookOpen, ChevronLeft, ChevronRight, Keyboard, Palette, PlugZap, Timer, UserRound, Wallet, type LucideIcon } from "lucide-react";
+import { AudioLines, BookOpen, ChevronLeft, ChevronRight, Keyboard, Palette, PlugZap, Timer, UserRound, Wallet, type LucideIcon } from "lucide-react";
 import { AddPasskeyButton, SignOutButton } from "@/components/auth/account-actions";
 import { AppearanceSection, PrefsNote, TimersSection } from "@/components/settings/appearance-prefs";
 import { ConnectionsSection } from "@/components/settings/connections-section";
 import { MoneySection } from "@/components/settings/money-prefs";
 import { ReaderPrefsNote, ReaderSection } from "@/components/settings/reader-prefs";
 import { SettingRow, SettingsCard } from "@/components/settings/setting-row";
+import { VoicesSection } from "@/components/settings/voices-section";
 import { useAccount } from "@/components/shell/account";
 import { Kbd } from "@/components/ui/kbd";
 import { TAB_SPRING } from "@/lib/motion";
@@ -33,6 +34,8 @@ interface Section {
   prefs?: boolean;
   /** Shows where the reader's prefs are saved, beside the section title. */
   readerPrefs?: boolean;
+  /** A fixed note beside the section title. */
+  note?: string;
 }
 
 const SECTIONS = {
@@ -62,6 +65,13 @@ const SECTIONS = {
     group: "Preferences",
     icon: BookOpen,
     readerPrefs: true,
+  },
+  voices: {
+    label: "Voices",
+    blurb: "Read-aloud voices, the default voice and the speed.",
+    group: "Preferences",
+    icon: AudioLines,
+    note: "Kept on this device",
   },
   keyboard: { label: "Keyboard", blurb: "The shortcuts that work anywhere in Wanheda.", group: "Preferences", icon: Keyboard },
   connections: {
@@ -243,6 +253,8 @@ function SectionHeader({ section, onBack }: { section: SectionId; onBack: () => 
           <p className="shrink-0 text-right text-[12px] text-ink-2">
             <ReaderPrefsNote />
           </p>
+        ) : s.note ? (
+          <p className="shrink-0 text-right text-[12px] text-ink-2">{s.note}</p>
         ) : null}
       </div>
     </div>
@@ -310,6 +322,7 @@ const BODIES: Record<SectionId, () => React.ReactNode> = {
   timers: TimersSection,
   money: MoneySection,
   reader: ReaderSection,
+  voices: VoicesSection,
   keyboard: KeyboardSection,
   connections: ConnectionsSection,
   account: AccountSection,

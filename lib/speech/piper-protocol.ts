@@ -6,7 +6,9 @@ export type PiperRequest =
   | { type: "load"; voice: string }
   | { type: "synth"; id: number; voice: string; text: string; rate: number }
   /** Drop a synth request that hasn't started; one already running finishes and its result is ignored. */
-  | { type: "cancel"; id: number };
+  | { type: "cancel"; id: number }
+  /** The voice was deleted (V46): free its model if it's the one loaded. */
+  | { type: "drop"; voice: string };
 
 export type PiperResponse =
   | { type: "loaded"; voice: string; ok: true; ms: number; wasmBytes: number }
