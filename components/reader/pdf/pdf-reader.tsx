@@ -58,6 +58,7 @@ import {
   type BookPages,
 } from "../chrome";
 import { type Paper, PaperMenu, paperPref, paperProps } from "../paper";
+import { pageTurnPref } from "../prefs";
 import { useReaderApi } from "../use-reader";
 import { BookView, type BookHandle } from "./book-view";
 import { coverOf, findPage, firstPageAspect, heldSha, onBroken, openPdf } from "./engine";
@@ -167,7 +168,9 @@ function Reader({ doc, loaded }: { doc: ReaderDoc; loaded: Loaded }) {
   const { pdf, pages, aspect } = loaded;
   const runtime = useReaderRuntime();
   const api = useReaderApi();
-  const reduced = useReducedMotion();
+  // Reduced motion, or Settings → Reader's "instant" page turn: no curl.
+  const reducedMotion = useReducedMotion();
+  const reduced = pageTurnPref.use() === "instant" || reducedMotion;
   const mode: ReadingMode = doc.mode;
 
   const [place, setPlace] = React.useState<Place>(() => {

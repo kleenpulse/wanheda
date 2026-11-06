@@ -3,11 +3,12 @@
 import * as React from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { motion } from "motion/react";
-import { ChevronLeft, ChevronRight, Keyboard, Palette, PlugZap, Timer, UserRound, Wallet, type LucideIcon } from "lucide-react";
+import { BookOpen, ChevronLeft, ChevronRight, Keyboard, Palette, PlugZap, Timer, UserRound, Wallet, type LucideIcon } from "lucide-react";
 import { AddPasskeyButton, SignOutButton } from "@/components/auth/account-actions";
 import { AppearanceSection, PrefsNote, TimersSection } from "@/components/settings/appearance-prefs";
 import { ConnectionsSection } from "@/components/settings/connections-section";
 import { MoneySection } from "@/components/settings/money-prefs";
+import { ReaderSection } from "@/components/settings/reader-prefs";
 import { SettingRow, SettingsCard } from "@/components/settings/setting-row";
 import { useAccount } from "@/components/shell/account";
 import { Kbd } from "@/components/ui/kbd";
@@ -30,6 +31,8 @@ interface Section {
   icon: LucideIcon;
   /** Shows where prefs are saved, beside the section title. */
   prefs?: boolean;
+  /** Saved on this device only (localStorage), not synced: says so beside the title. */
+  device?: boolean;
 }
 
 const SECTIONS = {
@@ -52,6 +55,13 @@ const SECTIONS = {
     blurb: "The base currency, hiding amounts and the export.",
     group: "Preferences",
     icon: Wallet,
+  },
+  reader: {
+    label: "Reader",
+    blurb: "Library covers, the book's pages and turn, text size, paper and auto-scroll.",
+    group: "Preferences",
+    icon: BookOpen,
+    device: true,
   },
   keyboard: { label: "Keyboard", blurb: "The shortcuts that work anywhere in Wanheda.", group: "Preferences", icon: Keyboard },
   connections: {
@@ -229,6 +239,8 @@ function SectionHeader({ section, onBack }: { section: SectionId; onBack: () => 
           <p className="shrink-0 text-right text-[12px] text-ink-2">
             <PrefsNote />
           </p>
+        ) : s.device ? (
+          <p className="shrink-0 text-right text-[12px] text-ink-2">Saved on this device</p>
         ) : null}
       </div>
     </div>
@@ -295,6 +307,7 @@ const BODIES: Record<SectionId, () => React.ReactNode> = {
   appearance: AppearanceSection,
   timers: TimersSection,
   money: MoneySection,
+  reader: ReaderSection,
   keyboard: KeyboardSection,
   connections: ConnectionsSection,
   account: AccountSection,

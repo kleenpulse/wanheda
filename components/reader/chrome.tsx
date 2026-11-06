@@ -326,6 +326,30 @@ export function AutoScrollControl({ on, speed, onToggle, onSpeed }: { on: boolea
   );
 }
 
+/** The auto-scroll speed on its own, for Settings → Reader: the slider and its speed in px a second. */
+export function AutoScrollSpeed({ labelledBy }: { labelledBy: string }) {
+  const position = autoSpeedPref.use();
+  const speed = Math.round(autoScrollSpeed(position));
+  return (
+    <span className="flex items-center gap-3">
+      <input
+        type="range"
+        min={0}
+        max={100}
+        step={1}
+        value={position}
+        onChange={(e) => {
+          autoSpeedPref.set(Number(e.target.value));
+        }}
+        aria-labelledby={labelledBy}
+        aria-valuetext={`${String(speed)} pixels a second`}
+        className="h-1 w-40 cursor-pointer accent-signal"
+      />
+      <span className="tabular w-16 text-right font-mono text-[12px] text-ink-2">{speed} px/s</span>
+    </span>
+  );
+}
+
 // ── Find ─────────────────────────────────────────────────────────────────
 
 /**

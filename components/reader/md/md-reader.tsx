@@ -3,7 +3,6 @@
 import * as React from "react";
 import { AArrowDown, AArrowUp, ChevronLeft, ChevronRight, EyeOff, ListTree, Maximize, Minimize, X } from "lucide-react";
 import { Tip, TooltipGroup } from "@/components/ui/tooltip";
-import { createDevicePref } from "@/hooks/device-pref";
 import { useReducedMotion } from "@/hooks/use-reduced-motion";
 import { normalizeQuery } from "@/lib/reader/book";
 import { ID_PREFIX, MAX_MATCHES, anchorOf, findRanges, idOf, type MdPlace } from "@/lib/reader/md";
@@ -29,6 +28,7 @@ import {
 import { onForget } from "../doc-cache";
 import { type Paper, PaperMenu, paperPref, paperProps } from "../paper";
 import { useReaderRuntime } from "../reader-provider";
+import { TEXT_SIZES, pageTurnPref, textSizePref } from "../prefs";
 import { useReaderApi } from "../use-reader";
 import { MdBook, type BookInfo, type MdBookView } from "./md-book";
 import { MdScroll } from "./md-scroll";
@@ -46,16 +46,6 @@ import { headingElements, unpaint, type At, type MdView } from "./view";
 /** Under this stage width the contents close after a pick. */
 const NARROW = 768;
 
-// Text size (this device, every document): the sheet's type scale.
-const TEXT_SIZES: readonly number[] = [0.875, 1, 1.125, 1.25, 1.5];
-const textSizePref = createDevicePref<number>(
-  "wanheda-reader-text-size",
-  (raw) => {
-    const n = Number(raw);
-    return raw !== null && TEXT_SIZES.includes(n) ? n : 1;
-  },
-  (v) => (v === 1 ? null : String(v)),
-);
 
 /** The text last read, so reopening it paints at once (V24). */
 let lastText: { sha256: string; text: string } | null = null;
@@ -171,7 +161,9 @@ function toRange(idx: TextIndex, start: number, end: number): Range | null {
 function Reader({ doc, text }: { doc: ReaderDoc; text: string }) {
   const runtime = useReaderRuntime();
   const api = useReaderApi();
-  const reduced = useReducedMotion();
+  // Reduced motion, or Settings → Reader's "instant" page turn: no curl.
+  const reducedMotion = useReducedMotion();
+  const reduced = pageTurnPref.use() === "instant" || reducedMotion;
   const mode: ReadingMode = doc.mode;
   const book = mode === "flip";
   const [start] = React.useState(() => startPlace(doc));

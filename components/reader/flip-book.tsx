@@ -460,6 +460,8 @@ export const FlipBook = React.forwardRef<BookHandle, FlipBookProps>(function Fli
     };
     const down = (e: PointerEvent) => {
       e.stopPropagation();
+      // A swallow armed by a pan whose click never came (cancelled) must not eat this press's click.
+      el.removeEventListener("click", swallow, { capture: true });
       if (e.pointerType !== "mouse" || e.button !== 0) return;
       e.preventDefault();
       drag = { id: e.pointerId, x: e.clientX, y: e.clientY, left: el.scrollLeft, top: el.scrollTop, moved: false };
@@ -487,7 +489,7 @@ export const FlipBook = React.forwardRef<BookHandle, FlipBookProps>(function Fli
     const up = (e: PointerEvent) => {
       if (!drag || e.pointerId !== drag.id) return;
       // A pan isn't a click: the click that follows it doesn't reach the page (a link on it, say).
-      if (drag.moved) el.addEventListener("click", swallow, { capture: true, once: true });
+      if (drag.moved && e.type === "pointerup") el.addEventListener("click", swallow, { capture: true, once: true });
       end(e.pointerId);
     };
     const lost = (e: PointerEvent) => {
