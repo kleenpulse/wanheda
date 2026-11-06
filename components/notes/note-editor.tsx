@@ -298,7 +298,7 @@ function NoteHistory({ note, onClose }: { note: Note; onClose: () => void }) {
           {message}
         </p>
       ) : view.kind === "loaded" ? (
-        <ol className="mt-2 flex max-h-80 flex-col gap-2 overflow-y-auto overscroll-contain">
+        <ol className="mt-2 flex max-h-80 flex-col gap-2 overflow-y-auto scroll-fade overscroll-contain">
           {view.revisions.map((rev) => {
             const current = rev.title === note.title && rev.bodyMd === note.bodyMd;
             const open = preview === rev.id;

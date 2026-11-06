@@ -33,7 +33,7 @@ export function ContinueReadingWidget() {
           </Link>
         </div>
       ) : (
-        <ul className="-mx-2 flex min-h-0 flex-col gap-0.5 overflow-y-auto">
+        <ul className="-mx-2 flex min-h-0 flex-col gap-0.5 overflow-y-auto scroll-fade">
           {docs.map((d) => {
             const percent = d.progress?.percent ?? 0;
             return (

@@ -77,7 +77,7 @@ export function PinnedNotesWidget() {
         </button>
       }
     >
-      <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-contain">
+      <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto scroll-fade overscroll-contain">
         {legacy.text ? (
           <div role="group" aria-label="Quick note from this device" className="flex flex-wrap items-center gap-2 rounded-[14px] bg-card-nested px-3 py-2 ring-1 ring-border dark:ring-glass-border">
             <p className="min-w-0 flex-1 text-[13px] text-ink-2">

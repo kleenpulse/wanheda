@@ -150,7 +150,7 @@ export function SpendHeatmap({
             ))}
           </div>
         ) : (
-          <div className="flex gap-2 overflow-x-auto pb-1">
+          <div className="flex gap-2 overflow-x-auto scroll-fade-x pb-1">
             <div className="grid shrink-0 grid-rows-7 gap-[3px] pt-0">
               {WEEKDAYS.map((w, i) => (
                 <span key={w} className="h-3.5 text-[10px] leading-[14px] text-ink-3">

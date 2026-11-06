@@ -1152,6 +1152,97 @@ html[data-motion="reduce"]::view-transition-new(*) {
 	background: repeating-linear-gradient(to right, var(--paper) 0 1px, color-mix(in oklab, var(--paper) 72%, var(--stage)) 1px 2px);
 }
 
+/* ── The Markdown / text reader (T48, components/reader/md) ───────────────
+   The sheet is paper, so its ink follows the paper and not the skin: the
+   stage's dark on a light paper, the stage's light on a dark one. No wash:
+   the text is drawn in the paper's own ink. Shiki emits both themes as CSS
+   variables (defaultColor false); the paper picks one. Tints, no borders. */
+.md-sheet {
+	--md-ink: var(--stage);
+	--md-ink-2: color-mix(in oklab, var(--md-ink) 74%, var(--paper));
+	--md-ink-3: color-mix(in oklab, var(--md-ink) 52%, var(--paper));
+	--md-rule: color-mix(in oklab, var(--md-ink) 14%, var(--paper));
+	--md-well: color-mix(in oklab, var(--md-ink) 6%, var(--paper));
+	--md-link: color-mix(in oklab, var(--signal) 62%, var(--md-ink));
+	background: var(--paper);
+	color: var(--md-ink);
+	line-height: 1.7;
+	overflow-wrap: anywhere;
+}
+.paper-night .md-sheet { --md-ink: color-mix(in oklab, var(--stage-ink) 90%, var(--paper)); }
+.md-sheet > * + * { margin-top: 1em; }
+.md-sheet :is(h1, h2, h3, h4, h5, h6) {
+	font-family: var(--font-display);
+	font-weight: 650;
+	line-height: 1.25;
+	letter-spacing: -0.015em;
+	text-wrap: balance;
+}
+.md-sheet h1 { font-size: 1.9em; }
+.md-sheet h2 { font-size: 1.45em; }
+.md-sheet h3 { font-size: 1.2em; }
+.md-sheet h4 { font-size: 1.05em; }
+.md-sheet h5, .md-sheet h6 { font-size: 1em; }
+.md-sheet h6 { color: var(--md-ink-2); }
+.md-sheet * + :is(h1, h2, h3, h4, h5, h6) { margin-top: 1.7em; }
+.md-sheet :is(h1, h2, h3, h4, h5, h6) + * { margin-top: 0.6em; }
+.md-sheet > :first-child { margin-top: 0; }
+.md-sheet ul, .md-sheet ol { padding-left: 1.5em; }
+.md-sheet ul { list-style: disc; }
+.md-sheet ol { list-style: decimal; }
+.md-sheet li + li, .md-sheet li > ul, .md-sheet li > ol, .md-sheet li > p + p { margin-top: 0.3em; }
+.md-sheet li::marker { color: var(--md-ink-3); }
+.md-sheet .contains-task-list { list-style: none; padding-left: 0.2em; }
+.md-sheet .task-list-item input { margin-right: 0.55em; accent-color: var(--signal); vertical-align: -0.1em; }
+.md-sheet a {
+	color: var(--md-link);
+	text-decoration: underline;
+	text-decoration-color: color-mix(in oklab, var(--md-link) 40%, transparent);
+	text-underline-offset: 2px;
+}
+.md-sheet a:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: 3px; }
+.md-sheet blockquote { padding: 0.75em 1.1em; border-radius: 12px; background: var(--md-well); color: var(--md-ink-2); }
+.md-sheet blockquote > * + * { margin-top: 0.6em; }
+.md-sheet code { font-family: var(--font-mono); font-size: 0.86em; padding: 0.12em 0.35em; border-radius: 6px; background: var(--md-well); }
+.md-sheet .md-code pre {
+	font-family: var(--font-mono);
+	font-size: 0.84em;
+	line-height: 1.6;
+	padding: 1em 1.15em;
+	border-radius: 14px;
+	background: var(--md-well);
+	overflow-x: auto;
+	overflow-wrap: normal;
+	tab-size: 4;
+}
+.md-sheet .md-code pre code { padding: 0; background: none; font-size: inherit; }
+.md-sheet .md-code pre:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.md-sheet .shiki span {
+	color: var(--shiki-light);
+	font-style: var(--shiki-light-font-style);
+	font-weight: var(--shiki-light-font-weight);
+	text-decoration: var(--shiki-light-text-decoration);
+}
+.paper-night .md-sheet .shiki span {
+	color: var(--shiki-dark);
+	font-style: var(--shiki-dark-font-style);
+	font-weight: var(--shiki-dark-font-weight);
+	text-decoration: var(--shiki-dark-text-decoration);
+}
+.md-sheet hr { border: 0; height: 1px; margin-block: 2em; background: var(--md-rule); }
+.md-sheet table { display: block; max-width: 100%; overflow-x: auto; border-collapse: collapse; font-size: 0.92em; font-variant-numeric: tabular-nums; overflow-wrap: normal; }
+.md-sheet th, .md-sheet td { padding: 0.45em 0.8em; text-align: left; vertical-align: top; }
+.md-sheet thead th { font-weight: 600; background: var(--md-well); }
+.md-sheet tbody tr:nth-child(even) { background: color-mix(in oklab, var(--md-ink) 3%, var(--paper)); }
+.md-sheet img { max-width: 100%; height: auto; border-radius: 10px; }
+.md-sheet .md-alt, .md-sheet del { color: var(--md-ink-3); }
+.md-sheet .md-alt { font-style: italic; }
+.md-sheet .footnotes { margin-top: 3em; font-size: 0.88em; color: var(--md-ink-2); }
+.md-sheet .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+/* Find (CSS Custom Highlight API): every match tinted, the current one solid. */
+::highlight(reader-find) { background-color: color-mix(in oklab, var(--signal) 30%, transparent); }
+::highlight(reader-find-now) { background-color: var(--signal); color: var(--stage); }
+
 /* MarqueeText (components/ui/marquee-text.tsx): only an edge with text running past it fades.
    The component animates --marquee-fade (the left fade) and the slide itself, one pass then a
    5 s rest; registered so it can animate. */

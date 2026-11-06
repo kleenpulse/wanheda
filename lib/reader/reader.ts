@@ -131,7 +131,9 @@ export function formatLocator(l: Locator): string {
   }
 }
 
-const HEADING_RE = /^[a-z0-9_-]*$/i;
+// A heading slug as github-slugger writes it (rehype-slug, T48): Unicode letters,
+// digits and marks, `_` and `-`, never a colon. Empty: before the first heading.
+const HEADING_RE = /^[\p{L}\p{N}\p{M}_-]{0,200}$/u;
 
 /** Parses a stored locator; null for anything malformed. */
 export function parseLocator(raw: string): Locator | null {

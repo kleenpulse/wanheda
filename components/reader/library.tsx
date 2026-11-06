@@ -120,7 +120,7 @@ function LibraryView({ payload }: { payload: ReaderPayload }) {
           </button>
         </div>
 
-        <div role="toolbar" aria-label="Filter" className="-mx-1 flex items-center gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:none]">
+        <div role="toolbar" aria-label="Filter" className="-mx-1 flex items-center gap-2 overflow-x-auto scroll-fade-x px-1 pb-1 [scrollbar-width:none]">
           <button type="button" aria-pressed={activeCollection === null} onClick={() => { setCollection(null); }} className={cn(CHIP, activeCollection === null ? CHIP_ON : CHIP_IDLE)}>
             All
             <span className="tabular opacity-70">{payload.documents.length}</span>

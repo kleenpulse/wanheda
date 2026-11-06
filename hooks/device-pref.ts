@@ -2,10 +2,10 @@
 
 import * as React from "react";
 
-// A reader preference kept on this device only (localStorage), shared by every
-// tab: the pinned document, spread or one page, the auto-scroll speed. Where
-// localStorage refuses writes (some private windows) the value lives in this
-// page until it reloads.
+// A preference kept on this device only (localStorage), shared by every tab:
+// Home's pinned billing cycle, the reader's pin, spread or one page, auto-scroll
+// speed and paper. Where localStorage refuses writes (some private windows) the
+// value lives in this page until it reloads.
 
 export interface DevicePref<T> {
   use: () => T;

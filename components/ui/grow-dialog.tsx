@@ -151,7 +151,7 @@ export function GrowDialog({
             >
               {/* The box grows, then its content fades in as it settles. */}
               <motion.div
-                className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain p-5"
+                className="flex min-h-0 flex-1 flex-col overflow-y-auto scroll-fade overscroll-contain p-5"
                 initial={reduce ? false : { opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={reduce ? { duration: 0 } : { duration: 0.18, delay: 0.12 }}

@@ -94,7 +94,7 @@ export function Thumbnails({
         onScroll={(e) => {
           setTop(e.currentTarget.scrollTop);
         }}
-        className="relative min-h-0 flex-1 overflow-auto overscroll-contain px-4 pb-6"
+        className="relative min-h-0 flex-1 overflow-auto scroll-fade overscroll-contain px-4 pb-6"
       >
         <div className="relative mx-auto" style={{ width: gridW, height: rows * rowH }}>
           {cells.map((n) => {
