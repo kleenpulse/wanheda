@@ -529,9 +529,9 @@
 }
 
 .dark[data-skin="bench"] {
-	--band: #0e1012;
-	--sheet: #101215;
-	--card-nested: #191d21;
+	--band: #08090a;
+	--sheet: #0a0b0d;
+	--card-nested: #131518;
 	--ink-2: #bcc2c8;
 	--ink-3: #6c737c;
 
@@ -540,13 +540,13 @@
 	--signal-soft: rgb(168 85 247 / 0.14);
 	--signal-2: #22d3ee;
 	--inverse: #e2e6e9;
-	--inverse-foreground: #0a0b0c;
-	--glass: rgb(16 18 21 / 0.82);
-	--glass-thin: rgb(16 18 21 / 0.55);
+	--inverse-foreground: #050607;
+	--glass: rgb(10 11 13 / 0.82);
+	--glass-thin: rgb(10 11 13 / 0.55);
 	/* Flat like Nebula (user 2026-11-05: only the dock has a border and a shadow). Only the rail and the dock keep an edge. */
 	--glass-border: transparent;
 	--rail-border: rgb(226 230 233 / 0.09);
-	--glass-frost: rgb(16 18 21 / 0.5);
+	--glass-frost: rgb(10 11 13 / 0.5);
 	--glass-sheen: rgb(226 230 233 / 0.06);
 	--glass-edge: rgb(226 230 233 / 0.12);
 	--glass-tint: rgb(168 85 247 / 0.14);
@@ -556,7 +556,7 @@
 	--orb-2: #22d3ee;
 	--orb-3: #f754f1;
 	--orb-4: #6c737c;
-	--em-scroll: #464d56;
+	--em-scroll: #2c3138;
 
 	/* Bench dark stickies: deeper fills, sunk towards the graphite (user
 	   2026-11-05: darker on Bench). Ink >= 13.6:1, ink-2 >= 9.5:1; marks
@@ -574,32 +574,32 @@
 		0 32px 72px -12px rgb(0 0 0 / 0.9);
 	--shadow-glow-value: 0 0 0 1px rgb(168 85 247 / 0.45), 0 0 30px -8px rgb(168 85 247 / 0.45);
 
-	--background: #0a0b0c;
+	--background: #050607;
 	--foreground: #e2e6e9;
-	--card: #131619;
+	--card: #0d0f11;
 	--card-foreground: #e2e6e9;
-	--popover: #101215;
+	--popover: #0a0b0d;
 	--popover-foreground: #e2e6e9;
 	--primary: #a855f7;
-	--primary-foreground: #0a0b0c;
-	--secondary: #191d21;
+	--primary-foreground: #050607;
+	--secondary: #131518;
 	--secondary-foreground: #e2e6e9;
-	--muted: #131619;
+	--muted: #0d0f11;
 	--muted-foreground: #bcc2c8;
-	--accent: #191d21;
+	--accent: #131518;
 	--accent-foreground: #e2e6e9;
 	--destructive: #f87171;
-	--border: #2a2f36;
-	--input: #2a2f36;
+	--border: #1f2328;
+	--input: #1f2328;
 	--ring: #a855f7;
 	--chart-1: #a855f7;
-	--sidebar: #0e1012;
+	--sidebar: #08090a;
 	--sidebar-foreground: #e2e6e9;
 	--sidebar-primary: #a855f7;
-	--sidebar-primary-foreground: #0a0b0c;
-	--sidebar-accent: #191d21;
+	--sidebar-primary-foreground: #050607;
+	--sidebar-accent: #131518;
 	--sidebar-accent-foreground: #e2e6e9;
-	--sidebar-border: #20242a;
+	--sidebar-border: #181b1f;
 	--sidebar-ring: #a855f7;
 }
 
@@ -754,15 +754,9 @@
 		box-shadow: inset 0 0 220px rgb(0 0 0 / 0.55);
 		z-index: -1; /* below content, above the canvas gradient */
 	}
-	/* Bench: graphite with a faint measurement grid instead of Nebula's atmosphere. */
+	/* Bench: plain graphite instead of Nebula's atmosphere (user 2026-11-05: no grid). */
 	[data-skin="bench"] body {
-		background:
-			linear-gradient(to bottom, transparent 15%, var(--background) 45%),
-			linear-gradient(to right, color-mix(in oklab, var(--foreground) 5%, transparent) 1px, transparent 1px),
-			linear-gradient(to bottom, color-mix(in oklab, var(--foreground) 5%, transparent) 1px, transparent 1px),
-			var(--background);
-		background-size: 100% 100%, 114px 104px, 114px 104px, auto;
-		background-attachment: fixed;
+		background: var(--background);
 	}
 	[data-skin="bench"].dark body::before { box-shadow: none; }
 }
@@ -866,23 +860,23 @@ html[data-transparency="reduce"]:not(.dark) {
 /* Bench under reduced transparency: its own solids, not Nebula's teal. */
 @media (prefers-reduced-transparency: reduce) {
 	.dark[data-skin="bench"] {
-		--sheet: #101215;
-		--card: #131619;
-		--glass: #101215;
-		--glass-thin: #101215;
-		--glass-frost: #101215;
+		--sheet: #0a0b0d;
+		--card: #0d0f11;
+		--glass: #0a0b0d;
+		--glass-thin: #0a0b0d;
+		--glass-frost: #0a0b0d;
 		--glass-sheen: transparent;
-		--sidebar: #0e1012;
+		--sidebar: #08090a;
 	}
 }
 html[data-transparency="reduce"].dark[data-skin="bench"] {
-	--sheet: #101215;
-	--card: #131619;
-	--glass: #101215;
-	--glass-thin: #101215;
-	--glass-frost: #101215;
+	--sheet: #0a0b0d;
+	--card: #0d0f11;
+	--glass: #0a0b0d;
+	--glass-thin: #0a0b0d;
+	--glass-frost: #0a0b0d;
 	--glass-sheen: transparent;
-	--sidebar: #0e1012;
+	--sidebar: #08090a;
 }
 
 /* Home wallpapers (prefs): live scenes in components/prefs/wallpapers, drawn
