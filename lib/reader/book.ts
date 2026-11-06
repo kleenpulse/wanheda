@@ -107,6 +107,27 @@ export function pagesToRender(spread: number, layout: BookLayout, reach = 1): nu
   return out;
 }
 
+// ── Keys (V42) ───────────────────────────────────────────────────────────
+
+export type Turn = "next" | "prev" | "first" | "last";
+
+/**
+ * What a key does to the reader. ← and → move in both views (a page, or the
+ * Markdown scroll's section); the book also turns on PageDown / Space and
+ * PageUp / Shift+Space, and Home / End go to its first and last page. In the
+ * scroll those keys are the browser's own.
+ */
+export function turnFor(key: string, shift: boolean, book: boolean): Turn | null {
+  if (key === "ArrowRight") return "next";
+  if (key === "ArrowLeft") return "prev";
+  if (!book) return null;
+  if (key === "PageDown" || (key === " " && !shift)) return "next";
+  if (key === "PageUp" || (key === " " && shift)) return "prev";
+  if (key === "Home") return "first";
+  if (key === "End") return "last";
+  return null;
+}
+
 // ── Page field ───────────────────────────────────────────────────────────
 
 /** What the page field shows for a spread: `4-5` or `1`. */

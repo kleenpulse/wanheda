@@ -104,6 +104,15 @@ describe("saveProgress (V41)", () => {
     expect(await saveProgress(USER, w, NOW)).toEqual({ kind: "stale", progress: { locator: "pdf:9:0", percent: 40, at: NOW + 1000 } });
   });
 
+  it("an open bumps last opened to when it was opened, and keeps its place's own clock (T51)", async () => {
+    fake = fakeDb((q) => (q.op === "update" ? [{ id: ID }] : q.op === "insert" ? [{ documentId: ID, locator: w.locator, percent: 10, at: new Date(NOW) }] : []));
+    await saveProgress(USER, { ...w, openedAt: NOW + 60_000 }, NOW + 60_000);
+    const insert = fake.queries.find((q) => q.op === "insert");
+    expect((insert?.values as { at: Date }).at.getTime()).toBe(NOW);
+    const set = fake.queries.find((q) => q.op === "update")?.set as { lastOpenedAt: SQL };
+    expect(new PgDialect().sqlToQuery(set.lastOpenedAt).params).toContain(new Date(NOW + 60_000).toISOString());
+  });
+
   it("holds a client clock from the future back to now plus the skew", async () => {
     fake = fakeDb((q) => (q.op === "update" ? [{ id: ID }] : q.op === "insert" ? [{ documentId: ID, locator: w.locator, percent: 10, at: new Date(NOW) }] : []));
     await saveProgress(USER, { ...w, at: NOW + 10 * 86_400_000 }, NOW);

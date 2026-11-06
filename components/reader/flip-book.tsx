@@ -135,6 +135,33 @@ function guardCornerHover(pf: PageFlip, book: HTMLElement) {
   window.addEventListener("mousemove", guarded);
 }
 
+interface FlipController {
+  flip?: (pos: { x: number; y: number }) => void;
+  flipPrev?: (corner: string) => void;
+  render?: { getRect?: () => PageRect };
+}
+
+/**
+ * page-flip's own back turn (Flip.ts flipPrev) aims at x = 10 in page
+ * coordinates, missing the book's left offset that its forward turn
+ * (flipNext) adds. With `disableFlipByClick` on (pages of text, so their
+ * links get the click) a turn must start on a page corner, and a centred
+ * book's corner isn't at x = 10: every back turn, by key, arrow or swipe,
+ * was refused and a text book could only go forward (T51). Its flipPrev is
+ * replaced with the same aim plus the offset, as flipNext has. The
+ * controller is made once, in loadFromHTML; updateFromHtml keeps it.
+ */
+function fixBackTurn(pf: PageFlip) {
+  const ctl = (pf as unknown as { flipController?: FlipController }).flipController;
+  const flip = ctl?.flip;
+  const rect = ctl?.render?.getRect;
+  if (!ctl || !flip || !rect) return;
+  ctl.flipPrev = (corner: string) => {
+    const r = rect.call(ctl.render);
+    flip.call(ctl, { x: r.left + 10, y: corner === "top" ? 1 : r.height - 2 });
+  };
+}
+
 export interface FlipBookProps {
   layout: BookLayout;
   /** A page's height / width. */
@@ -290,6 +317,7 @@ export const FlipBook = React.forwardRef<BookHandle, FlipBookProps>(function Fli
     });
     flip.current = pf;
     pf.loadFromHTML(items);
+    fixBackTurn(pf);
     if (!reduced) guardCornerHover(pf, root);
     // page-flip sizes its root from minWidth and leaves its wrapper (".stf__wrapper", misspelt in its CSS) heightless.
     root.style.minWidth = "0";

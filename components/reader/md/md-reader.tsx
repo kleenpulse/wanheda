@@ -4,9 +4,9 @@ import * as React from "react";
 import { AArrowDown, AArrowUp, ChevronLeft, ChevronRight, EyeOff, ListTree, Maximize, Minimize, X } from "lucide-react";
 import { Tip, TooltipGroup } from "@/components/ui/tooltip";
 import { useReducedMotion } from "@/hooks/use-reduced-motion";
-import { normalizeQuery } from "@/lib/reader/book";
+import { normalizeQuery, turnFor } from "@/lib/reader/book";
 import { ID_PREFIX, MAX_MATCHES, anchorOf, findRanges, idOf, type MdPlace } from "@/lib/reader/md";
-import { formatLocator, parseLocator, type ReaderDoc, type ReadingMode } from "@/lib/reader/reader";
+import { formatLocator, parseLocator, type Progress, type ReaderDoc, type ReadingMode } from "@/lib/reader/reader";
 import { cn } from "@/lib/utils";
 import {
   AutoScrollControl,
@@ -27,8 +27,8 @@ import {
 } from "../chrome";
 import { onForget } from "../doc-cache";
 import { type Paper, PaperMenu, paperPref, paperProps } from "../paper";
-import { useReaderRuntime } from "../reader-provider";
 import { TEXT_SIZES, pageTurnPref, textSizePref } from "../prefs";
+import { useResume } from "../resume";
 import { useReaderApi } from "../use-reader";
 import { MdBook, type BookInfo, type MdBookView } from "./md-book";
 import { MdScroll } from "./md-scroll";
@@ -159,7 +159,6 @@ function toRange(idx: TextIndex, start: number, end: number): Range | null {
 
 
 function Reader({ doc, text }: { doc: ReaderDoc; text: string }) {
-  const runtime = useReaderRuntime();
   const api = useReaderApi();
   // Reduced motion, or Settings → Reader's "instant" page turn: no curl.
   const reducedMotion = useReducedMotion();
@@ -214,21 +213,31 @@ function Reader({ doc, text }: { doc: ReaderDoc; text: string }) {
   );
   const { chrome, hidden, setHidden, awake, stageEvents, barEvents } = useChrome(running);
 
+  // A place saved later on another device: the view is made again at it (resume.ts; close on the desktop, open on the phone).
+  const [resumed, setResumed] = React.useState(0);
+  const resume = useResume(doc, stageEl, (next: Progress) => {
+    const l = parseLocator(next.locator);
+    if (l?.kind !== "md") return;
+    if (l.heading === place.current.heading && l.y === place.current.y) return;
+    place.current = { heading: l.heading, y: l.y };
+    setResumed((n) => n + 1);
+  });
   const report = React.useCallback(
     (percent: number) => {
       const p = place.current;
-      runtime.report({ documentId: doc.id, locator: formatLocator({ kind: "md", heading: p.heading, y: p.y }), percent, at: Date.now() });
+      resume.save(formatLocator({ kind: "md", heading: p.heading, y: p.y }), percent);
     },
-    [runtime, doc.id],
+    [resume],
   );
   const onAt = React.useCallback((a: At) => {
     percentRef.current = a.percent;
     setAt((prev) => (prev.heading === a.heading && prev.percent === a.percent && prev.top === a.top ? prev : a));
   }, []);
 
-  // The open itself is a reading event: it moves the document up "Continue reading". (The view has found the place by now.)
+  // The open moves the document up "Continue reading", under the place's own clock (resume.ts). (The view has found the place by now.)
   React.useEffect(() => {
-    report(percentRef.current);
+    const p = place.current;
+    resume.open(formatLocator({ kind: "md", heading: p.heading, y: p.y }), percentRef.current);
     // Once per open.
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -374,13 +383,14 @@ function Reader({ doc, text }: { doc: ReaderDoc; text: string }) {
       const t = e.target as HTMLElement | null;
       if (t?.closest("input, textarea, select, pre, [contenteditable=true], [role=dialog], [role=menu]")) return;
       const v = book ? bookView.current : scrollView.current;
+      const turn = turnFor(e.key, e.shiftKey, book);
       if (e.key === "h" || e.key === "H") setHidden((h) => !h);
       else if (e.key === "+" || e.key === "=") bumpSize(1);
       else if (e.key === "-") bumpSize(-1);
-      else if (e.key === "ArrowRight" || (book && (e.key === "PageDown" || (e.key === " " && !e.shiftKey)))) v?.step(1);
-      else if (e.key === "ArrowLeft" || (book && (e.key === "PageUp" || (e.key === " " && e.shiftKey)))) v?.step(-1);
-      else if (book && e.key === "Home") bookView.current?.goTo(1);
-      else if (book && e.key === "End") bookView.current?.goTo(bookInfo?.pages ?? 1);
+      else if (turn === "next") v?.step(1);
+      else if (turn === "prev") v?.step(-1);
+      else if (turn === "first") bookView.current?.goTo(1);
+      else if (turn === "last") bookView.current?.goTo(bookInfo?.pages ?? 1);
       else return;
       e.preventDefault();
     };
@@ -446,9 +456,9 @@ function Reader({ doc, text }: { doc: ReaderDoc; text: string }) {
       </Bar>
 
       {book ? (
-        <MdBook ref={bookView} {...viewProps} reduced={reduced} chrome={chrome} onBook={setBookInfo} />
+        <MdBook key={resumed} ref={bookView} {...viewProps} reduced={reduced} chrome={chrome} onBook={setBookInfo} />
       ) : (
-        <MdScroll ref={scrollView} {...viewProps} aside={panel === "toc"} />
+        <MdScroll key={resumed} ref={scrollView} {...viewProps} aside={panel === "toc"} />
       )}
 
       {panel === "toc" ? (

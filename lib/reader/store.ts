@@ -283,9 +283,11 @@ export async function saveProgress(userId: string, w: ProgressWrite, now = Date.
   const db = getDb();
   if (!db) return null;
   const at = new Date(clampAt(w.at, now));
+  // An open (openWrite) keeps its place's old clock but was opened now.
+  const opened = new Date(clampAt(Math.max(w.at, w.openedAt ?? 0), now));
   const [owned] = await db
     .update(document)
-    .set({ lastOpenedAt: sql`greatest(${document.lastOpenedAt}, ${at.toISOString()}::timestamptz)` })
+    .set({ lastOpenedAt: sql`greatest(${document.lastOpenedAt}, ${opened.toISOString()}::timestamptz)` })
     .where(and(eq(document.id, w.documentId), eq(document.userId, userId)))
     .returning({ id: document.id });
   if (!owned) return { kind: "gone" };

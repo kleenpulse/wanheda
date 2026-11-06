@@ -62,7 +62,7 @@ export function createReaderRuntime(qc: QueryClient, demo: boolean): ReaderRunti
   let again = false;
 
   const fold = (w: ProgressWrite) => {
-    qc.setQueryData<ReaderPayload>(READER_KEY, (p) => (p ? withProgress(p, w.documentId, { locator: w.locator, percent: w.percent, at: w.at }) : p));
+    qc.setQueryData<ReaderPayload>(READER_KEY, (p) => (p ? withProgress(p, w.documentId, { locator: w.locator, percent: w.percent, at: w.at }, w.openedAt) : p));
   };
 
   async function send(w: ProgressWrite): Promise<"done" | "keep"> {
