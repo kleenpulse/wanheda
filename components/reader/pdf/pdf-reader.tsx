@@ -36,6 +36,7 @@ import {
   ZOOM_STEPS,
   autoScrollSpeed,
   clampPage,
+  cleanPageField,
   nextZoom,
   normalizeQuery,
   pageFieldText,
@@ -442,6 +443,10 @@ function Reader({ doc, loaded }: { doc: ReaderDoc; loaded: Loaded }) {
           setQuery(q);
           goTo(page);
         }}
+        // Searching takes over the page: auto-scroll stops (user 2026-11-06).
+        onSearch={() => {
+          setAuto(false);
+        }}
         onClear={() => {
           setQuery("");
         }}
@@ -566,6 +571,7 @@ function TopBar({
   onOutline,
   onHit,
   onClear,
+  onSearch,
 }: {
   pdf: PDFDocumentProxy;
   mode: ReadingMode;
@@ -575,6 +581,8 @@ function TopBar({
   onOutline: () => void;
   onHit: (page: number, query: string) => void;
   onClear: () => void;
+  /** The owner started searching: the field took focus, or a search ran. */
+  onSearch: () => void;
 }) {
   return (
     <div className="flex h-14 items-center gap-2 px-3 sm:px-4">
@@ -587,7 +595,7 @@ function TopBar({
       >
         <ListTree aria-hidden />
       </Tip>
-      <Find pdf={pdf} from={from} onHit={onHit} onClear={onClear} />
+      <Find pdf={pdf} from={from} onHit={onHit} onClear={onClear} onSearch={onSearch} />
       <ModeSwitch mode={mode} onMode={onMode} />
     </div>
   );
@@ -599,13 +607,26 @@ const ICON_BUTTON =
 type FindState = { kind: "idle" } | { kind: "searching"; at: number } | { kind: "hit"; page: number; query: string } | { kind: "none"; query: string };
 
 /** Find (V42, both views): the next page holding the words, wrapping round. A hit turns there and marks the words. */
-function Find({ pdf, from, onHit, onClear }: { pdf: PDFDocumentProxy; from: number; onHit: (page: number, query: string) => void; onClear: () => void }) {
+function Find({
+  pdf,
+  from,
+  onHit,
+  onClear,
+  onSearch,
+}: {
+  pdf: PDFDocumentProxy;
+  from: number;
+  onHit: (page: number, query: string) => void;
+  onClear: () => void;
+  onSearch: () => void;
+}) {
   const [text, setText] = React.useState("");
   const [state, setState] = React.useState<FindState>({ kind: "idle" });
   const ctrl = React.useRef<AbortController | null>(null);
   React.useEffect(() => () => ctrl.current?.abort(), []);
 
   const run = (dir: 1 | -1) => {
+    onSearch();
     const q = normalizeQuery(text);
     ctrl.current?.abort();
     if (!q) {
@@ -657,6 +678,7 @@ function Find({ pdf, from, onHit, onClear }: { pdf: PDFDocumentProxy; from: numb
         onChange={(e) => {
           setText(e.target.value);
         }}
+        onFocus={onSearch}
         onKeyDown={(e) => {
           if (e.key === "Escape") {
             e.preventDefault();
@@ -933,7 +955,7 @@ function PageField({ field, pages, onPage }: { field: string; pages: number; onP
           e.currentTarget.select();
         }}
         onChange={(e) => {
-          setDraft(e.target.value);
+          setDraft(cleanPageField(e.target.value));
         }}
         onBlur={() => {
           setDraft(null);

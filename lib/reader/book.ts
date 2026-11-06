@@ -117,9 +117,23 @@ export function pageFieldText(spread: number, layout: BookLayout): string {
   return b === undefined ? String(a) : `${String(a)}-${String(b)}`;
 }
 
+/**
+ * What the page field lets through as it's typed (user 2026-11-06: no
+ * letters): digits, and one hyphen after them for a spread's `a-b`. Anything
+ * else is dropped as it lands, so the field never holds a non-number.
+ */
+export function cleanPageField(raw: string): string {
+  // Nothing past a slash: a pasted "12 / 300" is page 12, not 12300.
+  const kept = (raw.split("/")[0] ?? "").replace(/[^\d-]/g, "").replace(/^-+/, "");
+  const dash = kept.indexOf("-");
+  const tidy = dash === -1 ? kept : kept.slice(0, dash + 1) + kept.slice(dash + 1).replace(/-/g, "");
+  return tidy.slice(0, 15);
+}
+
 /** Reads what the owner typed into the page field: `12`, `12-13`, `12 / 300`. Null when it isn't a page. */
 export function parsePageField(raw: string, pages: number): number | null {
-  const m = /^\s*(\d{1,7})\s*(?:[-–]\s*\d{1,7}\s*)?(?:\/\s*\d*\s*)?$/.exec(raw);
+  // A trailing hyphen ("142-") is what's left when the second number is deleted: it still means 142.
+  const m = /^\s*(\d{1,7})\s*(?:[-–]\s*(?:\d{1,7})?\s*)?(?:\/\s*\d*\s*)?$/.exec(raw);
   if (!m || pages <= 0) return null;
   return clampPage(Number(m[1]), pages);
 }

@@ -19,6 +19,7 @@ import {
   windowIndex,
   MAX_PAGE_PIXELS,
   autoScrollSpeed,
+  cleanPageField,
 } from "./book";
 
 const wide = (pages: number) => ({ pages, single: false });
@@ -115,9 +116,20 @@ describe("page field", () => {
     expect(pageFieldText(4, single(8))).toBe("5");
   });
 
+  it("lets only digits and one hyphen in as it's typed", () => {
+    expect(cleanPageField("142-hvc")).toBe("142-");
+    expect(cleanPageField("12a3")).toBe("123");
+    expect(cleanPageField("-5")).toBe("5");
+    expect(cleanPageField("4-5-6")).toBe("4-56");
+    expect(cleanPageField(" 7 / 300")).toBe("7");
+    expect(cleanPageField("12-13 / 300")).toBe("12-13");
+    expect(cleanPageField("abc")).toBe("");
+  });
+
   it("reads what was typed, clamped to the book", () => {
     expect(parsePageField("12", 300)).toBe(12);
     expect(parsePageField(" 12-13 ", 300)).toBe(12);
+    expect(parsePageField("142-", 300)).toBe(142);
     expect(parsePageField("12 / 300", 300)).toBe(12);
     expect(parsePageField("900", 300)).toBe(300);
     expect(parsePageField("0", 300)).toBe(1);
