@@ -12,6 +12,11 @@ export type DocKind = (typeof DOC_KINDS)[number];
 export const READING_MODES = ["scroll", "flip"] as const;
 export type ReadingMode = (typeof READING_MODES)[number];
 
+/** How a new document first opens (V42): a PDF as a book, text as a scroll. */
+export function defaultModeFor(kind: DocKind): ReadingMode {
+  return kind === "pdf" ? "flip" : "scroll";
+}
+
 /** Size caps per kind (SPEC V38). The same caps hold for local files, so turning R2 on later never strands one. */
 export const SIZE_CAP: Record<DocKind, number> = {
   pdf: 200 * 1024 * 1024,

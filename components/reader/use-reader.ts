@@ -12,6 +12,7 @@ import { askToPersist, hashFile, listDeviceFiles, readDeviceFile, removeDeviceFi
 import {
   READER_KEY,
   checkFile,
+  defaultModeFor,
   titleFromFileName,
   upsertCollection,
   upsertDoc,
@@ -20,6 +21,8 @@ import {
   type ReaderDoc,
   type ReaderPayload,
 } from "@/lib/reader/reader";
+import { forgetCover, hasCover, keepCover } from "./covers";
+import { forgetDoc } from "./doc-cache";
 import { usePendingProgress, withPending } from "./reader-runtime";
 
 // The reader cache (V24): /reader and Home's "Continue reading" read one
@@ -122,6 +125,19 @@ function storeWarning(error: "unavailable" | "quota" | "failed" | null) {
   });
 }
 
+/**
+ * Makes a PDF's page-one cover in the background (T47). pdf.js loads only
+ * now, on the first PDF added, so the library itself never pulls it in.
+ */
+function makeCover(sha256: string, file: File, demo: boolean) {
+  void (async () => {
+    if (await hasCover(sha256, demo)) return;
+    const { coverOfFile } = await import("./pdf/engine");
+    const blob = await coverOfFile(file);
+    if (blob) await keepCover(sha256, blob, demo);
+  })().catch(() => undefined);
+}
+
 export function useReaderApi() {
   const qc = useQueryClient();
   const demo = useAccount().kind !== "owner";
@@ -157,6 +173,7 @@ export function useReaderApi() {
         if (demo) demoFiles.set(hashed.sha256, file);
         else storeWarning(hashed.storeError);
         refreshDevice(qc);
+        if (check.kind === "pdf") makeCover(hashed.sha256, file, demo);
 
         const known = qc.getQueryData<ReaderPayload>(READER_KEY)?.documents.find((d) => d.sha256 === hashed.sha256);
         if (known) {
@@ -175,7 +192,7 @@ export function useReaderApi() {
           sizeBytes: hashed.size,
           pages: null,
           tags: [],
-          mode: "scroll",
+          mode: defaultModeFor(check.kind),
           collections: [],
           progress: null,
           lastOpenedAt: null,
@@ -313,6 +330,8 @@ export function useReaderApi() {
             patchCache((p) => ({ ...p, documents: p.documents.filter((d) => d.id !== doc.id) }));
             show(doc.id);
             // Another entry may share the bytes only if it's the same doc: the hash is unique per user.
+            forgetCover(doc.sha256);
+            forgetDoc(doc.sha256);
             if (demo) demoFiles.delete(doc.sha256);
             else void removeDeviceFile(doc.sha256).then(() => { refreshDevice(qc); });
           };

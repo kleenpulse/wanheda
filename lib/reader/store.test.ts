@@ -64,6 +64,16 @@ describe("createDocument (V39)", () => {
     expect(await createDocument(USER, create)).toEqual({ kind: "not-yours" });
   });
 
+  it("opens a new PDF as a book, a new text as a scroll (V42)", async () => {
+    fake = withHeld(ID);
+    await createDocument(USER, create);
+    await createDocument(USER, { ...create, kind: "md", fileName: "t.md" });
+    const modes = fake.queries
+      .filter((q) => q.op === "insert")
+      .map((q) => (q.calls.find((c) => c.method === "values")?.args[0] as { mode?: string } | undefined)?.mode);
+    expect(modes).toEqual(["flip", "scroll"]);
+  });
+
   it("scopes the hash lookup to the owner", async () => {
     fake = withHeld(ID);
     await createDocument(USER, create);

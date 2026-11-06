@@ -84,6 +84,10 @@
 	--color-warn: var(--warn);
 	--color-ok: var(--ok);
 	--color-em-scroll: var(--em-scroll);
+	/* The reader's book stage: dark in every skin, so pages read as paper under a lamp (V42). */
+	--color-stage: var(--stage);
+	--color-stage-ink: var(--stage-ink);
+	--color-paper: var(--paper);
 	--color-sticky-plain: var(--sticky-plain);
 	--color-sticky-amber: var(--sticky-amber);
 	--color-sticky-rose: var(--sticky-rose);
@@ -257,6 +261,9 @@
 	--warn: #b76a00;
 	--ok: #2f8f5b;
 	--em-scroll: #cfcfca;
+	--stage: #2a2927;
+	--stage-ink: #f3f1ec;
+	--paper: #fbfaf7;
 
 	/* Sticky notes: a data palette, never the signal (SPEC T31, V15). Fills
 	   carry ink (>= 11:1) and ink-2 (>= 4.6:1); marks pass the dataviz
@@ -369,6 +376,9 @@
 	--warn: #f2b35b;
 	--ok: #5fd3a6;
 	--em-scroll: #2a3d3d;
+	--stage: #050c0d;
+	--stage-ink: #eaf2f1;
+	--paper: #f2f4f3;
 
 	/* Sticky notes, dark: opaque fills so their contrast is measurable over
 	   glass. Ink >= 11:1, ink-2 >= 6.4:1; marks validated on Nebula and Bench
@@ -1094,3 +1104,30 @@ html[data-motion="reduce"]::view-transition-new(*) {
 .note-check:checked::after { transform: rotate(45deg) scale(1); }
 .note-check:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 .note-check:disabled { cursor: default; }
+
+/* ── The PDF book (V42) ─────────────────────────────────────────────────
+   page-flip owns each page element's inline style and marks it --left or
+   --right as it lays out the spread; the spine shade follows that mark. */
+.book-page { overflow: hidden; background: var(--paper); }
+.book-page.book-phantom { background: transparent; }
+.book-page > img { position: absolute; inset: 0; width: 100%; height: 100%; user-select: none; -webkit-user-drag: none; }
+.book-spine { position: absolute; inset-block: 0; width: 9%; pointer-events: none; }
+.book-page.--left .book-spine { right: 0; background: linear-gradient(to left, color-mix(in oklab, var(--stage) 34%, transparent), color-mix(in oklab, var(--stage) 6%, transparent) 45%, transparent); }
+.book-page.--right .book-spine { left: 0; background: linear-gradient(to right, color-mix(in oklab, var(--stage) 30%, transparent), color-mix(in oklab, var(--stage) 5%, transparent) 45%, transparent); }
+.book-single .book-spine { display: none; }
+/* The stack of page edges beside the open spread: thicker the more pages lie that way. */
+.book-edge {
+	position: absolute;
+	pointer-events: none;
+	background: repeating-linear-gradient(to right, var(--paper) 0 1px, color-mix(in oklab, var(--paper) 72%, var(--stage)) 1px 2px);
+}
+
+/* MarqueeText (components/ui/marquee-text.tsx): only an edge with text running past it fades.
+   The component animates --marquee-fade (the left fade) and the slide itself, one pass then a
+   5 s rest; registered so it can animate. */
+@property --marquee-fade {
+	syntax: "<percentage>";
+	inherits: false;
+	initial-value: 0%;
+}
+.marquee-mask { mask-image: linear-gradient(to right, transparent, black var(--marquee-fade), black 86%, transparent); }
