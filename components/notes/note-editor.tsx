@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Archive, ArchiveRestore, ChevronLeft, History, Pin, PinOff, Trash2, X } from "lucide-react";
+import { Archive, ArchiveRestore, AudioLines, ChevronLeft, History, Pause, Pin, PinOff, Play, Square, Trash2, X } from "lucide-react";
 import { NoteMarkdown } from "@/components/notes/note-markdown";
 import { useNoteConflict, useNoteHistory, useNoteStatus, useNotesApi } from "@/components/notes/notes-provider";
 import { buttonClass } from "@/components/ui/button";
@@ -21,6 +21,10 @@ import {
   type NoteRevision,
 } from "@/lib/notes/notes";
 import { relativeTime } from "@/lib/notifications/notifications";
+import { primeSpeech, useSpeech } from "@/lib/speech/store";
+import { speakableSentences } from "@/lib/speech/transform";
+import { useSpeechError } from "@/components/speech/use-speech-error";
+import { toast } from "@/components/ui/toaster";
 import type { NoteStatus } from "@/lib/notes/sync";
 import { cn } from "@/lib/utils";
 
@@ -83,6 +87,7 @@ export function NoteEditor({ note, onBack, backLabel = "Notes" }: { note: Note; 
         <span className="readout mr-auto truncate pl-1" role="status" aria-live="polite">
           {status ? STATUS_LABEL[status] : ""}
         </span>
+        <ReadNote note={note} />
         <button
           type="button"
           aria-pressed={historyOpen}
@@ -201,6 +206,66 @@ export function NoteEditor({ note, onBack, backLabel = "Notes" }: { note: Note; 
         />
       </div>
     </article>
+  );
+}
+
+/**
+ * Read note (V47, V48): the note read aloud, its title then its body as
+ * speech text (code, tables and links said briefly, transform.ts). The same
+ * speech store as the reader: one voice a device, the island's controls.
+ */
+function ReadNote({ note }: { note: Note }) {
+  const on = useSpeech((s) => s.status !== "idle" && s.source?.kind === "note" && s.source.id === note.id);
+  const playing = useSpeech((s) => s.status === "playing");
+  useSpeechError("note", note.id);
+
+  if (on) {
+    return (
+      <span className="flex items-center rounded-pill bg-signal-soft text-signal-ink">
+        <button
+          type="button"
+          onClick={() => {
+            primeSpeech();
+            useSpeech.getState().toggle();
+          }}
+          className={buttonClass("ghost", "circle-sm", "text-current hover:text-current")}
+          title={playing ? "Pause reading" : "Resume reading"}
+        >
+          {playing ? <Pause aria-hidden strokeWidth={1.75} /> : <Play aria-hidden strokeWidth={1.75} />}
+          <span className="sr-only">{playing ? "Pause reading" : "Resume reading"}</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            useSpeech.getState().stop();
+          }}
+          className={buttonClass("ghost", "circle-sm", "text-current hover:text-current")}
+          title="Stop reading"
+        >
+          <Square aria-hidden strokeWidth={1.75} />
+          <span className="sr-only">Stop reading</span>
+        </button>
+      </span>
+    );
+  }
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        const title = note.title.trim();
+        const sentences = [...(title ? speakableSentences(title) : []), ...speakableSentences(note.bodyMd)];
+        if (sentences.length === 0) {
+          toast({ id: `speech:note:${note.id}`, title: "Read aloud", body: "Nothing to read in this note yet." });
+          return;
+        }
+        useSpeech.getState().play({ kind: "note", id: note.id, title: displayTitle(note) }, sentences);
+      }}
+      className={buttonClass("ghost", "circle-sm")}
+      title="Read aloud"
+    >
+      <AudioLines aria-hidden strokeWidth={1.75} />
+      <span className="sr-only">Read note aloud</span>
+    </button>
   );
 }
 

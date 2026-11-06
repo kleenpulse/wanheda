@@ -19,6 +19,11 @@ import { useReaderRuntime } from "./reader-provider";
 // screen (the server's answer to the open, or a refetch when the tab comes
 // back), the reader goes there. Close on the desktop, open on the phone: same
 // page.
+//
+// Reading aloud with follow on (V48), the voice is the owner reading here, by
+// ear: its place saves as an owner move (follow), and while it holds the
+// place a newer one from elsewhere doesn't move the view; this device's next
+// save wins over it.
 
 /** Presses, scrolls and touches on the reader's stage; keys anywhere (the readers listen on the window). */
 const STAGE_MOVES = ["pointerdown", "wheel", "touchstart"] as const;
@@ -28,13 +33,21 @@ export interface Resume {
   save(locator: string, percent: number): void;
   /** The open: once, with the place it opened at. */
   open(locator: string, percent: number): void;
+  /** The voice's place (read-along, follow on): saved as an owner move, whatever came before. */
+  follow(locator: string, percent: number): void;
 }
 
 /**
  * `onElsewhere` gets a place saved later on another device (or tab): the
  * reader parses it and shows it. Until the owner moves again nothing is saved.
  */
-export function useResume(doc: ReaderDoc, stage: HTMLElement | null, onElsewhere: (p: Progress) => void): Resume {
+export function useResume(
+  doc: ReaderDoc,
+  stage: HTMLElement | null,
+  onElsewhere: (p: Progress) => void,
+  /** True while the voice holds the place (speaking this document, follow on). */
+  voiceHolds?: React.RefObject<boolean>,
+): Resume {
   const runtime = useReaderRuntime();
   const [openedFrom] = React.useState(doc.progress);
   /** The clock of the place on screen. */
@@ -71,23 +84,30 @@ export function useResume(doc: ReaderDoc, stage: HTMLElement | null, onElsewhere
     const next = placeFromElsewhere(doc.progress, shownAt.current);
     if (!next) return;
     shownAt.current = next.at;
+    // Read aloud here, following: the view stays with the voice, and its next save (after this clock) wins.
+    if (voiceHolds?.current) return;
     moved.current = false;
     live.current(next);
-  }, [doc.progress]);
+  }, [doc.progress, voiceHolds]);
 
   const docId = doc.id;
-  return React.useMemo<Resume>(
-    () => ({
-      save(locator, percent) {
-        if (!moved.current) return;
-        const at = moveAt(Date.now(), shownAt.current);
-        shownAt.current = at;
-        runtime.report({ documentId: docId, locator, percent, at });
-      },
+  return React.useMemo<Resume>(() => {
+    const save = (locator: string, percent: number) => {
+      if (!moved.current) return;
+      const at = moveAt(Date.now(), shownAt.current);
+      shownAt.current = at;
+      runtime.report({ documentId: docId, locator, percent, at });
+    };
+    return {
+      save,
       open(locator, percent) {
         runtime.report(openWrite(docId, locator, percent, openedFrom, Date.now()));
       },
-    }),
-    [runtime, docId, openedFrom],
-  );
+      follow(locator, percent) {
+        // The voice opens the gate itself, also after the reset on a visible return.
+        moved.current = true;
+        save(locator, percent);
+      },
+    };
+  }, [runtime, docId, openedFrom]);
 }

@@ -2,6 +2,7 @@
 
 import type * as React from "react";
 import type { MdPlace } from "@/lib/reader/md";
+import type { Direction } from "@/lib/reader/read-along";
 
 // What the Markdown / text reader (md-reader.tsx) asks of a view: the scroll
 // (md-scroll.tsx, T48) or the book (md-book.tsx, T49). Both read and move
@@ -28,6 +29,20 @@ export interface MdView {
   step(dir: 1 | -1): void;
   /** What auto-scroll moves, or null (the book). */
   scroller(): HTMLElement | null;
+
+  // Read-along (T56, V48): ranges over the rendered text, like find's.
+  /** Paints the spoken sentence; null clears it. */
+  say(range: Range | null): void;
+  /** Brings it into view: scrolls it to the reading line, or turns to its page. Holds its place first (the book), so the turn isn't the owner's. */
+  bring(range: Range, smooth: boolean): void;
+  /** Where it is from the view, null when it shows. */
+  where(range: Range): Direction | null;
+  /** The reader's own place for the line it starts on (placeAt, V48), held as the place; with the percent to save. */
+  placeOf(range: Range): { place: MdPlace; locator: string; percent: number } | null;
+  /** The client y of the held place's line: play starts at the first sentence there or below. */
+  placeY(): number | null;
+  /** The client y of a place's line (a sentence's text.json estimate), or null. */
+  placeLineY(place: MdPlace): number | null;
 }
 
 export interface ViewProps {
@@ -73,6 +88,19 @@ export function unpaint() {
   const reg = highlights();
   reg?.delete("reader-find");
   reg?.delete("reader-find-now");
+}
+
+/** The sentence being read aloud (V48): painted, never wrapped, so nothing moves and selection stays the owner's. */
+export function paintSay(ranges: readonly Range[]) {
+  const reg = highlights();
+  if (!reg) return;
+  if (ranges.length === 0) reg.delete("reader-say");
+  else {
+    const h = new Highlight(...ranges);
+    // Under find's marks, whichever was painted last.
+    h.priority = -1;
+    reg.set("reader-say", h);
+  }
 }
 
 /** Headings the contents list and the place count: every h1–h6 with an id, footnotes' own heading left out. */

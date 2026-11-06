@@ -1,5 +1,6 @@
+import { create } from "zustand";
 import { readTextFile } from "@/lib/reader/device";
-import type { TextRequest, TextResponse } from "@/lib/reader/device-protocol";
+import type { TextMessage, TextRequest, TextResponse } from "@/lib/reader/device-protocol";
 import { COMPLETE_TAIL, isCurrent, parseTextFile, type TextFile } from "@/lib/reader/extract";
 import type { ReaderDoc } from "@/lib/reader/reader";
 import { onForget } from "./doc-cache";
@@ -18,6 +19,26 @@ const pending = new Set<string>();
 /** Bumped when a document is forgotten (deleted, unreadable): a job that started before it is dropped, not kept. */
 const generation = new Map<string, number>();
 
+/**
+ * How each document's job ended this session, when it didn't leave the text
+ * here: another tab is writing it (`busy`, look again soon), or it failed.
+ * Read aloud says which (V48).
+ */
+const outcome = new Map<string, "busy" | "failed">();
+
+/** Extraction progress by document while a PDF's job runs (pages read of all); gone when it ends. */
+export const useTextProgress = create<Record<string, { done: number; total: number } | undefined>>(() => ({}));
+
+function endProgress(sha256: string): void {
+  if (!(sha256 in useTextProgress.getState())) return;
+  useTextProgress.setState((s) => Object.fromEntries(Object.entries(s).filter(([k]) => k !== sha256)), true);
+}
+
+/** Why a document's text isn't here after its job, or null. */
+export function textOutcome(sha256: string): "busy" | "failed" | null {
+  return outcome.get(sha256) ?? null;
+}
+
 let worker: { w: Worker; next: number; waiting: Map<number, (r: TextResponse) => void> } | null = null;
 
 /** The worker lives only while it has work: done, it goes, and pdf.js and the text go with it. */
@@ -31,10 +52,15 @@ function post(req: Omit<TextRequest & { type: "extract" }, "id">): Promise<TextR
       w.terminate();
       worker = null;
     };
-    w.onmessage = (e: MessageEvent<TextResponse>) => {
-      const done = waiting.get(e.data.id);
-      waiting.delete(e.data.id);
-      done?.(e.data);
+    w.onmessage = (e: MessageEvent<TextMessage>) => {
+      const msg = e.data;
+      if ("type" in msg) {
+        useTextProgress.setState({ [msg.sha256]: { done: msg.done, total: msg.total } });
+        return;
+      }
+      const done = waiting.get(msg.id);
+      waiting.delete(msg.id);
+      done?.(msg);
       idle();
     };
     w.onerror = () => {
@@ -84,12 +110,16 @@ export function ensureText(doc: Pick<ReaderDoc, "sha256" | "kind">, file: File, 
   const job = (async () => {
     let settle = true;
     try {
+      outcome.delete(sha256);
       if (demo ? inTab.has(sha256) : await storedIsCurrent(sha256)) return;
       const res = await post({ type: "extract", sha256, kind, file, keep: !demo });
+      if (!res.ok) outcome.set(sha256, "failed");
+      else if (res.status === "busy") outcome.set(sha256, "busy");
       // Another tab is writing it, or it was deleted on the way: look again next open.
       if (res.ok && (res.status === "busy" || res.status === "cancelled")) settle = false;
       if (res.ok && res.status === "done" && res.json !== null && demo && !forgotten()) inTab.set(sha256, res.json);
     } finally {
+      endProgress(sha256);
       pending.delete(sha256);
       if (settle && !forgotten()) settled.add(sha256);
     }

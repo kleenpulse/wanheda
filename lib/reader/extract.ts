@@ -187,9 +187,15 @@ const CLEANUP_EVERY = 200;
  * run it starts in, the reader's own place for that line (V41). A page that
  * can't be read is skipped. Stops quietly when `signal` aborts.
  */
-export async function extractPdf(pdf: PdfSource, emit: (s: Sentence) => void, signal: AbortSignal): Promise<void> {
+export async function extractPdf(
+  pdf: PdfSource,
+  emit: (s: Sentence) => void,
+  signal: AbortSignal,
+  onPage?: (done: number, total: number) => void,
+): Promise<void> {
   const stream = new SentenceStream(emit);
   for (let n = 1; n <= pdf.numPages; n++) {
+    onPage?.(n - 1, pdf.numPages);
     if (signal.aborted) return;
     try {
       const page = await pdf.getPage(n);

@@ -5,10 +5,11 @@ import { useElementWidth } from "@/hooks/use-element-width";
 import { pageFieldText, pagesToRender, spreadCount, spreadOf, spreadPages, type BookLayout } from "@/lib/reader/book";
 import { anchorOf, lineFor, placeAt, type Section } from "@/lib/reader/md";
 import { bookPercent, mdPageBox, pageAt, paginate, type FlowBlock, type LineBox, type PageBox, type PageSpan } from "@/lib/reader/md-book";
+import { mdVoiceLocator, pageDirection } from "@/lib/reader/read-along";
 import { BAR_H, bookPagesPref } from "../chrome";
 import { FlipBook, type BookHandle, type OpenBook } from "../flip-book";
 import { MdBody, TextBody } from "./md-body";
-import { BASE_PX, headingElements, paintRanges, unpaint, type MdView, type ViewProps } from "./view";
+import { BASE_PX, headingElements, paintRanges, paintSay, unpaint, type MdView, type ViewProps } from "./view";
 
 // Markdown and text as a book (T49, V42): the same page-flip book as a PDF's
 // (../flip-book.tsx), its pages cut from the text.
@@ -146,6 +147,8 @@ export const MdBook = React.forwardRef<
   /** Per page filled: flow text node → its copy's. */
   const copies = React.useRef(new Map<number, Map<Text, Text>>());
   const marks = React.useRef<{ ranges: readonly Range[]; current: Range | undefined } | null>(null);
+  /** The sentence being read aloud, over the flow (V48). */
+  const sayRange = React.useRef<Range | null>(null);
   const live = React.useRef({ onAt, onReport, onBook });
   React.useLayoutEffect(() => {
     live.current = { onAt, onReport, onBook };
@@ -320,8 +323,10 @@ export const MdBook = React.forwardRef<
     return el;
   }, [fillPage]);
 
-  /** Find's marks, carried from the flow to the copies on the filled pages. */
+  /** Find's marks and the spoken sentence, carried from the flow to the copies on the filled pages. */
   const repaint = React.useCallback(() => {
+    const say = sayRange.current;
+    paintSay(say ? [...copies.current.values()].flatMap((map) => onPage(say, map) ?? []) : []);
     const m = marks.current;
     if (!m) {
       unpaint();
@@ -411,8 +416,49 @@ export const MdBook = React.forwardRef<
       goTo: (page) => {
         book.current?.goTo(page);
       },
+
+      say: (range) => {
+        sayRange.current = range;
+        repaint();
+      },
+      // The page the sentence starts on, with the place held there first: the turn is then the voice's own,
+      // not a turn away from the place (onSpread).
+      bring: (range) => {
+        const l = laidRef.current;
+        const el = flow.current;
+        if (!l || !el) return;
+        const line = range.getBoundingClientRect().top - el.getBoundingClientRect().top;
+        placeRef.current = placeAt(l.sections, line, l.total);
+        showPage(pageAt(l.pages, line));
+      },
+      where: (range) => {
+        if (!laidRef.current) return null;
+        return pageDirection(pageOfY(range.getBoundingClientRect().top), spreadPages(spreadRef.current, layoutRef.current));
+      },
+      placeOf: (range) => {
+        const l = laidRef.current;
+        const el = flow.current;
+        if (!l || !el) return null;
+        const line = range.getBoundingClientRect().top - el.getBoundingClientRect().top;
+        const place = placeAt(l.sections, line, l.total);
+        placeRef.current = place;
+        setAtPage(pageAt(l.pages, line));
+        return { place, locator: mdVoiceLocator(l.sections, line, l.total), percent: bookPercent(spreadPages(spreadRef.current, layoutRef.current), l.pages, l.total) };
+      },
+      placeY: () => {
+        const l = laidRef.current;
+        const el = flow.current;
+        if (!l || !el) return null;
+        return el.getBoundingClientRect().top + (lineFor(l.sections, placeRef.current, l.total) ?? 0);
+      },
+      placeLineY: (place) => {
+        const l = laidRef.current;
+        const el = flow.current;
+        const line = l ? lineFor(l.sections, place, l.total) : null;
+        return el && line !== null ? el.getBoundingClientRect().top + line : null;
+      },
     }),
-    [showPage, pageOfY, repaint],
+    [showPage, pageOfY, repaint, placeRef],
   );
 
   return (

@@ -3,6 +3,7 @@
 import { pdfjs } from "react-pdf";
 import type { PDFDocumentLoadingTask, PDFDocumentProxy, PDFPageProxy } from "pdfjs-dist";
 import { queryPattern, renderScale, textHas } from "@/lib/reader/book";
+import { continuedHit, nearest, pageText, pdfAt, sentenceHits, spanPieces, type NormText } from "@/lib/reader/read-along";
 import { onForget } from "../doc-cache";
 import { pdfParams } from "./source";
 
@@ -326,6 +327,91 @@ export async function matchBoxes(pdf: PDFDocumentProxy, n: number, query: string
     for (const r of runs) if (r.start < to && r.start + r.str.length > from) hit.add(r);
   }
   return [...hit].map((r) => r.box);
+}
+
+// ── Read-along (T56, V48) ────────────────────────────────────────────────
+
+type Box = Run["box"];
+
+/** A page's runs as the text extractor read them (extract.ts: empty runs too, for their line ends), with their boxes. */
+interface SayRun {
+  str: string;
+  hasEOL: boolean;
+  box: Box;
+}
+
+/** The last few pages' runs: consecutive sentences are mostly on the same page. */
+const SAY_PAGES = 4;
+const sayPages = new WeakMap<PDFDocumentProxy, Map<number, Promise<SayRun[]>>>();
+
+function sayRuns(pdf: PDFDocumentProxy, n: number): Promise<SayRun[]> {
+  let pages = sayPages.get(pdf);
+  if (!pages) sayPages.set(pdf, (pages = new Map<number, Promise<SayRun[]>>()));
+  const hit = pages.get(n);
+  if (hit) return hit;
+  const p = (async () => {
+    const page = await pdf.getPage(n);
+    const viewport = page.getViewport({ scale: 1 });
+    const content = await page.getTextContent();
+    const runs: SayRun[] = [];
+    for (const item of content.items) {
+      if (!("str" in item) || !Array.isArray(item.transform)) continue;
+      const [, , , , e = 0, f = 0] = item.transform as number[];
+      const [x1 = 0, y1 = 0] = viewport.convertToViewportPoint(e, f) as number[];
+      const [x2 = 0, y2 = 0] = viewport.convertToViewportPoint(e + item.width, f + item.height) as number[];
+      runs.push({
+        str: item.str,
+        hasEOL: item.hasEOL,
+        box: [Math.min(x1, x2) / viewport.width, Math.min(y1, y2) / viewport.height, Math.abs(x2 - x1) / viewport.width, Math.abs(y2 - y1) / viewport.height],
+      });
+    }
+    page.cleanup();
+    return runs;
+  })().catch(() => []);
+  pages.set(n, p);
+  if (pages.size > SAY_PAGES) {
+    const [first] = pages.keys();
+    if (first !== undefined) pages.delete(first);
+  }
+  return p;
+}
+
+/** The boxes of a span of a page's text: a run's share of its box for the characters it shows. */
+function spanBoxes(runs: readonly SayRun[], norm: NormText, start: number, end: number): Box[] {
+  return spanPieces(norm, start, end).flatMap(({ piece, from, to }) => {
+    const r = runs[piece];
+    if (!r || r.str.length === 0) return [];
+    const [l, t, w, h] = r.box;
+    const len = r.str.length;
+    return [[l + (w * from) / len, t, (w * (to - from)) / len, h] as Box];
+  });
+}
+
+export interface SayBoxes {
+  page: number;
+  boxes: Box[];
+}
+
+/**
+ * Where a sentence (text.json, V44) shows: boxes on the page its locator
+ * names, nearest the locator's line when the same words come twice, and on
+ * the next page if it runs on over the break. Empty when it can't be found.
+ */
+export async function sentenceBoxes(pdf: PDFDocumentProxy, s: { text: string; locator: string }): Promise<SayBoxes[]> {
+  const at = pdfAt(s.locator);
+  if (!at || at.page > pdf.numPages) return [];
+  const runs = await sayRuns(pdf, at.page);
+  const norm = pageText(runs);
+  const hit = nearest(sentenceHits(norm.text, s.text, true), (h) => Math.abs((runs[norm.piece[h.start] ?? 0]?.box[1] ?? 0) * 1000 - at.y));
+  if (!hit) return [];
+  const out: SayBoxes[] = [{ page: at.page, boxes: spanBoxes(runs, norm, hit.start, hit.end) }];
+  if (hit.rest && at.page < pdf.numPages) {
+    const next = await sayRuns(pdf, at.page + 1);
+    const norm2 = pageText(next);
+    const h2 = continuedHit(norm2.text, hit.rest);
+    if (h2) out.push({ page: at.page + 1, boxes: spanBoxes(next, norm2, h2.start, h2.end) });
+  }
+  return out;
 }
 
 /**

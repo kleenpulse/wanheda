@@ -6,6 +6,8 @@ import { Tip, TooltipGroup } from "@/components/ui/tooltip";
 import { useReducedMotion } from "@/hooks/use-reduced-motion";
 import { normalizeQuery, turnFor } from "@/lib/reader/book";
 import { ID_PREFIX, MAX_MATCHES, anchorOf, findRanges, idOf, type MdPlace } from "@/lib/reader/md";
+import type { Sentence } from "@/lib/reader/extract";
+import { NormBuilder, firstMdEstimate, mdAt, mdOrder, nearest, sentenceHits, type Hit, type NormText } from "@/lib/reader/read-along";
 import { formatLocator, parseLocator, type Progress, type ReaderDoc, type ReadingMode } from "@/lib/reader/reader";
 import { cn } from "@/lib/utils";
 import {
@@ -28,11 +30,12 @@ import {
 import { onForget } from "../doc-cache";
 import { type Paper, PaperMenu, paperPref, paperProps } from "../paper";
 import { TEXT_SIZES, pageTurnPref, textSizePref } from "../prefs";
+import { FollowPill, ReadAloudControls, useReadAlong, type ReadAlongTarget } from "../read-along";
 import { useResume } from "../resume";
 import { useReaderApi } from "../use-reader";
 import { MdBook, type BookInfo, type MdBookView } from "./md-book";
 import { MdScroll } from "./md-scroll";
-import { headingElements, unpaint, type At, type MdView } from "./view";
+import { headingElements, paintSay, unpaint, type At, type MdView } from "./view";
 
 // The Markdown and text reader (T48, T49) on the PDF reader's dark stage,
 // with the same bars, find, paper colours and auto-scroll. Two views, one
@@ -91,7 +94,7 @@ export function MdReader({ doc, file }: { doc: ReaderDoc; file: File }) {
     );
   }
   if (text === null) return <Stage busy />;
-  return <Reader doc={doc} text={text} />;
+  return <Reader doc={doc} file={file} text={text} />;
 }
 
 interface Heading {
@@ -158,7 +161,55 @@ function toRange(idx: TextIndex, start: number, end: number): Range | null {
 }
 
 
-function Reader({ doc, text }: { doc: ReaderDoc; text: string }) {
+/** What read-along skips, as the extractor does (V44): code, images, form bits, footnote markers and the footnotes. */
+const SAY_SKIP = "pre, img, input, svg, hr, section[data-footnotes], section.footnotes, [data-footnote-ref], [data-footnote-backref]";
+
+/** The rendered text as read-along finds sentences in it: normalised like text.json's (read-along.ts), one piece a text node. */
+interface SayIndex {
+  nodes: Text[];
+  norm: NormText;
+  /** Sentences already found, by index: the next one is looked for after the last. */
+  found: Map<number, Hit>;
+}
+
+function indexSay(root: HTMLElement): SayIndex {
+  const b = new NormBuilder();
+  const nodes: Text[] = [];
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT, {
+    acceptNode: (n) => (n instanceof Element && n.matches(SAY_SKIP) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT),
+  });
+  let block: Element | null = null;
+  for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+    if (n instanceof Element) {
+      // A line break reads as a space (extract.ts).
+      if (n.tagName === "BR") b.space(Math.max(0, nodes.length - 1), nodes.at(-1)?.length ?? 0);
+      continue;
+    }
+    const own = n.parentElement?.closest(BLOCKS) ?? null;
+    if (own !== block) b.brk();
+    block = own;
+    nodes.push(n as Text);
+    b.add(nodes.length - 1, n.nodeValue ?? "");
+  }
+  return { nodes, norm: b.done(), found: new Map() };
+}
+
+function sayRange(idx: SayIndex, h: Hit): Range | null {
+  const a = idx.nodes[idx.norm.piece[h.start] ?? -1];
+  const z = idx.nodes[idx.norm.piece[h.end - 1] ?? -1];
+  if (!a || !z) return null;
+  const r = document.createRange();
+  r.setStart(a, idx.norm.off[h.start] ?? 0);
+  r.setEnd(z, Math.min(z.length, (idx.norm.off[h.end - 1] ?? 0) + 1));
+  return r;
+}
+
+/** A line already partly above the reading line still counts as read, by this much (px). */
+const LINE_SLACK = 2;
+/** "Play from here" looks this many sentences on from the estimate for the first one on the line. */
+const START_SEARCH = 400;
+
+function Reader({ doc, file, text }: { doc: ReaderDoc; file: File; text: string }) {
   const api = useReaderApi();
   // Reduced motion, or Settings → Reader's "instant" page turn: no curl.
   const reducedMotion = useReducedMotion();
@@ -173,8 +224,10 @@ function Reader({ doc, text }: { doc: ReaderDoc; text: string }) {
   const [article, setArticle] = React.useState<HTMLElement | null>(null);
   const [headings, setHeadings] = React.useState<Heading[]>([]);
   // A view's text arrived (or went): its headings make the contents, the same in either view.
+  const [articleGen, setArticleGen] = React.useState(0);
   const onArticle = React.useCallback((el: HTMLElement | null) => {
     setArticle(el);
+    setArticleGen((n) => n + 1);
     if (!el) return;
     setHeadings(
       headingElements(el).flatMap((h) => {
@@ -214,20 +267,29 @@ function Reader({ doc, text }: { doc: ReaderDoc; text: string }) {
   const { chrome, hidden, setHidden, awake, stageEvents, barEvents } = useChrome(running);
 
   // A place saved later on another device: the view is made again at it (resume.ts; close on the desktop, open on the phone).
+  // Not while read aloud holds the place (V48).
   const [resumed, setResumed] = React.useState(0);
+  const voiceHolds = React.useRef(false);
+  /** Read-along's follow off, for turns made with the reader's own controls (set below). */
+  const turned = React.useRef<() => void>(() => undefined);
   const resume = useResume(doc, stageEl, (next: Progress) => {
     const l = parseLocator(next.locator);
     if (l?.kind !== "md") return;
     if (l.heading === place.current.heading && l.y === place.current.y) return;
     place.current = { heading: l.heading, y: l.y };
     setResumed((n) => n + 1);
-  });
+  }, voiceHolds);
   const report = React.useCallback(
     (percent: number) => {
+      // Following the voice, the voice saves the place. A book turned away from it is the owner's turn: follow off.
+      if (voiceHolds.current) {
+        if (!book) return;
+        turned.current();
+      }
       const p = place.current;
       resume.save(formatLocator({ kind: "md", heading: p.heading, y: p.y }), percent);
     },
-    [resume],
+    [resume, book],
   );
   const onAt = React.useCallback((a: At) => {
     percentRef.current = a.percent;
@@ -250,6 +312,7 @@ function Reader({ doc, text }: { doc: ReaderDoc; text: string }) {
     (id: string): boolean => {
       const target = articleRef.current?.querySelector(`[id="${CSS.escape(id)}"]`);
       if (!target) return false;
+      turned.current();
       (book ? bookView.current : scrollView.current)?.show(target);
       return true;
     },
@@ -279,6 +342,7 @@ function Reader({ doc, text }: { doc: ReaderDoc; text: string }) {
   const [find, setFind] = React.useState<FindState>({ kind: "idle" });
   const finder = React.useRef<{ query: string; ranges: Range[]; index: number } | null>(null);
   const textIndex = React.useRef<TextIndex | null>(null);
+  const sayIndex = React.useRef<SayIndex | null>(null);
 
   /** The same words again over the text as it is now (its nodes changed, or the view did), keeping the match the owner was on. */
   const refind = React.useCallback(() => {
@@ -297,10 +361,12 @@ function Reader({ doc, text }: { doc: ReaderDoc; text: string }) {
   React.useEffect(() => {
     if (!article) return;
     textIndex.current = null;
+    sayIndex.current = null;
     refind();
     let raf = 0;
     const mo = new MutationObserver(() => {
       textIndex.current = null;
+      sayIndex.current = null;
       if (!finder.current || raf) return;
       raf = requestAnimationFrame(() => {
         raf = 0;
@@ -363,7 +429,10 @@ function Reader({ doc, text }: { doc: ReaderDoc; text: string }) {
     const current = f.ranges[index];
     v.paint(f.ranges, current);
     setFind({ kind: "hit", index, count: f.ranges.length });
-    if (current) v.reveal(current);
+    if (current) {
+      turned.current();
+      v.reveal(current);
+    }
   };
 
   const findStatus =
@@ -384,6 +453,8 @@ function Reader({ doc, text }: { doc: ReaderDoc; text: string }) {
       if (t?.closest("input, textarea, select, pre, [contenteditable=true], [role=dialog], [role=menu]")) return;
       const v = book ? bookView.current : scrollView.current;
       const turn = turnFor(e.key, e.shiftKey, book);
+      // The reader acts on this key: the owner's move, so follow off (V48), even from a focused button.
+      if (turn !== null) turned.current();
       if (e.key === "h" || e.key === "H") setHidden((h) => !h);
       else if (e.key === "+" || e.key === "=") bumpSize(1);
       else if (e.key === "-") bumpSize(-1);
@@ -398,6 +469,86 @@ function Reader({ doc, text }: { doc: ReaderDoc; text: string }) {
     return () => {
       window.removeEventListener("keydown", onKey);
     };
+  });
+
+  // ── Read aloud (V48) ──
+  const headingsRef = React.useRef(headings);
+  React.useLayoutEffect(() => {
+    headingsRef.current = headings;
+  });
+  /** The spoken sentence over the rendered text, or null when it isn't found there. */
+  const spoken = React.useRef<Range | null>(null);
+
+  /** A sentence in the rendered text: after the one before it when that was found, else nearest its text.json estimate. */
+  const locate = (s: Sentence): Range | null => {
+    const art = articleRef.current;
+    if (!art) return null;
+    const idx = (sayIndex.current ??= indexSay(art));
+    const known = idx.found.get(s.i);
+    if (known) return sayRange(idx, known);
+    const hits = sentenceHits(idx.norm.text, s.text, false);
+    if (hits.length === 0) return null;
+    const before = idx.found.get(s.i - 1);
+    const after = idx.found.get(s.i + 1);
+    let hit: Hit | undefined = hits.length === 1 ? hits[0] : undefined;
+    if (!hit && before) hit = hits.find((h) => h.start >= before.end);
+    if (!hit && after) hit = hits.findLast((h) => h.end <= after.start);
+    if (!hit) {
+      const at = mdAt(s.locator);
+      const y = at ? view()?.placeLineY(at) : null;
+      hit = y == null ? hits[0] : nearest(hits, (h) => Math.abs((sayRange(idx, h)?.getBoundingClientRect().top ?? Infinity) - y));
+    }
+    if (!hit) return null;
+    idx.found.set(s.i, hit);
+    return sayRange(idx, hit);
+  };
+
+  const target: ReadAlongTarget = {
+    // The text.json estimate first (V44), then the lines as laid out: the first sentence on or below the place's line.
+    startAt: (list) => {
+      const est = firstMdEstimate(list, mdOrder(headingsRef.current.map((h) => h.anchor)), place.current);
+      const lineY = view()?.placeY();
+      if (lineY == null) return est;
+      const top = (i: number) => {
+        const s = list[i];
+        const r = s ? locate(s) : null;
+        return r ? r.getBoundingClientRect().top : null;
+      };
+      const below = (t: number | null) => t !== null && t >= lineY - LINE_SLACK;
+      const t0 = top(est);
+      if (t0 === null) return est;
+      let k = est;
+      if (!below(t0)) {
+        for (let n = 0; n < START_SEARCH && k < list.length - 1; n++) if (below(top(++k))) return k;
+        return est;
+      }
+      for (let n = 0; n < START_SEARCH && k > 0; n++) {
+        const t = top(k - 1);
+        if (t === null || !below(t)) break;
+        k--;
+      }
+      return k;
+    },
+    mark: (s) => {
+      const r = s ? locate(s) : null;
+      spoken.current = r;
+      if (!r) paintSay([]);
+      view()?.say(r);
+    },
+    bring: (_s, smooth) => {
+      if (spoken.current) view()?.bring(spoken.current, smooth);
+    },
+    where: () => (spoken.current ? (view()?.where(spoken.current) ?? null) : null),
+    save: () => {
+      const p = spoken.current ? view()?.placeOf(spoken.current) : null;
+      if (p) resume.follow(p.locator, p.percent);
+      return p != null;
+    },
+  };
+  const ra = useReadAlong({ doc, file, stage: stageEl, book, viewKey: `${mode}:${String(resumed)}:${String(articleGen)}`, target });
+  React.useLayoutEffect(() => {
+    turned.current = ra.turned;
+    voiceHolds.current = ra.holding;
   });
 
   const currentIndex = headings.findIndex((h) => h.anchor === at.heading);
@@ -485,7 +636,7 @@ function Reader({ doc, text }: { doc: ReaderDoc; text: string }) {
             </div>
             {book ? (
               <div className="flex items-center gap-0.5">
-                <Tip label="Previous" aria-label="Previous page" onClick={() => bookView.current?.step(-1)} disabled={bookInfo?.atStart ?? true} className={ICON_BUTTON}>
+                <Tip label="Previous" aria-label="Previous page" onClick={() => { turned.current(); bookView.current?.step(-1); }} disabled={bookInfo?.atStart ?? true} className={ICON_BUTTON}>
                   <ChevronLeft aria-hidden />
                 </Tip>
                 {bookInfo ? (
@@ -493,18 +644,19 @@ function Reader({ doc, text }: { doc: ReaderDoc; text: string }) {
                     field={bookInfo.field}
                     pages={bookInfo.pages}
                     onPage={(page) => {
+                      turned.current();
                       bookView.current?.goTo(page);
                     }}
                   />
                 ) : null}
-                <Tip label="Next" aria-label="Next page" onClick={() => bookView.current?.step(1)} disabled={bookInfo?.atEnd ?? true} className={ICON_BUTTON}>
+                <Tip label="Next" aria-label="Next page" onClick={() => { turned.current(); bookView.current?.step(1); }} disabled={bookInfo?.atEnd ?? true} className={ICON_BUTTON}>
                   <ChevronRight aria-hidden />
                 </Tip>
               </div>
             ) : (
               <div className="flex min-w-0 items-center gap-0.5">
                 {headings.length > 0 ? (
-                  <Tip label="Previous section" aria-label="Previous section" onClick={() => scrollView.current?.step(-1)} disabled={at.top} className={ICON_BUTTON}>
+                  <Tip label="Previous section" aria-label="Previous section" onClick={() => { turned.current(); scrollView.current?.step(-1); }} disabled={at.top} className={ICON_BUTTON}>
                     <ChevronLeft aria-hidden />
                   </Tip>
                 ) : null}
@@ -521,13 +673,14 @@ function Reader({ doc, text }: { doc: ReaderDoc; text: string }) {
                   <span className="tabular shrink-0 font-mono text-[12.5px] text-stage-ink/55">{at.percent}%</span>
                 </button>
                 {headings.length > 0 ? (
-                  <Tip label="Next section" aria-label="Next section" onClick={() => scrollView.current?.step(1)} disabled={currentIndex >= headings.length - 1} className={ICON_BUTTON}>
+                  <Tip label="Next section" aria-label="Next section" onClick={() => { turned.current(); scrollView.current?.step(1); }} disabled={currentIndex >= headings.length - 1} className={ICON_BUTTON}>
                     <ChevronRight aria-hidden />
                   </Tip>
                 ) : null}
               </div>
             )}
             <div className="flex items-center justify-end gap-0.5">
+              <ReadAloudControls ra={ra} />
               {book ? (
                 bookInfo && !bookInfo.narrow ? <BookPagesToggle value={bookPages} onChange={bookPagesPref.set} /> : null
               ) : (
@@ -551,6 +704,7 @@ function Reader({ doc, text }: { doc: ReaderDoc; text: string }) {
           </div>
         </TooltipGroup>
       </Bar>
+      <FollowPill ra={ra} />
       {hidden ? (
         <ShowControls
           awake={awake}
