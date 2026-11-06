@@ -97,7 +97,7 @@ function imgOf(el: HTMLElement | undefined): HTMLImageElement | null {
 /** The parts of page-flip's internals let go on unmount. Read from its src (Render.ts, UI.ts, PageCollection.ts). */
 interface Internals {
   render?: { render?: (t: number) => void; leftPage?: unknown; rightPage?: unknown; flippingPage?: unknown; bottomPage?: unknown; shadow?: unknown };
-  ui?: { removeHandlers?: () => void; items?: unknown };
+  ui?: { removeHandlers?: () => void; items?: unknown; onMouseMove?: (e: MouseEvent) => void };
   pages?: { destroy?: () => void } | null;
 }
 
@@ -118,6 +118,33 @@ function neuter(pf: PageFlip) {
   if (inner.ui) inner.ui.items = [];
   inner.pages?.destroy?.();
   inner.pages = null;
+}
+
+/**
+ * page-flip folds a page corner on every mousemove in the window (UI.ts), so a
+ * menu or bar over the book's corner lifted the page while the owner picked a
+ * paper (user 2026-11-06). Its handler is swapped for one that passes moves
+ * only over the book itself, and every move while a press is down, so a drag
+ * that strays off the book still follows the pointer. (A press reads
+ * `isUserTouch`, not the state: a drag stays "fold_corner" until it has moved
+ * 5 px.) Leaving the book with a corner up and no press down sends one far-off
+ * move, which lays the corner back down.
+ * page-flip removes and re-adds `this.onMouseMove` on each page rebuild, so
+ * replacing the property holds for the instance's life.
+ */
+function guardCornerHover(pf: PageFlip, book: HTMLElement) {
+  const ui = (pf as unknown as Internals).ui;
+  const pass = ui?.onMouseMove;
+  if (!ui || !pass) return;
+  const pressed = () => (pf as unknown as { isUserTouch?: boolean }).isUserTouch === true;
+  const guarded = (e: MouseEvent) => {
+    const state = pf.getState();
+    if (pressed() || state === "user_fold" || (e.target instanceof Node && book.contains(e.target))) pass(e);
+    else if (state === "fold_corner") pass(new MouseEvent("mousemove", { clientX: -1e5, clientY: -1e5 }));
+  };
+  window.removeEventListener("mousemove", pass);
+  ui.onMouseMove = guarded;
+  window.addEventListener("mousemove", guarded);
 }
 
 export const BookView = React.forwardRef<
@@ -237,6 +264,7 @@ export const BookView = React.forwardRef<
     });
     flip.current = pf;
     pf.loadFromHTML(items);
+    if (!reduced) guardCornerHover(pf, root);
     // page-flip sizes its root from minWidth and leaves its wrapper (".stf__wrapper", misspelt in its CSS) heightless.
     root.style.minWidth = "0";
     root.style.minHeight = "0";
