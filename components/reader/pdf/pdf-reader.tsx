@@ -32,13 +32,13 @@ import {
   spreadOf,
   spreadPages,
   spreadPercent,
+  turnFor,
   type BookLayout,
 } from "@/lib/reader/book";
-import { formatLocator, parseLocator, type ReaderDoc, type ReadingMode } from "@/lib/reader/reader";
+import { formatLocator, parseLocator, type Progress, type ReaderDoc, type ReadingMode } from "@/lib/reader/reader";
 import { cn } from "@/lib/utils";
 import { hasCover, keepCover } from "../covers";
 import { forgetDoc, onForget } from "../doc-cache";
-import { useReaderRuntime } from "../reader-provider";
 import {
   AutoScrollControl,
   BAR_H,
@@ -59,6 +59,7 @@ import {
 } from "../chrome";
 import { type Paper, PaperMenu, paperPref, paperProps } from "../paper";
 import { pageTurnPref } from "../prefs";
+import { useResume } from "../resume";
 import { useReaderApi } from "../use-reader";
 import { BookView, type BookHandle } from "./book-view";
 import { coverOf, findPage, firstPageAspect, heldSha, onBroken, openPdf } from "./engine";
@@ -166,7 +167,6 @@ export default function PdfReader({ doc, file }: { doc: ReaderDoc; file: File })
 
 function Reader({ doc, loaded }: { doc: ReaderDoc; loaded: Loaded }) {
   const { pdf, pages, aspect } = loaded;
-  const runtime = useReaderRuntime();
   const api = useReaderApi();
   // Reduced motion, or Settings → Reader's "instant" page turn: no curl.
   const reducedMotion = useReducedMotion();
@@ -195,19 +195,35 @@ function Reader({ doc, loaded }: { doc: ReaderDoc; loaded: Loaded }) {
   const scroll = React.useRef<ScrollHandle>(null);
   const view = (): BookHandle | ScrollHandle | null => (mode === "flip" ? book.current : scroll.current);
 
+  // The stage: full screen takes the whole reader, bars included; menus render into it.
+  const { stageRef, stageEl, full, toggleFull } = useStage();
+
+  // A place saved later on another device (the server's answer to the open, or the library refetched on focus):
+  // the view is made again at it (close on the desktop, open on the phone: same page).
+  const [resumed, setResumed] = React.useState(0);
+  const resume = useResume(doc, stageEl, (next: Progress) => {
+    const l = parseLocator(next.locator);
+    if (l?.kind !== "pdf") return;
+    const p = { page: clampPage(l.page, pages), y: l.y };
+    if (p.page === placeRef.current.page && p.y === placeRef.current.y) return;
+    placeRef.current = p;
+    setPlace(p);
+    setResumed((n) => n + 1);
+  });
+
   const report = React.useCallback(
     (p: Place, percent: number) => {
       placeRef.current = p;
       setPlace(p);
-      runtime.report({ documentId: doc.id, locator: formatLocator({ kind: "pdf", page: p.page, y: p.y }), percent, at: Date.now() });
+      resume.save(formatLocator({ kind: "pdf", page: p.page, y: p.y }), percent);
     },
-    [runtime, doc.id],
+    [resume],
   );
 
-  // The open itself is a reading event: it moves the document up "Continue reading".
+  // The open itself moves the document up "Continue reading", under the place's own clock (resume.ts).
   React.useEffect(() => {
     const p = placeRef.current;
-    report(p, pdfPercent(p.page, p.y, pages));
+    resume.open(formatLocator({ kind: "pdf", page: p.page, y: p.y }), pdfPercent(p.page, p.y, pages));
     // The page count, for the library: documents added before T49 (or on another device) learn it here.
     if (doc.pages !== pages) api.setPages(doc.id, pages);
     // Once per open.
@@ -236,8 +252,6 @@ function Reader({ doc, loaded }: { doc: ReaderDoc; loaded: Loaded }) {
     view()?.goTo(clampPage(page, pages));
   };
 
-  // The stage: full screen takes the whole reader, bars included; menus render into it.
-  const { stageRef, stageEl, full, toggleFull } = useStage();
   const paper = paperPref.use();
   const [paperPreview, setPaperPreview] = React.useState<Paper | null>(null);
   const paperLook = paperProps(paperPreview ?? paper);
@@ -270,11 +284,11 @@ function Reader({ doc, loaded }: { doc: ReaderDoc; loaded: Loaded }) {
       if (t?.closest("input, textarea, select, [contenteditable=true], [role=dialog]")) return;
       const v = view();
       if (!v) return;
-      const flip = mode === "flip";
-      if (e.key === "ArrowRight" || (flip && (e.key === "PageDown" || (e.key === " " && !e.shiftKey)))) v.next();
-      else if (e.key === "ArrowLeft" || (flip && (e.key === "PageUp" || (e.key === " " && e.shiftKey)))) v.prev();
-      else if (e.key === "Home" && flip) v.goTo(1);
-      else if (e.key === "End" && flip) v.goTo(pages);
+      const turn = turnFor(e.key, e.shiftKey, mode === "flip");
+      if (turn === "next") v.next();
+      else if (turn === "prev") v.prev();
+      else if (turn === "first") v.goTo(1);
+      else if (turn === "last") v.goTo(pages);
       else if (e.key === "h" || e.key === "H") setHidden((h) => !h);
       else if (e.key === "+" || e.key === "=") setZoom((z) => nextZoom(z, 1));
       else if (e.key === "-") setZoom((z) => nextZoom(z, -1));
@@ -329,7 +343,7 @@ function Reader({ doc, loaded }: { doc: ReaderDoc; loaded: Loaded }) {
           mode === "flip" ? (
             <BookView
               // A new page-flip for a new shape or motion setting (book-view.tsx).
-              key={`${String(single)}:${String(reduced)}`}
+              key={`${String(single)}:${String(reduced)}:${String(resumed)}`}
               ref={book}
               pdf={pdf}
               layout={layout}
@@ -344,7 +358,7 @@ function Reader({ doc, loaded }: { doc: ReaderDoc; loaded: Loaded }) {
               chrome={chrome}
             />
           ) : (
-            <ScrollView ref={scroll} pdf={pdf} pages={pages} aspect={aspect} start={place} zoom={zoom} query={query} onPlace={onScrollPlace} inset={BAR_H} />
+            <ScrollView key={resumed} ref={scroll} pdf={pdf} pages={pages} aspect={aspect} start={place} zoom={zoom} query={query} onPlace={onScrollPlace} inset={BAR_H} />
           )
         ) : null}
         {panel === "outline" ? (

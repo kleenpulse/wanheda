@@ -180,6 +180,42 @@ export function isNewer(next: Pick<Progress, "at">, current: Pick<Progress, "at"
   return current === null || next.at > current.at;
 }
 
+/**
+ * The clock of a document opened with no place known yet: older than any real
+ * place, so the open never beats one another device saved (see openWrite).
+ */
+export const NO_PLACE_AT = 1;
+
+/**
+ * What a reader's open sends (V41, T51). The place it opened at keeps that
+ * place's own clock: a device opening from a stale copy of the library (its
+ * snapshot, before the server answers) must not stamp the old page as new and
+ * overwrite the page another device read to since. The server answers
+ * `stale` with the newer place, which the open reader then moves to.
+ * `openedAt` is the open itself, which moves the document up "Continue reading".
+ */
+export function openWrite(documentId: string, locator: string, percent: number, shown: Progress | null, now: number): ProgressWrite {
+  return { documentId, locator, percent, at: shown?.at ?? NO_PLACE_AT, openedAt: now };
+}
+
+/**
+ * The clock of a move in an open reader: never older than the place it moved
+ * on from. A device whose clock runs a little behind the one that saved that
+ * place still wins with the next page it turns to, instead of being answered
+ * `stale` and sent back.
+ */
+export function moveAt(now: number, shownAt: number): number {
+  return Math.max(now, shownAt + 1);
+}
+
+/**
+ * A place an open reader should move to: one saved elsewhere (another device
+ * or tab) after the place it shows. Newer `at` wins on the screen too (V41).
+ */
+export function placeFromElsewhere(progress: Progress | null, shownAt: number): Progress | null {
+  return progress && progress.at > shownAt ? progress : null;
+}
+
 /** The newer of two positions; ties keep the first. */
 export function newerProgress(a: Progress | null, b: Progress | null): Progress | null {
   if (!a) return b;
@@ -256,6 +292,8 @@ export const progressWriteSchema = z
     locator: z.string().max(600).refine((l) => parseLocator(l) !== null, "bad locator"),
     percent: z.number().int().min(0).max(100),
     at: z.number().int().positive(),
+    /** Set by an open (openWrite): when it was opened, for "Continue reading", apart from the place's own clock. */
+    openedAt: z.number().int().positive().optional(),
   })
   .strict();
 
@@ -299,10 +337,15 @@ export function continueReading(docs: readonly ReaderDoc[], limit = 3): ReaderDo
 }
 
 /** The library with one document's progress laid over, kept only if newer (V41). */
-export function withProgress(payload: ReaderPayload, documentId: string, p: Progress): ReaderPayload {
+export function withProgress(payload: ReaderPayload, documentId: string, p: Progress, openedAt?: number): ReaderPayload {
   const target = payload.documents.find((d) => d.id === documentId);
-  if (!target || !isNewer(p, target.progress)) return payload;
-  const moved = { ...target, progress: p, lastOpenedAt: Math.max(target.lastOpenedAt ?? 0, p.at) };
+  if (!target) return payload;
+  const newer = isNewer(p, target.progress);
+  // An open bumps "last opened" even when its place is no news (openWrite).
+  const opened = openedAt !== undefined && openedAt > (target.lastOpenedAt ?? 0);
+  if (!newer && !opened) return payload;
+  const lastOpenedAt = Math.max(target.lastOpenedAt ?? 0, newer ? p.at : 0, openedAt ?? 0);
+  const moved = { ...target, progress: newer ? p : target.progress, lastOpenedAt };
   return { ...payload, documents: payload.documents.map((d) => (d === target ? moved : d)) };
 }
 
