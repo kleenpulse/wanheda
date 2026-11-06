@@ -208,7 +208,7 @@ export function MiniWindow({
           <X aria-hidden />
         </button>
       </header>
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">{children}</div>
+      <div className="min-h-0 flex-1 overflow-y-auto scroll-fade overscroll-contain">{children}</div>
       <span
         aria-hidden
         data-drag="resize"

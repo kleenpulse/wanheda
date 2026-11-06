@@ -95,7 +95,7 @@ function NetNewBody({ payload }: { payload: IncomePayload }) {
         <MoneyText roll sign="always" value={{ minor: h.thisMonth, currency }} className="font-display text-[28px] leading-none font-semibold tracking-[-0.01em] text-foreground" />
         <Delta cur={h.thisMonth} prev={h.lastMonth} goodWhenUp against="vs last month" />
       </span>
-      <ul className="flex min-h-0 flex-col gap-1.5 overflow-y-auto text-[12.5px]">
+      <ul className="flex min-h-0 flex-col gap-1.5 overflow-y-auto scroll-fade text-[12.5px]">
         {KIND_ORDER.map((k) => (
           <li key={k} className="flex items-center justify-between gap-3">
             <span className="flex items-center gap-2 text-ink-2">

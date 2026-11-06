@@ -5,14 +5,15 @@ import { Check } from "lucide-react";
 import * as React from "react";
 import { Menu, MenuContent, MenuTrigger } from "@/components/ui/menu";
 import { cn } from "@/lib/utils";
-import { createDevicePref } from "../device-pref";
+import { createDevicePref } from "@/hooks/device-pref";
 
 // The page's paper (user 2026-11-06): the Notes sticky palette, gentler on the
 // eyes than white. Light papers lay a multiply wash over the drawn page, so its
 // white turns the paper's colour and the ink stays dark; dark papers invert the
 // page first, then a screen wash lifts its black to the paper (globals.css,
 // .paper-wash). Pure CSS, so a change is instant and no page is drawn again.
-// This device's choice for every PDF.
+// Markdown and text sit on the paper itself, in its own ink (.md-sheet).
+// This device's choice for every document.
 
 const TONES = ["plain", "amber", "rose", "sky", "mint", "violet"] as const;
 type Tone = (typeof TONES)[number];

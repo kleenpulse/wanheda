@@ -32,7 +32,7 @@ export function TodayWidget() {
     <WidgetCard title="Today" icon={Sunrise}>
       <p className="font-display text-kpi-sm text-foreground">{now === null ? " " : day.format(now)}</p>
 
-      <div className="mt-5 min-h-0 flex-1 overflow-y-auto">
+      <div className="mt-5 min-h-0 flex-1 overflow-y-auto scroll-fade">
         <p className="readout">Running</p>
         {now === null || timers.length === 0 ? (
           <div className="mt-2 flex flex-wrap items-center gap-3">

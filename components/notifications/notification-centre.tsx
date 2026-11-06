@@ -87,7 +87,7 @@ export function NotificationCentre() {
             </p>
           ) : null}
 
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 py-3">
+          <div className="min-h-0 flex-1 overflow-y-auto scroll-fade overscroll-contain px-2 py-3">
             {shown.length === 0 ? (
               <EmptyState
                 title={filter === "unread" ? "All caught up" : "Nothing yet"}

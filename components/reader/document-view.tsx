@@ -4,28 +4,25 @@ import * as React from "react";
 import dynamic from "next/dynamic";
 import { ArrowLeft, CloudOff, FolderOpen } from "lucide-react";
 import { Notice } from "@/components/income/parts";
-import { NoteMarkdown } from "@/components/notes/note-markdown";
 import { useAccount } from "@/components/shell/account";
 import { EmptyState } from "@/components/shell/page-frame";
 import { buttonClass } from "@/components/ui/button";
-import { formatLocator, parseLocator, type ReaderDoc } from "@/lib/reader/reader";
+import { parseLocator, type ReaderDoc } from "@/lib/reader/reader";
 import { cn } from "@/lib/utils";
 import { kindLabel } from "./cover";
 import { onForget } from "./doc-cache";
+import { MdReader } from "./md/md-reader";
 import { closeDoc, useFilePicker } from "./open-file";
-import { useReaderRuntime } from "./reader-provider";
 import { STAGE_BOX } from "./stage";
 import { onDevice, readDocFile, useDeviceFiles, useReader, useReaderApi } from "./use-reader";
 
-// One document. Markdown and text are read here and keep their place (V41:
-// `md:<heading>:<y‰>`, resumed by the locator, not the percent). PDFs open in
-// the PDF reader (T47: pdf/pdf-reader.tsx), a book or a scroll, loaded only
-// on the client with pdf.js. An entry whose bytes aren't on this device asks
-// for the file and relinks it by its hash (V39).
+// One document. PDFs open in the PDF reader (T47: pdf/pdf-reader.tsx), a book
+// or a scroll, loaded only on the client with pdf.js. Markdown and text open in
+// the Markdown reader (T48: md/md-reader.tsx) on the same stage, keeping their
+// place by heading (V41: `md:<heading>:<y‰>`). An entry whose bytes aren't on
+// this device asks for the file and relinks it by its hash (V39).
 
-const REPORT_MS = 400;
-
-/** The PDF reader's dark stage, empty, while its code loads the first time. Same box, so nothing jumps. */
+/** The reader's dark stage, empty, while the file or the PDF reader's code loads. Same box, so nothing jumps. */
 function StageShell() {
   return <div aria-busy aria-label="Opening" className={cn(STAGE_BOX, "bg-stage")} />;
 }
@@ -126,9 +123,9 @@ function Reading({ doc }: { doc: ReaderDoc }) {
           <StageShell />
         )
       ) : file ? (
-        <TextReader doc={doc} file={file} />
+        <MdReader doc={doc} file={file} />
       ) : (
-        <div aria-busy aria-label="Opening" className="h-[60svh] rounded-card bg-foreground/5 dark:bg-card-nested" />
+        <StageShell />
       )}
     </div>
   );
@@ -169,90 +166,5 @@ function Relink({ doc }: { doc: ReaderDoc }) {
         {busy ? "Checking…" : "Open file"}
       </button>
     </div>
-  );
-}
-
-/** Where the reader is in the article: 0–1 through its scrollable length. Short ones count as read. */
-function fractionOf(el: HTMLElement): number {
-  const top = el.getBoundingClientRect().top + window.scrollY;
-  const range = el.offsetHeight - window.innerHeight;
-  if (range <= 0) return 1;
-  return Math.min(1, Math.max(0, (window.scrollY - top) / range));
-}
-
-function TextReader({ doc, file }: { doc: ReaderDoc; file: File }) {
-  const runtime = useReaderRuntime();
-  const [text, setText] = React.useState<string | null>(null);
-  const article = React.useRef<HTMLElement>(null);
-  const resumeFrom = React.useRef(doc.progress);
-
-  React.useEffect(() => {
-    let live = true;
-    void file.text().then((t) => {
-      if (live) setText(t);
-    });
-    return () => {
-      live = false;
-    };
-  }, [file]);
-
-  React.useEffect(() => {
-    const el = article.current;
-    if (text === null || !el) return;
-    const report = () => {
-      const f = fractionOf(el);
-      runtime.report({
-        documentId: doc.id,
-        locator: formatLocator({ kind: "md", heading: "", y: f * 1000 }),
-        percent: Math.round(f * 100),
-        at: Date.now(),
-      });
-    };
-    // Resume by the locator (V41), then record the open from where it landed.
-    const from = resumeFrom.current ? parseLocator(resumeFrom.current.locator) : null;
-    if (from?.kind === "md") {
-      const top = el.getBoundingClientRect().top + window.scrollY;
-      const range = Math.max(0, el.offsetHeight - window.innerHeight);
-      window.scrollTo({ top: top + (range * from.y) / 1000, behavior: "instant" });
-    }
-    report();
-
-    let last = 0;
-    let trailing: ReturnType<typeof setTimeout> | null = null;
-    const onScroll = () => {
-      const now = performance.now();
-      if (trailing) clearTimeout(trailing);
-      if (now - last >= REPORT_MS) {
-        last = now;
-        report();
-      } else {
-        trailing = setTimeout(() => {
-          last = performance.now();
-          report();
-        }, REPORT_MS);
-      }
-    };
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => {
-      window.removeEventListener("scroll", onScroll);
-      if (trailing) clearTimeout(trailing);
-    };
-  }, [text, doc.id, runtime]);
-
-  if (text === null) return <div aria-busy aria-label="Opening" className="h-[60svh] rounded-card bg-foreground/5 dark:bg-card-nested" />;
-  return (
-    <article ref={article} className="mx-auto w-full max-w-[68ch] pb-24 text-[15.5px] leading-[1.7] text-foreground">
-      {doc.kind === "md" ? (
-        <NoteMarkdown body={text} />
-      ) : (
-        <div className="flex flex-col gap-[1em]">
-          {text.split(/\n{2,}/).map((para, i) => (
-            <p key={i} className="whitespace-pre-wrap">
-              {para}
-            </p>
-          ))}
-        </div>
-      )}
-    </article>
   );
 }

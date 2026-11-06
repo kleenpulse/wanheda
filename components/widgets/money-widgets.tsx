@@ -104,7 +104,7 @@ function BudgetBody({ payload }: { payload: MoneyPayload }) {
     );
   }
   return (
-    <ul className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
+    <ul className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto scroll-fade">
       {progress.map((p) => {
         const name = budgetName(p.budget, categories);
         const pct = Number.isFinite(p.share) ? Math.round(p.share * 100) : null;

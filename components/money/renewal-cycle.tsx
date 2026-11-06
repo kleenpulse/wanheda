@@ -11,6 +11,7 @@ import { addDays, daysBetween, shortDayLabel, type Day } from "@/lib/money/dates
 import { byMonthlyCost, cycleLabel, dueLabel, renewalsAround, type Subscription } from "@/lib/money/subscriptions";
 import { paint, resolveColors, type Rgb } from "@/lib/prefs/wallpaper-palette";
 import { LiquidTank } from "@/components/ui/liquid-tank";
+import { createDevicePref } from "@/hooks/device-pref";
 import { cn } from "@/lib/utils";
 import { categoryBg, MoneyText } from "./money-text";
 
@@ -72,37 +73,12 @@ export function RenewalCycle({ subscriptions, today, base }: { subscriptions: re
   );
 }
 
-const PIN_KEY = "wanheda-home-cycle";
-const pinListeners = new Set<() => void>();
-
-function readPin(): string | null {
-  try {
-    return localStorage.getItem(PIN_KEY);
-  } catch {
-    return null;
-  }
-}
-
-function subscribePin(listener: () => void) {
-  pinListeners.add(listener);
-  const onStorage = (e: StorageEvent) => {
-    if (e.key === PIN_KEY) listener();
-  };
-  window.addEventListener("storage", onStorage);
-  return () => {
-    pinListeners.delete(listener);
-    window.removeEventListener("storage", onStorage);
-  };
-}
-
-function writePin(id: string) {
-  try {
-    localStorage.setItem(PIN_KEY, id);
-  } catch {
-    // Private mode: the pick lasts until the page reloads.
-  }
-  for (const l of pinListeners) l();
-}
+// This device's pick; where localStorage refuses writes it lasts until reload.
+const cyclePin = createDevicePref<string | null>(
+  "wanheda-home-cycle",
+  (raw) => raw,
+  (id) => id,
+);
 
 /**
  * Home's billing cycle (user 2026-11-05): the liquid card for one active
@@ -112,7 +88,7 @@ function writePin(id: string) {
  */
 export function PinnedCycle({ subscriptions, today, base }: { subscriptions: readonly Subscription[]; today: Day; base: Currency }) {
   const active = React.useMemo(() => byMonthlyCost(subscriptions, base), [subscriptions, base]);
-  const pinned = React.useSyncExternalStore(subscribePin, readPin, () => null);
+  const pinned = cyclePin.use();
   const headingId = React.useId();
   const sub = active.find((s) => s.id === pinned) ?? active[0];
   if (!sub) return null;
@@ -122,7 +98,7 @@ export function PinnedCycle({ subscriptions, today, base }: { subscriptions: rea
         items={active.map((s) => ({ value: s.id, label: s.name }))}
         value={sub.id}
         onValueChange={(v) => {
-          if (v) writePin(v);
+          if (v) cyclePin.set(v);
         }}
       >
         <SelectTrigger aria-label="Subscription shown on Home" className="h-7 max-w-36 rounded-pill bg-inverse pr-2 pl-3 text-[12px] text-inverse-foreground shadow-sm ring-0 hover:bg-inverse dark:bg-inverse dark:hover:bg-inverse">

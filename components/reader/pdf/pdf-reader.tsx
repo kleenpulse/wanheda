@@ -3,26 +3,20 @@
 import * as React from "react";
 import {
   BookOpen,
-  ChevronDown,
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
-  ChevronUp,
-  ChevronsDown,
   Columns2,
-  Eye,
   EyeOff,
   LayoutGrid,
   ListTree,
   Maximize,
   Minimize,
   Minus,
-  Pause,
   Plus,
   RectangleVertical,
   ScrollText,
-  Search,
   X,
 } from "lucide-react";
 import { motion } from "motion/react";
@@ -34,7 +28,6 @@ import { useElementWidth } from "@/hooks/use-element-width";
 import { useReducedMotion } from "@/hooks/use-reduced-motion";
 import {
   ZOOM_STEPS,
-  autoScrollSpeed,
   clampPage,
   cleanPageField,
   nextZoom,
@@ -54,9 +47,9 @@ import { cn } from "@/lib/utils";
 import { hasCover, keepCover } from "../covers";
 import { forgetDoc, onForget } from "../doc-cache";
 import { useReaderRuntime } from "../reader-provider";
-import { createDevicePref } from "../device-pref";
-import { type Paper, PaperMenu, paperPref, paperProps } from "./paper";
-import { STAGE_BOX } from "../stage";
+import { createDevicePref } from "@/hooks/device-pref";
+import { AutoScrollControl, BAR_H, Bar, FindBox, ICON_BUTTON, ShowControls, Stage, autoSpeedPref, useAutoScroll, useChrome, useStage } from "../chrome";
+import { type Paper, PaperMenu, paperPref, paperProps } from "../paper";
 import { useReaderApi } from "../use-reader";
 import { BookView, type BookHandle } from "./book-view";
 import { coverOf, findPage, firstPageAspect, heldSha, onBroken, openPdf } from "./engine";
@@ -80,32 +73,6 @@ const bookPagesPref = createDevicePref<BookPages>(
   (raw) => (raw === "single" ? "single" : "spread"),
   (v) => v,
 );
-
-// Auto-scroll (user 2026-11-06): where the stage scrolls, it moves down on its
-// own at a speed set on a slider (this device's choice); in the book it turns
-// the page at the foot and goes on. Off on every open. The slider stores its
-// position, 0–100; autoScrollSpeed turns it into px a second on a curve.
-const autoSpeedPref = createDevicePref<number>(
-  "wanheda-reader-autoscroll",
-  (raw) => {
-    const n = Number(raw);
-    return raw !== null && Number.isFinite(n) ? Math.min(100, Math.max(0, Math.round(n))) : 50;
-  },
-  (v) => String(v),
-);
-/** At the foot of a page, the book waits this long before it turns. */
-const AUTO_DWELL_MS = 1200;
-
-/**
- * The bars float over the stage, translucent (user 2026-11-06), so pages
- * scroll under them; the views keep this much room at each end so nothing
- * starts hidden. Fixed, so showing or hiding the bars never resizes the book.
- */
-const BAR_H = 56;
-/** While auto-scroll runs, the controls fade this long after the pointer stops. */
-const IDLE_HIDE_MS = 2000;
-/** The controls' fade when hidden; keyboard focus inside still shows them. */
-const CHROME_HIDDEN = "pointer-events-none opacity-0 focus-within:pointer-events-auto focus-within:opacity-100";
 
 interface Loaded {
   sha256: string;
@@ -197,31 +164,6 @@ export default function PdfReader({ doc, file }: { doc: ReaderDoc; file: File })
   return <Reader key={loaded.sha256} doc={doc} loaded={loaded} />;
 }
 
-/** The dark stage the book sits on, in every skin (V42). */
-const Stage = React.forwardRef<
-  HTMLDivElement,
-  { children?: React.ReactNode; busy?: boolean; full?: boolean; className?: string | undefined } & Pick<
-    React.HTMLAttributes<HTMLDivElement>,
-    "onPointerMove" | "onPointerDown" | "onPointerLeave" | "style"
-  >
->(function Stage({ children, busy, full, className, ...rest }, ref) {
-  return (
-    <div
-      ref={ref}
-      {...rest}
-      aria-busy={busy || undefined}
-      aria-label={busy ? "Opening" : undefined}
-      className={cn(
-        "relative flex flex-col overflow-hidden bg-stage text-stage-ink",
-        full ? "h-svh w-full" : STAGE_BOX,
-        className,
-      )}
-    >
-      {children}
-    </div>
-  );
-});
-
 function Reader({ doc, loaded }: { doc: ReaderDoc; loaded: Loaded }) {
   const { pdf, pages, aspect } = loaded;
   const runtime = useReaderRuntime();
@@ -288,120 +230,31 @@ function Reader({ doc, loaded }: { doc: ReaderDoc; loaded: Loaded }) {
     view()?.goTo(clampPage(page, pages));
   };
 
-  // Fullscreen: the whole reader, bars included.
-  const stage = React.useRef<HTMLDivElement | null>(null);
-  // The stage as state too: menus render into it, so they still show in full screen.
-  const [stageEl, setStageEl] = React.useState<HTMLDivElement | null>(null);
-  const stageRef = React.useCallback((el: HTMLDivElement | null) => {
-    stage.current = el;
-    setStageEl(el);
-  }, []);
+  // The stage: full screen takes the whole reader, bars included; menus render into it.
+  const { stageRef, stageEl, full, toggleFull } = useStage();
   const paper = paperPref.use();
   const [paperPreview, setPaperPreview] = React.useState<Paper | null>(null);
   const paperLook = paperProps(paperPreview ?? paper);
-  const [full, setFull] = React.useState(false);
-  React.useEffect(() => {
-    const on = () => {
-      setFull(document.fullscreenElement !== null && document.fullscreenElement === stage.current);
-    };
-    document.addEventListener("fullscreenchange", on);
-    return () => {
-      document.removeEventListener("fullscreenchange", on);
-    };
-  }, []);
   // Auto-scroll: only where the stage scrolls, and paused under the grid or the contents.
   const [auto, setAuto] = React.useState(false);
   const autoSpeed = autoSpeedPref.use();
   const canAuto = mode === "scroll" || (single && !narrow) || zoom > 1;
   const autoOn = auto && canAuto;
   const running = autoOn && panel === null;
-  const speedRef = React.useRef(autoScrollSpeed(autoSpeed));
-  React.useLayoutEffect(() => {
-    speedRef.current = autoScrollSpeed(autoSpeed);
-  });
-  React.useEffect(() => {
-    if (!running) return;
-    let raf = 0;
-    let last = performance.now();
-    let carry = 0;
-    let dwellUntil = 0;
-    const tick = (now: number) => {
-      const dt = Math.min(0.1, (now - last) / 1000);
-      last = now;
+  useAutoScroll(
+    running,
+    `${mode}:${String(single)}`,
+    () => {
       const v = view();
-      const el = v?.scroller() ?? null;
-      if (v && el) {
-        const book = "atEnd" in v ? v : null;
-        const atFoot = el.scrollTop + el.clientHeight >= el.scrollHeight - 1;
-        if (book?.turning()) {
-          dwellUntil = 0;
-        } else if (atFoot) {
-          // The end of the document: stop. The foot of a book page: wait a beat, then turn.
-          if (!book || book.atEnd()) {
-            setAuto(false);
-            return;
-          }
-          if (!dwellUntil) dwellUntil = now + AUTO_DWELL_MS;
-          else if (now >= dwellUntil) {
-            dwellUntil = 0;
-            book.next();
-          }
-        } else {
-          dwellUntil = 0;
-          // Whole pixels only: scrollTop drops fractions, so they're carried to the next frame.
-          carry += speedRef.current * dt;
-          const px = Math.floor(carry);
-          if (px > 0) {
-            el.scrollTop += px;
-            carry -= px;
-          }
-        }
-      }
-      raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => {
-      cancelAnimationFrame(raf);
-    };
-    // view() reads refs; the loop restarts only when it starts, stops or the view changes.
-  }, [running, mode, single]); // eslint-disable-line react-hooks/exhaustive-deps
+      return v ? { scroller: v.scroller(), book: "atEnd" in v ? v : null } : null;
+    },
+    () => {
+      setAuto(false);
+    },
+  );
 
   // The controls: hidden by the eye button (H), or faded while auto-scroll runs and the pointer rests.
-  const [hidden, setHidden] = React.useState(false);
-  const [awake, setAwake] = React.useState(true);
-  const [onBars, setOnBars] = React.useState(false);
-  const sleep = React.useRef<ReturnType<typeof setTimeout> | null>(null);
-  React.useEffect(
-    () => () => {
-      if (sleep.current) clearTimeout(sleep.current);
-    },
-    [],
-  );
-  const wake = () => {
-    setAwake(true);
-    if (sleep.current) clearTimeout(sleep.current);
-    sleep.current = setTimeout(() => {
-      setAwake(false);
-    }, IDLE_HIDE_MS);
-  };
-  const doze = () => {
-    if (sleep.current) clearTimeout(sleep.current);
-    setAwake(false);
-  };
-  const chrome = !hidden && (!running || awake || onBars);
-  const barEvents = {
-    onPointerEnter: () => {
-      setOnBars(true);
-    },
-    onPointerLeave: () => {
-      setOnBars(false);
-    },
-  };
-
-  const toggleFull = () => {
-    if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined);
-    else void stage.current?.requestFullscreen().catch(() => undefined);
-  };
+  const { chrome, hidden, setHidden, awake, stageEvents, barEvents } = useChrome(running);
 
   // Keys (V42): ←/→ and PageUp/PageDown turn; Space too in the book (the scroll view keeps its own Space).
   React.useEffect(() => {
@@ -439,11 +292,9 @@ function Reader({ doc, loaded }: { doc: ReaderDoc; loaded: Loaded }) {
       full={full}
       className={paperLook.className}
       style={paperLook.style}
-      onPointerMove={wake}
-      onPointerDown={wake}
-      onPointerLeave={doze}
+      {...stageEvents}
     >
-      <div {...barEvents} className={cn("absolute inset-x-0 top-0 z-20 bg-stage/72 backdrop-blur-md transition-opacity duration-200", !chrome && CHROME_HIDDEN)}>
+      <Bar edge="top" shown={chrome} events={barEvents}>
         <TopBar
         pdf={pdf}
         mode={mode}
@@ -466,7 +317,7 @@ function Reader({ doc, loaded }: { doc: ReaderDoc; loaded: Loaded }) {
         }}
         paperMenu={<PaperMenu paper={paper} onPaper={paperPref.set} onPreview={setPaperPreview} container={stageEl} className={ICON_BUTTON} />}
         />
-      </div>
+      </Bar>
       <div ref={measureRef} className="absolute inset-0">
         {width > 0 ? (
           mode === "flip" ? (
@@ -503,7 +354,7 @@ function Reader({ doc, loaded }: { doc: ReaderDoc; loaded: Loaded }) {
           />
         ) : null}
       </div>
-      <div {...barEvents} className={cn("absolute inset-x-0 bottom-0 z-20 bg-stage/72 backdrop-blur-md transition-opacity duration-200", !chrome && CHROME_HIDDEN)}>
+      <Bar edge="bottom" shown={chrome} events={barEvents}>
         <BottomBar
         pages={pages}
         field={mode === "flip" ? pageFieldText(spread, layout) : String(place.page)}
@@ -538,23 +389,14 @@ function Reader({ doc, loaded }: { doc: ReaderDoc; loaded: Loaded }) {
           setHidden(true);
         }}
         />
-      </div>
+      </Bar>
       {hidden ? (
-        // The way back: surfaces when the pointer moves, and to keyboard focus.
-        <Tip
-          label="Show controls"
-          aria-label="Show controls (H)"
-          onClick={() => {
+        <ShowControls
+          awake={awake}
+          onShow={() => {
             setHidden(false);
           }}
-          className={cn(
-            ICON_BUTTON,
-            "absolute right-3 bottom-3 z-30 bg-stage/72 backdrop-blur-md transition-opacity duration-200",
-            !awake && "opacity-0 focus-visible:opacity-100",
-          )}
-        >
-          <Eye aria-hidden />
-        </Tip>
+        />
       ) : null}
       {panel === "thumbs" ? (
         <Thumbnails
@@ -620,9 +462,6 @@ function TopBar({
   );
 }
 
-const ICON_BUTTON =
-  "inline-flex size-9 shrink-0 items-center justify-center rounded-full text-stage-ink/70 outline-none transition-colors hover:bg-stage-ink/10 hover:text-stage-ink focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-35 active:scale-95 [&_svg]:size-[18px]";
-
 type FindState = { kind: "idle" } | { kind: "searching"; at: number } | { kind: "hit"; page: number; query: string } | { kind: "none"; query: string };
 
 /** Find (V42, both views): the next page holding the words, wrapping round. A hit turns there and marks the words. */
@@ -682,57 +521,7 @@ function Find({
   const status =
     state.kind === "searching" ? `Searching p. ${String(state.at)}` : state.kind === "hit" ? `Page ${String(state.page)}` : state.kind === "none" ? "No matches" : null;
 
-  return (
-    <form
-      role="search"
-      className="flex h-9 min-w-0 flex-1 items-center gap-1 rounded-pill bg-stage-ink/8 pr-1 pl-3 focus-within:bg-stage-ink/12 sm:max-w-md"
-      onSubmit={(e) => {
-        e.preventDefault();
-        run(1);
-      }}
-    >
-      <Search aria-hidden className="size-4 shrink-0 text-stage-ink/55" />
-      <input
-        value={text}
-        onChange={(e) => {
-          setText(e.target.value);
-        }}
-        onFocus={onSearch}
-        onKeyDown={(e) => {
-          if (e.key === "Escape") {
-            e.preventDefault();
-            clear();
-          } else if (e.key === "Enter" && e.shiftKey) {
-            e.preventDefault();
-            run(-1);
-          }
-        }}
-        type="search"
-        enterKeyHint="search"
-        placeholder="Search this document"
-        aria-label="Search this document"
-        className="h-full min-w-0 flex-1 bg-transparent px-1.5 text-[13px] text-stage-ink outline-none placeholder:text-stage-ink/45 [&::-webkit-search-cancel-button]:hidden"
-      />
-      {status ? (
-        <span role="status" className={cn("tabular hidden shrink-0 font-mono text-[10.5px] tracking-wide whitespace-nowrap uppercase sm:inline", state.kind === "none" ? "text-stage-ink/50" : "text-signal")}>
-          {status}
-        </span>
-      ) : null}
-      {text ? (
-        <>
-          <button type="button" onClick={() => { run(-1); }} aria-label="Previous match" className={cn(ICON_BUTTON, "size-7 [&_svg]:size-4")}>
-            <ChevronUp aria-hidden />
-          </button>
-          <button type="button" onClick={() => { run(1); }} aria-label="Next match" className={cn(ICON_BUTTON, "size-7 [&_svg]:size-4")}>
-            <ChevronDown aria-hidden />
-          </button>
-          <button type="button" onClick={clear} aria-label="Clear search" className={cn(ICON_BUTTON, "size-7 [&_svg]:size-4")}>
-            <X aria-hidden />
-          </button>
-        </>
-      ) : null}
-    </form>
-  );
+  return <FindBox text={text} onText={setText} status={status} quiet={state.kind === "none"} onFind={run} onClear={clear} onFocus={onSearch} />;
 }
 
 const MODES: readonly { value: ReadingMode; label: string; icon: typeof BookOpen }[] = [
@@ -792,7 +581,7 @@ function OutlinePanel({ pdf, onPick, onClose }: { pdf: PDFDocumentProxy; onPick:
           <X aria-hidden />
         </button>
       </div>
-      <div className="min-h-0 flex-1 overflow-auto overscroll-contain px-2 pb-4">
+      <div className="min-h-0 flex-1 overflow-auto scroll-fade overscroll-contain px-2 pb-4">
         {empty ? <p className="px-2.5 py-2 text-[13px] text-stage-ink/60">This PDF has no contents list.</p> : null}
         <Outline
           pdf={pdf}
@@ -897,37 +686,7 @@ function BottomBar({
           </Tip>
         </div>
         <div className="flex items-center justify-end gap-0.5">
-          {auto ? (
-            <span className="relative flex items-center">
-              {auto.on ? (
-                // Inline on wider screens; on a phone it floats above its button, in a glass pill of its own.
-                <span className="absolute right-0 bottom-full mb-3 flex items-center rounded-pill bg-stage/80 px-3 py-2.5 backdrop-blur-md sm:static sm:mb-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
-                <input
-                  type="range"
-                  min={0}
-                  max={100}
-                  step={1}
-                  value={auto.speed}
-                  onChange={(e) => {
-                    onAutoSpeed(Number(e.target.value));
-                  }}
-                  aria-label="Auto-scroll speed"
-                  aria-valuetext={`${String(Math.round(autoScrollSpeed(auto.speed)))} pixels a second`}
-                  className="h-1 w-36 cursor-pointer accent-signal sm:mr-1 sm:w-28"
-                />
-                </span>
-              ) : null}
-              <Tip
-                label={auto.on ? "Stop auto-scroll" : "Auto-scroll"}
-                aria-label={auto.on ? "Stop auto-scroll" : "Auto-scroll"}
-                aria-pressed={auto.on}
-                onClick={onAuto}
-                className={cn(ICON_BUTTON, auto.on && "bg-stage-ink/12 text-stage-ink")}
-              >
-                {auto.on ? <Pause aria-hidden /> : <ChevronsDown aria-hidden />}
-              </Tip>
-            </span>
-          ) : null}
+          {auto ? <AutoScrollControl on={auto.on} speed={auto.speed} onToggle={onAuto} onSpeed={onAutoSpeed} /> : null}
           {bookPages ? (
             <Tip
               label={bookPages === "spread" ? "One page at a time" : "Two-page spread"}

@@ -792,7 +792,7 @@ function SignCheck({ rows, account, mapping, onFlip }: { rows: readonly KeyedRow
 function RowTable({ rows, present, currency, checked }: { rows: readonly KeyedRow[]; present: ReadonlySet<string>; currency: Account["currency"]; checked: boolean }) {
   const shown = rows.slice(0, PREVIEW_ROWS);
   return (
-    <div className="-mx-2 overflow-x-auto">
+    <div className="-mx-2 overflow-x-auto scroll-fade-x">
       <table className="w-full min-w-[520px] text-left text-[13.5px]">
         <thead>
           <tr className="readout">

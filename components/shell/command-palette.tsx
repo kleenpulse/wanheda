@@ -259,7 +259,7 @@ function PaletteBody({
         onPointerLeave={() => {
           setCursor((c) => (c === "pointer" ? "idle" : c));
         }}
-        className="group/list mt-2 max-h-[min(24rem,60svh)] overflow-y-auto overscroll-contain"
+        className="group/list mt-2 max-h-[min(24rem,60svh)] overflow-y-auto scroll-fade overscroll-contain"
       >
         {!forcedRows && (
           <Command.Empty className="px-3 py-6 text-center text-[13px] text-ink-2">

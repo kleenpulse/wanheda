@@ -1,6 +1,6 @@
 "use client";
 
-import { createDevicePref } from "./device-pref";
+import { createDevicePref } from "@/hooks/device-pref";
 
 // The library's pinned document (user 2026-11-06): one at a time, first in the
 // grid, its cover a liquid tank filled to how far it's read. This device's
