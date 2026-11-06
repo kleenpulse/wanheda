@@ -8,6 +8,7 @@ import { useAccount } from "@/components/shell/account";
 import { EmptyState } from "@/components/shell/page-frame";
 import { buttonClass } from "@/components/ui/button";
 import { parseLocator, type ReaderDoc } from "@/lib/reader/reader";
+import { holdVoiceForReader, prewarmVoice } from "@/lib/speech/prewarm";
 import { cn } from "@/lib/utils";
 import { kindLabel, pagesLabel } from "./cover";
 import { onForget } from "./doc-cache";
@@ -116,13 +117,20 @@ function Reading({ doc }: { doc: ReaderDoc }) {
   const file = here ? (current?.file ?? null) : null;
 
   // Sentences for voice (T50, V44), once the reader has settled: never in the way of the first paint (V24).
+  // Then the voice pre-warms at idle (V45), and the open reader keeps it from its idle release.
   React.useEffect(() => {
     if (!file) return;
+    let live = true;
+    const release = holdVoiceForReader(doc.kind);
     const t = window.setTimeout(() => {
-      ensureText(doc, file, demo);
+      void ensureText(doc, file, demo).then(() => {
+        if (live) prewarmVoice(doc.kind);
+      });
     }, TEXT_AFTER_MS);
     return () => {
+      live = false;
       window.clearTimeout(t);
+      release();
     };
   }, [file, doc.sha256, doc.kind, demo]); // eslint-disable-line react-hooks/exhaustive-deps
   return (

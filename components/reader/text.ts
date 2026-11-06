@@ -64,18 +64,24 @@ async function storedIsCurrent(sha256: string): Promise<boolean> {
   }
 }
 
+/** Jobs in flight, so a second caller can wait on the same one. */
+const jobs = new Map<string, Promise<void>>();
+
 /**
  * Makes sure an opened document's sentences are on this device, in the
  * background. Cheap when they are: two small reads of the stored file, once
- * a session.
+ * a session. Resolves when the job has settled (at once when there's
+ * nothing to do), so the voice can pre-warm after it (V45). Never rejects.
  */
-export function ensureText(doc: Pick<ReaderDoc, "sha256" | "kind">, file: File, demo: boolean): void {
+export function ensureText(doc: Pick<ReaderDoc, "sha256" | "kind">, file: File, demo: boolean): Promise<void> {
   const { sha256, kind } = doc;
-  if (kind === "epub" || settled.has(sha256) || pending.has(sha256) || typeof Worker === "undefined") return;
+  const running = jobs.get(sha256);
+  if (running) return running;
+  if (kind === "epub" || settled.has(sha256) || pending.has(sha256) || typeof Worker === "undefined") return Promise.resolve();
   pending.add(sha256);
   const gen = generation.get(sha256) ?? 0;
   const forgotten = () => (generation.get(sha256) ?? 0) !== gen;
-  void (async () => {
+  const job = (async () => {
     let settle = true;
     try {
       if (demo ? inTab.has(sha256) : await storedIsCurrent(sha256)) return;
@@ -87,7 +93,14 @@ export function ensureText(doc: Pick<ReaderDoc, "sha256" | "kind">, file: File, 
       pending.delete(sha256);
       if (settle && !forgotten()) settled.add(sha256);
     }
-  })();
+  })()
+    .catch(() => undefined)
+    // Always after jobs.set below, even when the job finished without awaiting (demo text already in the tab).
+    .finally(() => {
+      if (jobs.get(sha256) === job) jobs.delete(sha256);
+    });
+  jobs.set(sha256, job);
+  return job;
 }
 
 /** A document's sentences on this device, or null (not extracted yet, cut short, or an older extractor's). */
