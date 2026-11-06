@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | Accepted |
+| Status | Accepted; web engine chosen in [ADR-0012](0012-tts-web-engine-onnxruntime-web.md) (2026-11-06) |
 | Date | 2026-11-04 |
 | Deciders | Isaac Gideon (owner) |
 

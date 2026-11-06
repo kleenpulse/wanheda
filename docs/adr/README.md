@@ -13,3 +13,4 @@ One file per decision. Each records the context, the decision, its effects in 6 
 - [ADR-0009](0009-visual-system-vxrcel-ui-design.md): `vxrcel-ui-design` with Ember + Nebula in Phase 0, Bench in Phase 1, separate data palette in Phase 3.
 - [ADR-0010](0010-hosting-region-eu-frankfurt.md): Neon `eu-central-1` and Vercel `fra1` (Frankfurt), for NDPA reasons.
 - [ADR-0011](0011-public-repo-and-branch-rules.md): Public repo with the `protect-default-branch` ruleset, gitleaks, and the forged-commit check over every commit.
+- [ADR-0012](0012-tts-web-engine-onnxruntime-web.md): Piper on the web = raw onnxruntime-web + espeak-ng `phonemizer`, pre-warmed on reader open, single-threaded until the app is cross-origin isolated (Phase 6 spike).
