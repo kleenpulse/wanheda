@@ -4,7 +4,8 @@ import { z } from "zod";
 import { TIMER_MODES } from "@/lib/activity/timer";
 import { requireOwner } from "@/lib/auth/owner";
 import { SKINS, WALLPAPERS } from "@/lib/prefs/prefs";
-import { savePrefs as storePrefs } from "@/lib/prefs/store";
+import { savePrefs as storePrefs, saveReaderPrefs as storeReaderPrefs } from "@/lib/prefs/store";
+import { completeReaderPrefs } from "@/lib/reader/prefs";
 
 export type SavePrefsResult = { ok: true } | { ok: false; reason: "demo" | "invalid" | "failed" };
 
@@ -36,6 +37,26 @@ export async function savePrefs(input: unknown): Promise<SavePrefsResult> {
     return (await storePrefs(owner.user.id, parsed.data)) ? { ok: true } : { ok: false, reason: "failed" };
   } catch (error) {
     console.error("savePrefs failed", error);
+    return { ok: false, reason: "failed" };
+  }
+}
+
+/**
+ * Saves the owner's reader prefs (Settings → Reader): the whole set, every
+ * field checked by lib/reader/prefs.ts, unknown keys refused. Demo keeps
+ * them on the device only.
+ */
+export async function saveReaderPrefs(input: unknown): Promise<SavePrefsResult> {
+  const owner = await requireOwner();
+  if (owner.kind === "demo") return { ok: false, reason: "demo" };
+
+  const reader = completeReaderPrefs(input);
+  if (!reader) return { ok: false, reason: "invalid" };
+
+  try {
+    return (await storeReaderPrefs(owner.user.id, reader)) ? { ok: true } : { ok: false, reason: "failed" };
+  } catch (error) {
+    console.error("saveReaderPrefs failed", error);
     return { ok: false, reason: "failed" };
   }
 }

@@ -6,6 +6,7 @@ import { Island } from "@/components/island/island";
 import { MoneyProvider } from "@/components/money/money-provider";
 import { NotesProvider } from "@/components/notes/notes-provider";
 import { ReaderProvider } from "@/components/reader/reader-provider";
+import { ReaderPrefsSync } from "@/components/reader/reader-prefs-sync";
 import { QueryProvider } from "@/components/providers/query-provider";
 import { NotificationCentre } from "@/components/notifications/notification-centre";
 import { NotificationsProvider, type NoticesSource } from "@/components/notifications/notifications-provider";
@@ -18,6 +19,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { WindowLayer } from "@/components/windows/window-layer";
 import type { Notice } from "@/lib/notifications/notifications";
 import type { Prefs } from "@/lib/prefs/prefs";
+import type { ReaderPrefs } from "@/lib/reader/prefs";
 import type { ShellAccount } from "@/lib/shell/account";
 import { RAIL_ATTR, RAIL_WIDTH, railCookie } from "@/lib/shell/rail";
 
@@ -44,7 +46,7 @@ export function ShellFrame({
   account: ShellAccount;
   /** From the cookie, so the server paints the right width: no first-frame jump. */
   initialExpanded: boolean;
-  prefs: { initial: Prefs; source: PrefsSource };
+  prefs: { initial: Prefs; source: PrefsSource; reader: Partial<ReaderPrefs> | null };
   notices: { initial: Notice[]; source: NoticesSource };
   children: React.ReactNode;
 }) {
@@ -93,6 +95,7 @@ export function ShellFrame({
       <MoneyProvider>
       <ReaderProvider>
       <PrefsProvider initial={prefs.initial} source={prefs.source}>
+      <ReaderPrefsSync initial={prefs.reader} source={prefs.source}>
       <NotificationsProvider initial={notices.initial} source={notices.source}>
       <div
         // shrink-0: body is a flex column and min-h-svh replaces min-height:auto,
@@ -113,6 +116,7 @@ export function ShellFrame({
         <Toaster />
       </div>
       </NotificationsProvider>
+      </ReaderPrefsSync>
       </PrefsProvider>
       </ReaderProvider>
       </MoneyProvider>

@@ -5,7 +5,8 @@ import { Check } from "lucide-react";
 import * as React from "react";
 import { Menu, MenuContent, MenuTrigger } from "@/components/ui/menu";
 import { cn } from "@/lib/utils";
-import { createDevicePref } from "@/hooks/device-pref";
+import { PAPER_TONES, type Paper, type PaperTone } from "@/lib/reader/prefs";
+import { paperPref } from "./prefs";
 
 // The page's paper (user 2026-11-06): the Notes sticky palette, gentler on the
 // eyes than white. Light papers lay a multiply wash over the drawn page, so its
@@ -15,10 +16,8 @@ import { createDevicePref } from "@/hooks/device-pref";
 // Markdown and text sit on the paper itself, in its own ink (.md-sheet).
 // This device's choice for every document.
 
-const TONES = ["plain", "amber", "rose", "sky", "mint", "violet"] as const;
-type Tone = (typeof TONES)[number];
-
-export type Paper = Tone | `night-${Tone}`;
+type Tone = PaperTone;
+export type { Paper };
 
 const LABEL: Record<Tone, string> = { plain: "Plain", amber: "Amber", rose: "Rose", sky: "Sky", mint: "Mint", violet: "Violet" };
 
@@ -39,15 +38,7 @@ const COLOR: Record<Paper, string> = {
   "night-violet": "var(--paper-night-violet)",
 };
 
-function isPaper(raw: string | null): raw is Paper {
-  return raw !== null && Object.hasOwn(COLOR, raw);
-}
-
-export const paperPref = createDevicePref<Paper>(
-  "wanheda-reader-paper",
-  (raw) => (isPaper(raw) ? raw : "plain"),
-  (v) => (v === "plain" ? null : v),
-);
+export { paperPref };
 
 const isNight = (p: Paper) => p.startsWith("night-");
 
@@ -123,7 +114,7 @@ export function PaperMenu({
               {group === "light" ? "Light" : "Dark"}
             </MenuPrimitive.GroupLabel>
             <div className="flex gap-1">
-              {TONES.map((t) => {
+              {PAPER_TONES.map((t) => {
                 const p: Paper = group === "light" ? t : `night-${t}`;
                 return (
                   <MenuPrimitive.RadioItem
@@ -160,7 +151,7 @@ function Swatch({ paper, className }: { paper: Paper; className?: string }) {
 
 /** The papers as a row of swatches each for light and dark (Settings → Reader): a radio group. */
 export function PaperPicker({ paper, onPaper, labelledBy }: { paper: Paper; onPaper: (p: Paper) => void; labelledBy: string }) {
-  const all: Paper[] = [...TONES, ...TONES.map((t): Paper => `night-${t}`)];
+  const all: Paper[] = [...PAPER_TONES, ...PAPER_TONES.map((t): Paper => `night-${t}`)];
   // Ids unique to this picker, so two on screen at once never focus each other's swatches.
   const base = React.useId();
   const idOf = (p: Paper) => `${base}-${p}`;
@@ -184,7 +175,7 @@ export function PaperPicker({ paper, onPaper, labelledBy }: { paper: Paper; onPa
     >
       {(["light", "dark"] as const).map((group) => (
         <div key={group} className="flex items-center gap-1">
-          {TONES.map((t) => {
+          {PAPER_TONES.map((t) => {
             const p: Paper = group === "light" ? t : `night-${t}`;
             const on = p === paper;
             return (

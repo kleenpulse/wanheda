@@ -9,6 +9,7 @@ import { mergeNotices, type Notice } from "@/lib/notifications/notifications";
 import { loadNotices } from "@/lib/notifications/store";
 import { PREFS_COOKIE, decodePrefs } from "@/lib/prefs/prefs";
 import { loadPrefs } from "@/lib/prefs/store";
+import type { ReaderPrefs } from "@/lib/reader/prefs";
 import { DEMO_ACCOUNT, type ShellAccount } from "@/lib/shell/account";
 import { RAIL_COOKIE, parseRail } from "@/lib/shell/rail";
 import type { NoticesSource } from "@/components/notifications/notifications-provider";
@@ -37,14 +38,14 @@ async function OwnerShell({ children }: { children: React.ReactNode }) {
   // Prefs and alerts: the owner's from the database (either read failing falls back,
   // never throws); demo has this device's cookie and sample alerts.
   const devicePrefs = decodePrefs(jar.get(PREFS_COOKIE)?.value);
-  let prefs: { initial: typeof devicePrefs; source: PrefsSource } = { initial: devicePrefs, source: "demo" };
+  let prefs: { initial: typeof devicePrefs; source: PrefsSource; reader: Partial<ReaderPrefs> | null } = { initial: devicePrefs, source: "demo", reader: null };
   // Demo samples are stamped on the client (NotificationsProvider), not here.
   let notices: { initial: Notice[]; source: NoticesSource } = { initial: [], source: "demo" };
   if (owner.kind === "owner") {
     // Subscription reminders due today are raised beside the read (V31), so
     // they show in this very load; each is raised once, whichever check wins.
     const [p, n, alerts] = await Promise.all([loadPrefs(owner.user.id), loadNotices(owner.user.id), raiseMoneyAlerts(owner.user.id)]);
-    prefs = p.kind === "loaded" ? { initial: p.prefs, source: "owner" } : { initial: devicePrefs, source: "load-failed" };
+    prefs = p.kind === "loaded" ? { initial: p.prefs, source: "owner", reader: p.reader } : { initial: devicePrefs, source: "load-failed", reader: null };
     // Budgets read two months of entries (and maybe fetch FX): after the reply,
     // off the shell's critical path; a txn save checks them inline (V31).
     const userId = owner.user.id;
