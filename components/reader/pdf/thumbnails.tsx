@@ -150,10 +150,11 @@ function Thumb({ pdf, n, on, style, onPick }: { pdf: PDFDocumentProxy; n: number
           on ? "bg-signal/45" : "group-hover:bg-stage-ink/10",
         )}
       >
-        <span className="block size-full overflow-hidden rounded-[4px] bg-paper">
+        <span className="paper-sheet relative isolate block size-full overflow-hidden rounded-[4px] bg-paper">
           {/* A blob URL rendered on this device. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          {url ? <img src={url} alt="" draggable={false} className="size-full" /> : null}
+          {url ? <img src={url} alt="" draggable={false} className="paper-ink size-full" /> : null}
+          <span aria-hidden className="paper-wash" />
         </span>
       </span>
       <span className={cn("tabular font-mono text-[10.5px]", on ? "text-signal" : "text-stage-ink/60")}>{n}</span>

@@ -68,7 +68,7 @@ interface Box {
 
 function newPageElement(page: number): HTMLElement {
   const el = document.createElement("div");
-  el.className = page === PHANTOM ? "book-page book-phantom" : "book-page";
+  el.className = page === PHANTOM ? "book-page book-phantom" : "book-page paper-sheet";
   if (page === PHANTOM) return el;
   el.dataset.page = String(page);
   const num = document.createElement("span");
@@ -78,11 +78,15 @@ function newPageElement(page: number): HTMLElement {
   img.alt = "";
   img.draggable = false;
   img.decoding = "async";
+  img.className = "paper-ink";
+  // The paper colour's wash (paper.tsx): over the page, under the find marks.
+  const wash = document.createElement("div");
+  wash.className = "paper-wash";
   const hl = document.createElement("div");
   hl.className = "book-hl absolute inset-0";
   const spine = document.createElement("div");
   spine.className = "book-spine";
-  el.append(num, img, hl, spine);
+  el.append(num, img, wash, hl, spine);
   return el;
 }
 

@@ -157,7 +157,7 @@ export const ScrollView = React.forwardRef<
         {shown.map((n) => (
           <div
             key={n}
-            className="absolute left-1/2 -translate-x-1/2 overflow-hidden bg-paper shadow-[0_10px_30px_-14px] shadow-stage"
+            className="paper-sheet absolute isolate left-1/2 -translate-x-1/2 overflow-hidden bg-paper shadow-[0_10px_30px_-14px] shadow-stage"
             style={{ top: inset + (n - 1) * slot + GAP / 2, width: pageWidth, height: pageHeight }}
           >
             <Page
@@ -173,6 +173,8 @@ export const ScrollView = React.forwardRef<
               error={<PageNumber n={n} failed />}
               className="pdf-page [&_mark]:rounded-[2px] [&_mark]:bg-signal/40 [&_mark]:text-transparent"
             />
+            {/* The paper colour's wash (paper.tsx); clicks and selection pass through to the text. */}
+            <span aria-hidden className="paper-wash" />
           </div>
         ))}
       </div>

@@ -1108,13 +1108,43 @@ html[data-motion="reduce"]::view-transition-new(*) {
 /* ── The PDF book (V42) ─────────────────────────────────────────────────
    page-flip owns each page element's inline style and marks it --left or
    --right as it lays out the spread; the spine shade follows that mark. */
-.book-page { overflow: hidden; background: var(--paper); }
+.book-page { overflow: hidden; isolation: isolate; background: var(--paper); }
 .book-page.book-phantom { background: transparent; }
 .book-page > img { position: absolute; inset: 0; width: 100%; height: 100%; user-select: none; -webkit-user-drag: none; }
 .book-spine { position: absolute; inset-block: 0; width: 9%; pointer-events: none; }
 .book-page.--left .book-spine { right: 0; background: linear-gradient(to left, color-mix(in oklab, var(--stage) 34%, transparent), color-mix(in oklab, var(--stage) 6%, transparent) 45%, transparent); }
 .book-page.--right .book-spine { left: 0; background: linear-gradient(to right, color-mix(in oklab, var(--stage) 30%, transparent), color-mix(in oklab, var(--stage) 5%, transparent) 45%, transparent); }
 .book-single .book-spine { display: none; }
+/* Paper colours for the reader (user 2026-11-06), the Notes sticky tints:
+   Ember's for light, Nebula's for dark, in every skin (the stage is dark in
+   all of them). components/reader/pdf/paper.tsx sets --paper on the stage and
+   marks it .paper-tinted or .paper-night. A light paper multiplies over the
+   drawn page: white becomes the paper, ink stays ink. A dark one inverts the
+   page (hue kept), then screens the paper over it: black becomes the paper,
+   ink becomes a soft light grey. */
+:root {
+	--paper-plain: var(--paper);
+	--paper-amber: #ffeed0;
+	--paper-rose: #ffebf0;
+	--paper-sky: #e0f7ff;
+	--paper-mint: #e2fbe9;
+	--paper-violet: #f5eeff;
+	--paper-night: #262626;
+	--paper-night-amber: #372818;
+	--paper-night-rose: #382226;
+	--paper-night-sky: #152c37;
+	--paper-night-mint: #1d2d22;
+	--paper-night-violet: #2c243a;
+}
+.paper-wash { display: none; position: absolute; inset: 0; pointer-events: none; background: var(--paper); }
+.paper-tinted .paper-wash { display: block; mix-blend-mode: multiply; }
+.paper-night .paper-wash { display: block; mix-blend-mode: screen; }
+/* Under the wash, a sheet with no image yet (loading, or failed to draw) shows
+   the base the wash expects, so it lands on the paper and not on paper². */
+.paper-tinted .paper-sheet { background: var(--paper-plain); }
+.paper-night .paper-sheet { background: black; }
+.paper-night .paper-ink,
+.paper-night .pdf-page canvas { filter: invert(1) hue-rotate(180deg) brightness(0.86); }
 /* The stack of page edges beside the open spread: thicker the more pages lie that way. */
 .book-edge {
 	position: absolute;

@@ -55,6 +55,7 @@ import { hasCover, keepCover } from "../covers";
 import { forgetDoc, onForget } from "../doc-cache";
 import { useReaderRuntime } from "../reader-provider";
 import { createDevicePref } from "../device-pref";
+import { type Paper, PaperMenu, paperPref, paperProps } from "./paper";
 import { STAGE_BOX } from "../stage";
 import { useReaderApi } from "../use-reader";
 import { BookView, type BookHandle } from "./book-view";
@@ -199,17 +200,21 @@ export default function PdfReader({ doc, file }: { doc: ReaderDoc; file: File })
 /** The dark stage the book sits on, in every skin (V42). */
 const Stage = React.forwardRef<
   HTMLDivElement,
-  { children?: React.ReactNode; busy?: boolean; full?: boolean } & Pick<React.HTMLAttributes<HTMLDivElement>, "onPointerMove" | "onPointerDown" | "onPointerLeave">
->(function Stage({ children, busy, full, ...pointer }, ref) {
+  { children?: React.ReactNode; busy?: boolean; full?: boolean; className?: string | undefined } & Pick<
+    React.HTMLAttributes<HTMLDivElement>,
+    "onPointerMove" | "onPointerDown" | "onPointerLeave" | "style"
+  >
+>(function Stage({ children, busy, full, className, ...rest }, ref) {
   return (
     <div
       ref={ref}
-      {...pointer}
+      {...rest}
       aria-busy={busy || undefined}
       aria-label={busy ? "Opening" : undefined}
       className={cn(
         "relative flex flex-col overflow-hidden bg-stage text-stage-ink",
         full ? "h-svh w-full" : STAGE_BOX,
+        className,
       )}
     >
       {children}
@@ -285,6 +290,15 @@ function Reader({ doc, loaded }: { doc: ReaderDoc; loaded: Loaded }) {
 
   // Fullscreen: the whole reader, bars included.
   const stage = React.useRef<HTMLDivElement | null>(null);
+  // The stage as state too: menus render into it, so they still show in full screen.
+  const [stageEl, setStageEl] = React.useState<HTMLDivElement | null>(null);
+  const stageRef = React.useCallback((el: HTMLDivElement | null) => {
+    stage.current = el;
+    setStageEl(el);
+  }, []);
+  const paper = paperPref.use();
+  const [paperPreview, setPaperPreview] = React.useState<Paper | null>(null);
+  const paperLook = paperProps(paperPreview ?? paper);
   const [full, setFull] = React.useState(false);
   React.useEffect(() => {
     const on = () => {
@@ -421,10 +435,10 @@ function Reader({ doc, loaded }: { doc: ReaderDoc; loaded: Loaded }) {
 
   return (
     <Stage
-      ref={(el) => {
-        stage.current = el;
-      }}
+      ref={stageRef}
       full={full}
+      className={paperLook.className}
+      style={paperLook.style}
       onPointerMove={wake}
       onPointerDown={wake}
       onPointerLeave={doze}
@@ -450,6 +464,7 @@ function Reader({ doc, loaded }: { doc: ReaderDoc; loaded: Loaded }) {
         onClear={() => {
           setQuery("");
         }}
+        paperMenu={<PaperMenu paper={paper} onPaper={paperPref.set} onPreview={setPaperPreview} container={stageEl} className={ICON_BUTTON} />}
         />
       </div>
       <div ref={measureRef} className="absolute inset-0">
@@ -572,6 +587,7 @@ function TopBar({
   onHit,
   onClear,
   onSearch,
+  paperMenu,
 }: {
   pdf: PDFDocumentProxy;
   mode: ReadingMode;
@@ -583,6 +599,8 @@ function TopBar({
   onClear: () => void;
   /** The owner started searching: the field took focus, or a search ran. */
   onSearch: () => void;
+  /** The paper colour picker, a view setting beside Book / Scroll. */
+  paperMenu: React.ReactNode;
 }) {
   return (
     <div className="flex h-14 items-center gap-2 px-3 sm:px-4">
@@ -596,6 +614,7 @@ function TopBar({
         <ListTree aria-hidden />
       </Tip>
       <Find pdf={pdf} from={from} onHit={onHit} onClear={onClear} onSearch={onSearch} />
+      {paperMenu}
       <ModeSwitch mode={mode} onMode={onMode} />
     </div>
   );
@@ -924,7 +943,8 @@ function BottomBar({
           <Tip label="Hide controls (H)" aria-label="Hide controls" onClick={onHide} className={ICON_BUTTON}>
             <EyeOff aria-hidden />
           </Tip>
-          <Tip label={full ? "Exit full screen" : "Full screen"} aria-label={full ? "Exit full screen" : "Full screen"} onClick={onFull} className={ICON_BUTTON}>
+          {/* Not on phones: the row has no room for it there, and iPhones can't full-screen a page element. */}
+          <Tip label={full ? "Exit full screen" : "Full screen"} aria-label={full ? "Exit full screen" : "Full screen"} onClick={onFull} className={cn(ICON_BUTTON, "hidden sm:inline-flex")}>
             {full ? <Minimize aria-hidden /> : <Maximize aria-hidden />}
           </Tip>
         </div>
