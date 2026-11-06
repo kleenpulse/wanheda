@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import dynamic from "next/dynamic";
 import { ArrowLeft, CloudOff, FolderOpen } from "lucide-react";
 import { Notice } from "@/components/income/parts";
 import { NoteMarkdown } from "@/components/notes/note-markdown";
@@ -8,18 +9,33 @@ import { useAccount } from "@/components/shell/account";
 import { EmptyState } from "@/components/shell/page-frame";
 import { buttonClass } from "@/components/ui/button";
 import { formatLocator, parseLocator, type ReaderDoc } from "@/lib/reader/reader";
+import { cn } from "@/lib/utils";
 import { kindLabel } from "./cover";
+import { onForget } from "./doc-cache";
 import { closeDoc, useFilePicker } from "./open-file";
 import { useReaderRuntime } from "./reader-provider";
+import { STAGE_BOX } from "./stage";
 import { onDevice, readDocFile, useDeviceFiles, useReader, useReaderApi } from "./use-reader";
 
-// One document (T46). Markdown and text are read here and keep their place
-// (V41: `md:<heading>:<y‰>`, resumed by the locator, not the percent). PDFs
-// show in the browser's own viewer until the PDF reader lands (T47), which
-// brings page-level places, search and covers. An entry whose bytes aren't
-// on this device asks for the file and relinks it by its hash (V39).
+// One document. Markdown and text are read here and keep their place (V41:
+// `md:<heading>:<y‰>`, resumed by the locator, not the percent). PDFs open in
+// the PDF reader (T47: pdf/pdf-reader.tsx), a book or a scroll, loaded only
+// on the client with pdf.js. An entry whose bytes aren't on this device asks
+// for the file and relinks it by its hash (V39).
 
 const REPORT_MS = 400;
+
+/** The PDF reader's dark stage, empty, while its code loads the first time. Same box, so nothing jumps. */
+function StageShell() {
+  return <div aria-busy aria-label="Opening" className={cn(STAGE_BOX, "bg-stage")} />;
+}
+
+const PdfReader = dynamic(() => import("./pdf/pdf-reader"), { ssr: false, loading: StageShell });
+
+/** Starts loading the PDF reader's code ahead of the first open (the library calls it when it holds a PDF). */
+export function preloadPdfReader(): void {
+  void import("./pdf/pdf-reader").catch(() => undefined);
+}
 
 export function DocumentView({ id }: { id: string }) {
   const { data, failed } = useReader();
@@ -63,18 +79,31 @@ function BackBar({ doc }: { doc?: ReaderDoc }) {
 /** The bytes read for one hash: the File, or null when this device doesn't have them after all. */
 type Read = { sha256: string; file: File | null };
 
+/** The last bytes read, so going back to the same document paints at once (V24), with no wait on the device read. */
+let lastRead: Read | null = null;
+
+// A deleted document's bytes are gone from the device: never hand back that File.
+onForget((sha256) => {
+  if (lastRead?.sha256 === sha256) lastRead = null;
+});
+
 function Reading({ doc }: { doc: ReaderDoc }) {
   const demo = useAccount().kind !== "owner";
   const device = useDeviceFiles();
   const here = onDevice(doc, device);
-  const [read, setRead] = React.useState<Read | null>(null);
+  const [read, setRead] = React.useState<Read | null>(() => (lastRead?.sha256 === doc.sha256 && lastRead.file ? lastRead : null));
 
   React.useEffect(() => {
     if (!here) return;
     let live = true;
     void readDocFile(doc, demo).then((file) => {
       // Already reading these bytes: keep the same File, so the text and its place aren't reloaded.
-      if (live) setRead((prev) => (prev?.sha256 === doc.sha256 && prev.file && file ? prev : { sha256: doc.sha256, file }));
+      if (!live) return;
+      setRead((prev) => {
+        const next = prev?.sha256 === doc.sha256 && prev.file && file ? prev : { sha256: doc.sha256, file };
+        lastRead = next;
+        return next;
+      });
     });
     return () => {
       live = false;
@@ -88,7 +117,19 @@ function Reading({ doc }: { doc: ReaderDoc }) {
   return (
     <div className="flex flex-col gap-5">
       <BackBar doc={doc} />
-      {missing ? <Relink doc={doc} /> : file ? doc.kind === "pdf" ? <PdfFrame doc={doc} file={file} /> : <TextReader doc={doc} file={file} /> : <div aria-busy aria-label="Opening" className="h-[60svh] rounded-card bg-foreground/5 dark:bg-card-nested" />}
+      {missing ? (
+        <Relink doc={doc} />
+      ) : doc.kind === "pdf" ? (
+        file ? (
+          <PdfReader doc={doc} file={file} />
+        ) : (
+          <StageShell />
+        )
+      ) : file ? (
+        <TextReader doc={doc} file={file} />
+      ) : (
+        <div aria-busy aria-label="Opening" className="h-[60svh] rounded-card bg-foreground/5 dark:bg-card-nested" />
+      )}
     </div>
   );
 }
@@ -127,39 +168,6 @@ function Relink({ doc }: { doc: ReaderDoc }) {
         <FolderOpen aria-hidden />
         {busy ? "Checking…" : "Open file"}
       </button>
-    </div>
-  );
-}
-
-/** The browser's own PDF viewer, as a stopgap. Its place isn't readable from here, so opening only marks the document opened. */
-function PdfFrame({ doc, file }: { doc: ReaderDoc; file: File }) {
-  const runtime = useReaderRuntime();
-  const frame = React.useRef<HTMLIFrameElement>(null);
-  React.useEffect(() => {
-    const el = frame.current;
-    if (!el) return;
-    // Typed as PDF whatever the picked file said, so the bytes can only ever render as a PDF.
-    const u = URL.createObjectURL(new Blob([file], { type: "application/pdf" }));
-    el.src = u;
-    return () => {
-      el.removeAttribute("src");
-      URL.revokeObjectURL(u);
-    };
-  }, [file]);
-  React.useEffect(() => {
-    const p = doc.progress;
-    runtime.report({
-      documentId: doc.id,
-      locator: p && parseLocator(p.locator)?.kind === "pdf" ? p.locator : formatLocator({ kind: "pdf", page: 1, y: 0 }),
-      percent: p?.percent ?? 0,
-      at: Date.now(),
-    });
-    // Once per open.
-  }, [doc.id]); // eslint-disable-line react-hooks/exhaustive-deps
-  return (
-    <div className="flex flex-col gap-3">
-      <p className="text-[12.5px] text-ink-2">Shown in your browser&apos;s viewer for now. The Wanheda PDF reader, which keeps your page, comes next.</p>
-      <iframe ref={frame} title={doc.title} className="h-[calc(100svh-15rem)] min-h-[420px] w-full rounded-card bg-foreground/5 dark:bg-card-nested" />
     </div>
   );
 }

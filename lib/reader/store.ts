@@ -6,6 +6,7 @@ import {
   DOC_KINDS,
   READING_MODES,
   clampAt,
+  defaultModeFor,
   type Collection,
   type CollectionWrite,
   type DocKind,
@@ -167,6 +168,7 @@ export async function createDocument(userId: string, w: DocumentCreate): Promise
       sizeBytes: w.sizeBytes,
       pages: w.pages,
       tags: w.tags,
+      mode: defaultModeFor(w.kind),
     })
     .onConflictDoNothing();
   const [held] = await db

@@ -1,6 +1,6 @@
 # Latest hand-off
 
-**Newest:** [2026-11-06-phase-5-reader-core.md](2026-11-06-phase-5-reader-core.md). **T46 (reader core, local-only) built, reviewed (LGTM with nits, nits 1–2 fixed) and in PR #30 for the user to merge.** `drizzle/0007_reader.sql` is generated and **not applied**: `bun run db:migrate` waits for the user's go-ahead, then an owner run (add a PDF, open it on a second device, relink, resume). Next: T47 `phase-5/pdf-viewer` in a fresh session after #30 merges. T44 is still deferred until the first real Polar sale.
+**Newest:** [2026-11-06-phase-5-pdf-viewer.md](2026-11-06-phase-5-pdf-viewer.md). **T47 built: PDFs open in Wanheda's own reader, a book with a real page curl by default, scroll one tap away; plus the user's mid-session additions (one-page book on desktop, marquee titles, pin with the liquid tank, auto-scroll, translucent auto-hiding bars). PR #31 open, Reviewer LGTM, not merged.** Next session: the small renewal-cycle pin fix, then T48. T44 still waits for the first real Polar sale.
 
 Read the hand-off first, then verify it against the repo before trusting it (git, tripwire, typecheck, tests). The Builder and Reviewer prompts below are copied from it.
 
@@ -15,14 +15,17 @@ after the Reviewer peer's LGTM (or LGTM with nits) commit, push and open the PR 
 after every PR. No worktrees. One checkpoint per session. House goal (CLAUDE.md): native-app
 feel, V24.
 
-Read docs/handoff/2026-11-06-phase-5-reader-core.md first. Check the T46 PR is merged and
-whether 0007 is applied (ask the user; never migrate yourself). Branch phase-5/pdf-viewer off
-main. Build T47 per SPEC §T and V40, V41, V43: react-pdf 11.0.0 + pdfjs-dist 6.3.289 exact
-(7-day cooldown; no bunx of unpinned tools), viewer client-only, worker via new URL(...,
-import.meta.url) never copied to public/ (no tracked .mjs), isEvalSupported false; virtual
-pages, text layer, find, outline, thumbnails, zoom; progress `pdf:<page>:<y‰>` through the
-existing reader runtime; replace the iframe stopgap in components/reader/document-view.tsx;
-page-one covers as webp in OPFS (`<sha>.cover.webp`).
+Read docs/handoff/2026-11-06-phase-5-pdf-viewer.md first and check that T47's PR is merged
+(git log main). Branch phase-5/md-viewer off main. First, a small fix (user 2026-11-06):
+Home's pinned billing cycle in components/money/renewal-cycle.tsx drops the pick when
+localStorage refuses writes; move it onto the device-pref pattern
+(components/reader/device-pref.ts, lifted to hooks/ if shared) or fix it in place. Then build T48 per SPEC §T and V40, V41:
+the Markdown / text viewer with react-markdown 10.1.0 + remark-gfm 4.0.1 + rehype-sanitize
+6.0.0 (already pinned) + rehype-slug 6.0.0; order sanitize → slug → Shiki (ids prefixed
+`user-content-`; Shiki styles survive); shiki 4.5.0 fine-grained createHighlighterCore with the
+JS regex engine (no Oniguruma WASM); a TOC; progress by heading anchor (`md:<heading-id>:<y‰>`).
+Reuse the reader runtime and the PDF reader's stage, find and bar patterns where they fit.
+Install only pinned versions (7-day cooldown; no bunx of unpinned tools).
 ```
 
 ### Reviewer prompt
@@ -31,8 +34,8 @@ page-one covers as webp in OPFS (`<sha>.cover.webp`).
 You are the REVIEWER session for Wanheda at D:\Vxrcel\wanheda. Use the diff-reviewer skill;
 read-only. One pass, bugs and edge cases only, verdict LGTM / LGTM with nits / FIX, sent to the
 Builder. Your LGTM is not the user's approval.
-Target: the T47 diff on phase-5/pdf-viewer. Riskiest: pdf.js hardening (isEvalSupported false,
-same-origin worker, no tracked .mjs), react-pdf and pdfjs-dist versions matching exactly,
-memory (pages rendered only in view ± 2, canvases freed), progress locators and resume,
-V24 (no skeleton on a hop). Context: docs/handoff/2026-11-06-phase-5-reader-core.md.
+Target: the T48 diff on phase-5/md-viewer. Riskiest: sanitize order (sanitize before slug and
+Shiki; no raw HTML, no MDX; `javascript:` links dropped; external links new tab + noopener),
+Shiki output as the only dangerouslySetInnerHTML, heading-anchor locators resuming across
+devices, V24 (no skeleton on a hop). Context: docs/handoff/2026-11-06-phase-5-pdf-viewer.md.
 ```

@@ -68,13 +68,47 @@ export async function readDeviceFile(sha256: string, size: number): Promise<File
   }
 }
 
-/** Forgets this device's copy. Missing is fine. */
+/** Forgets this device's copy and its cover. Missing is fine. */
 export async function removeDeviceFile(sha256: string): Promise<void> {
   try {
     const dir = await folder(false);
-    await dir?.removeEntry(sha256);
+    await dir?.removeEntry(sha256).catch(() => undefined);
+    await dir?.removeEntry(coverName(sha256)).catch(() => undefined);
   } catch {
     // Already gone, or OPFS refused: nothing to clean.
+  }
+}
+
+/** A PDF's page-one cover sits beside its bytes (T47). listDeviceFiles never counts it: the name isn't a bare hash. */
+export function coverName(sha256: string): string {
+  return `${sha256}.cover.webp`;
+}
+
+/** The cover kept for a hash, or null. */
+export async function readCover(sha256: string): Promise<Blob | null> {
+  try {
+    const dir = await folder(false);
+    if (!dir) return null;
+    const file = await (await dir.getFileHandle(coverName(sha256))).getFile();
+    return file.size > 0 ? file : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Keeps a cover. Best effort: a browser without writable OPFS on the page just draws the generated cover. */
+export async function writeCover(sha256: string, blob: Blob): Promise<boolean> {
+  try {
+    const dir = await folder(true);
+    if (!dir) return false;
+    const handle = await dir.getFileHandle(coverName(sha256), { create: true });
+    if (typeof handle.createWritable !== "function") return false;
+    const out = await handle.createWritable();
+    await out.write(blob);
+    await out.close();
+    return true;
+  } catch {
+    return false;
   }
 }
 

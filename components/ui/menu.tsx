@@ -15,6 +15,7 @@ export function MenuContent({
   side = "bottom",
   align = "start",
   sideOffset = 8,
+  container,
   className,
   children,
   ...props
@@ -22,9 +23,11 @@ export function MenuContent({
   side?: MenuPrimitive.Positioner.Props["side"];
   align?: MenuPrimitive.Positioner.Props["align"];
   sideOffset?: number;
+  /** Where the menu renders, if not the body: a full-screen element shows only what is inside it. */
+  container?: HTMLElement | null;
 }) {
   return (
-    <MenuPrimitive.Portal>
+    <MenuPrimitive.Portal container={container}>
       <MenuPrimitive.Positioner side={side} align={align} sideOffset={sideOffset} collisionPadding={8} className="z-[200] outline-none">
         <MenuPrimitive.Popup
           className={cn(

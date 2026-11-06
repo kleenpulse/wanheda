@@ -1,12 +1,16 @@
+"use client";
+
 import type * as React from "react";
+import { useAccount } from "@/components/shell/account";
 import { FileText, FileType2, Hash, type LucideIcon } from "lucide-react";
 import type { DocKind, ReaderDoc } from "@/lib/reader/reader";
 import { cn } from "@/lib/utils";
+import { useCover } from "./covers";
 
 // A document's cover, drawn from its metadata: a duo-tone tint picked by the
 // file's hash (stable on every device), the title set in the display face and
-// the kind as a readout. Real page-one covers for PDFs arrive with the PDF
-// viewer (T47), which brings pdf.js; this is what they fall back to.
+// the kind as a readout. A PDF shows its real page one instead once this
+// device has made it (covers.ts, T47); this is what it falls back to.
 
 const TONES = [
   "bg-cat-blue/14 text-cat-blue",
@@ -48,8 +52,23 @@ export function Cover({
   badge?: React.ReactNode;
   className?: string;
 }) {
+  const demo = useAccount().kind !== "owner";
+  const image = useCover(doc, demo);
   const t = tone(doc.sha256);
   const { icon: Icon, label } = KIND[doc.kind];
+  if (image) {
+    return (
+      <div
+        aria-hidden
+        className={cn("relative aspect-[3/4] w-full overflow-hidden bg-paper", size === "sm" ? "rounded-[8px]" : "rounded-[14px]", className)}
+      >
+        {/* A blob URL from this device: next/image can't optimise it. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={image} alt="" draggable={false} className="size-full object-cover object-top" />
+        {size === "md" && badge ? <span className="absolute top-3 right-3 flex min-w-0 justify-end">{badge}</span> : null}
+      </div>
+    );
+  }
   return (
     <div
       aria-hidden

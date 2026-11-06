@@ -1,18 +1,22 @@
 "use client";
 
 import * as React from "react";
-import { CloudOff, FilePlus2, FolderPlus, Pencil, Search, Trash2, Upload } from "lucide-react";
+import { CloudOff, FilePlus2, FolderPlus, Pencil, Pin, PinOff, Search, Trash2, Upload } from "lucide-react";
 import { Notice } from "@/components/income/parts";
 import { EmptyState } from "@/components/shell/page-frame";
 import { buttonClass } from "@/components/ui/button";
+import { LiquidTank } from "@/components/ui/liquid-tank";
+import { MarqueeText } from "@/components/ui/marquee-text";
 import { Tip } from "@/components/ui/tooltip";
 import { useNow } from "@/hooks/use-now";
 import { relativeTime } from "@/lib/notifications/notifications";
 import { filterLibrary, sortLibrary, tagsInUse, type Collection, type ReaderDoc, type ReaderPayload } from "@/lib/reader/reader";
 import { cn } from "@/lib/utils";
-import { Cover } from "./cover";
+import { Cover, kindLabel } from "./cover";
+import { preloadPdfReader } from "./document-view";
 import { EditDialog, type Editing } from "./edit-dialog";
 import { openDoc, useFilePicker } from "./open-file";
+import { setPinned, usePinned } from "./pin";
 import { onDevice, useDeviceFiles, useReader, useReaderApi } from "./use-reader";
 
 // The library (FR-READER-1, T46): every document with its cover, tags,
@@ -53,6 +57,13 @@ function LibrarySkeleton() {
 function LibraryView({ payload }: { payload: ReaderPayload }) {
   const api = useReaderApi();
   const device = useDeviceFiles();
+  // A PDF here will likely be opened: fetch the PDF reader's code while the owner looks (V24).
+  const holdsPdf = payload.documents.some((d) => d.kind === "pdf");
+  React.useEffect(() => {
+    if (!holdsPdf) return;
+    if ("requestIdleCallback" in window) window.requestIdleCallback(preloadPdfReader);
+    else setTimeout(preloadPdfReader, 600);
+  }, [holdsPdf]);
   const [query, setQuery] = React.useState("");
   const [tag, setTag] = React.useState<string | null>(null);
   const [collection, setCollection] = React.useState<string | null>(null);
@@ -71,6 +82,13 @@ function LibraryView({ payload }: { payload: ReaderPayload }) {
     () => sortLibrary(filterLibrary(payload.documents, { query, tag: activeTag, collection: activeCollection })),
     [payload.documents, query, activeTag, activeCollection],
   );
+  // The pinned document leads, wherever the sort put it (one pin at a time).
+  const pinned = usePinned();
+  const ordered = React.useMemo(() => {
+    const at = docs.findIndex((d) => d.id === pinned);
+    if (at <= 0) return docs;
+    return [docs[at], ...docs.slice(0, at), ...docs.slice(at + 1)].filter((d): d is ReaderDoc => d !== undefined);
+  }, [docs, pinned]);
   const names = React.useMemo(() => new Map(payload.collections.map((c) => [c.id, c.name])), [payload.collections]);
   const current = payload.collections.find((c) => c.id === activeCollection) ?? null;
 
@@ -162,11 +180,15 @@ function LibraryView({ payload }: { payload: ReaderPayload }) {
         <EmptyState title="Nothing matches" body="Try another word, or clear the filters." />
       ) : (
         <ul className="grid grid-cols-2 gap-x-4 gap-y-7 @xl:grid-cols-3 @3xl:grid-cols-4 @5xl:grid-cols-5 @7xl:grid-cols-6">
-          {docs.map((d, i) => (
+          {ordered.map((d, i) => (
             <DocCard
               key={d.id}
               doc={d}
               index={i}
+              pinned={d.id === pinned}
+              onPin={() => {
+                setPinned(d.id === pinned ? null : d.id);
+              }}
               here={onDevice(d, device)}
               collections={d.collections.flatMap((id) => names.get(id) ?? [])}
               onEdit={(origin) => { setEditing({ kind: "doc", doc: d, origin }); }}
@@ -200,34 +222,35 @@ function DocCard({
   doc,
   index,
   here,
+  pinned,
   collections,
+  onPin,
   onEdit,
   onDelete,
 }: {
   doc: ReaderDoc;
   index: number;
   here: boolean | null;
+  pinned: boolean;
   collections: string[];
+  onPin: () => void;
   onEdit: (origin: DOMRect) => void;
   onDelete: () => void;
 }) {
   const now = useNow(60_000);
   const percent = doc.progress?.percent ?? null;
   const opened = doc.lastOpenedAt === null ? "Not opened yet" : now === null ? "" : `Opened ${relativeTime(doc.lastOpenedAt, now)}`;
+  const badge =
+    here === false ? (
+      <span className="inline-flex h-6 min-w-0 items-center gap-1 rounded-pill bg-background/85 px-2 font-mono text-[10px] tracking-wide text-ink-2 uppercase backdrop-blur-sm">
+        <CloudOff aria-hidden className="size-3 shrink-0" />
+        <span className="hidden truncate @[15rem]/card:inline">Not on this device</span>
+      </span>
+    ) : null;
   return (
     <li className="entrance group @container/card relative flex min-w-0 flex-col gap-2.5" style={{ ["--i" as string]: Math.min(index, 12) }}>
       <div className="relative transition-transform duration-200 [@media(hover:hover)_and_(pointer:fine)]:group-hover:-translate-y-0.5">
-        <Cover
-          doc={doc}
-          badge={
-            here === false ? (
-              <span className="inline-flex h-6 min-w-0 items-center gap-1 rounded-pill bg-background/85 px-2 font-mono text-[10px] tracking-wide text-ink-2 uppercase backdrop-blur-sm">
-                <CloudOff aria-hidden className="size-3 shrink-0" />
-                <span className="hidden truncate @[15rem]/card:inline">Not on this device</span>
-              </span>
-            ) : null
-          }
-        />
+        {pinned ? <PinnedCover doc={doc} percent={percent ?? 0} badge={badge} /> : <Cover doc={doc} badge={badge} />}
       </div>
       <div className="flex min-w-0 flex-col gap-1">
         <button
@@ -235,13 +258,14 @@ function DocCard({
           onClick={() => { openDoc(doc.id); }}
           className="text-left text-[13.5px] leading-snug font-semibold text-foreground outline-none after:absolute after:inset-0 after:rounded-[14px] focus-visible:after:ring-2 focus-visible:after:ring-ring"
         >
-          <span className="line-clamp-2">{doc.title}</span>
+          <MarqueeText text={doc.title} />
           {here === false ? <span className="sr-only"> (not on this device)</span> : null}
         </button>
         {doc.author || collections.length > 0 ? (
           <p className="truncate text-[12px] text-ink-2">{[doc.author, ...collections].filter(Boolean).join(" · ")}</p>
         ) : null}
-        <div className="mt-1 flex items-center gap-2">
+        {/* Pinned: the tank is the progress. */}
+        <div className={cn("mt-1 flex items-center gap-2", pinned && "hidden")}>
           <div
             role="progressbar"
             aria-label="Read"
@@ -260,6 +284,22 @@ function DocCard({
             {doc.tags.length > 0 ? ` · ${doc.tags.map((t) => `#${t}`).join(" ")}` : ""}
           </span>
           <span className="relative z-10 -mr-1.5 flex shrink-0 items-center text-ink-3">
+            <Tip
+              label={pinned ? "Unpin" : "Pin"}
+              render={
+                <button
+                  type="button"
+                  onClick={onPin}
+                  aria-pressed={pinned}
+                  className={buttonClass("ghost", "circle-sm", cn("size-7", pinned ? "text-signal-ink" : "text-ink-3"))}
+                >
+                  {pinned ? <PinOff aria-hidden className="size-[14px]" strokeWidth={1.75} /> : <Pin aria-hidden className="size-[14px]" strokeWidth={1.75} />}
+                  <span className="sr-only">
+                    {pinned ? "Unpin" : "Pin"} {doc.title}
+                  </span>
+                </button>
+              }
+            />
             <Tip
               label="Edit"
               render={
@@ -282,6 +322,46 @@ function DocCard({
         </div>
       </div>
     </li>
+  );
+}
+
+/**
+ * The pinned document's cover (user 2026-11-06): the liquid tank from the
+ * billing-cycle card, filled to how far it's read, the words split ink on
+ * liquid along the surface.
+ */
+function PinnedCover({ doc, percent, badge }: { doc: ReaderDoc; percent: number; badge: React.ReactNode }) {
+  const face = (wet: boolean) => (
+    <div aria-hidden={wet || undefined} className="flex aspect-[3/4] flex-col justify-between p-3.5">
+      <span className="flex items-center gap-1.5 font-mono text-[10px] tracking-[0.16em] uppercase">
+        <Pin aria-hidden className="size-3" />
+        {kindLabel(doc.kind)}
+      </span>
+      <span className="tabular font-figure text-[52px] leading-none font-extrabold tracking-[-0.04em] @[15rem]/card:text-[68px]">
+        {percent}
+        <span className="text-[0.5em]">%</span>
+      </span>
+      <span className="line-clamp-3 font-display text-[15px] leading-[1.15] font-semibold tracking-[-0.01em] text-balance">{doc.title}</span>
+    </div>
+  );
+  return (
+    <LiquidTank
+      progress={percent / 100}
+      aria-label={`${doc.title}, pinned`}
+      className="rounded-[14px]"
+      overlay={badge ? <span className="absolute top-3 right-3 z-10 flex min-w-0 justify-end">{badge}</span> : null}
+    >
+      {(wet) =>
+        wet ? (
+          face(true)
+        ) : (
+          <>
+            <div role="progressbar" aria-label="Read" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent} className="sr-only" />
+            {face(false)}
+          </>
+        )
+      }
+    </LiquidTank>
   );
 }
 
