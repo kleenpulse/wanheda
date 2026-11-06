@@ -1,6 +1,6 @@
 # Latest hand-off
 
-**Newest:** [2026-11-06-phase-5-pdf-viewer.md](2026-11-06-phase-5-pdf-viewer.md). **T47 built: PDFs open in Wanheda's own reader, a book with a real page curl by default, scroll one tap away; plus the user's mid-session additions (one-page book on desktop, marquee titles, pin with the liquid tank, auto-scroll, translucent auto-hiding bars). PR #31 open, Reviewer LGTM, not merged.** Next session: the small renewal-cycle pin fix, then T48. T44 still waits for the first real Polar sale.
+**Newest:** [2026-11-06-phase-5-pdf-viewer.md](2026-11-06-phase-5-pdf-viewer.md). **T47 built: PDFs open in Wanheda's own reader, a book with a real page curl by default, scroll one tap away; plus the user's mid-session additions (one-page book on desktop, marquee titles, pin with the liquid tank, auto-scroll, translucent auto-hiding bars). PR #31 merged (0705282). Follow-up PR `phase-5/reader-corner-guard`: the book no longer lifts a page corner when the pointer is over the paper menu, a bar or an arrow; Reviewer LGTM, awaiting merge.** Next session: the small renewal-cycle pin fix, then T48. T44 still waits for the first real Polar sale.
 
 Read the hand-off first, then verify it against the repo before trusting it (git, tripwire, typecheck, tests). The Builder and Reviewer prompts below are copied from it.
 
