@@ -4,9 +4,9 @@
 |---|---|
 | Date | 2026-11-06 |
 | Phase / checkpoint | Phase 5 CP1, T46 built. Next: T47 (PDF viewer) |
-| Branch | `phase-5/reader-core` (SPEC draft commit + T46 commit) |
+| Branch | `phase-5/reader-core` (SPEC draft commit + T46 commit `dd4d517`), pushed |
 | Previous hand-off | docs/handoff/2026-11-06-phase-5-start.md |
-| Open PR | T46 PR (see LATEST.md for the number). The user merges |
+| Open PR | #30 `phase-5/reader-core` (T46). The user merges |
 | Migration | `drizzle/0007_reader.sql` generated and read, **not applied**. `bun run db:migrate` waits for the user's go-ahead |
 
 ## State in one paragraph
