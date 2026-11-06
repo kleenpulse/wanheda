@@ -1,17 +1,22 @@
 "use client";
 
 import * as React from "react";
-import { ChevronDown, ChevronUp, ChevronsDown, Eye, Pause, Search, X } from "lucide-react";
+import { BookOpen, ChevronDown, ChevronUp, ChevronsDown, Columns2, Eye, Pause, RectangleVertical, ScrollText, Search, X } from "lucide-react";
+import { motion } from "motion/react";
 import { Tip } from "@/components/ui/tooltip";
 import { createDevicePref } from "@/hooks/device-pref";
-import { autoScrollSpeed } from "@/lib/reader/book";
+import { autoScrollSpeed, cleanPageField, parsePageField } from "@/lib/reader/book";
+import { TAB_SPRING } from "@/lib/motion";
+import type { ReadingMode } from "@/lib/reader/reader";
 import { cn } from "@/lib/utils";
 import { STAGE_BOX } from "./stage";
 
 // The reader's stage and its controls, shared by the PDF reader (T47) and the
-// Markdown / text reader (T48): the dark stage, translucent bars that float
-// over it and fade while auto-scroll runs, the find box, auto-scroll with its
-// speed slider, full screen, and the eye that brings hidden controls back.
+// Markdown / text reader (T48, T49): the dark stage, translucent bars that
+// float over it and fade while auto-scroll runs, the find box, auto-scroll
+// with its speed slider, full screen, the eye that brings hidden controls
+// back, and the book's controls: Book / Scroll, spread or one page, and the
+// page field.
 
 /**
  * The bars float over the stage, translucent (user 2026-11-06), so pages
@@ -395,6 +400,119 @@ export function FindBox({
           </button>
         </>
       ) : null}
+    </form>
+  );
+}
+
+// ── Book ─────────────────────────────────────────────────────────────────
+
+// Spread or one page on a wide screen (user 2026-11-06: small print reads
+// better one page at a time). This device's choice for every book, PDF or text.
+export type BookPages = "spread" | "single";
+export const bookPagesPref = createDevicePref<BookPages>(
+  "wanheda-reader-book-pages",
+  (raw) => (raw === "single" ? "single" : "spread"),
+  (v) => v,
+);
+
+const MODES: readonly { value: ReadingMode; label: string; icon: typeof BookOpen }[] = [
+  { value: "flip", label: "Book", icon: BookOpen },
+  { value: "scroll", label: "Scroll", icon: ScrollText },
+];
+
+export function ModeSwitch({ mode, onMode }: { mode: ReadingMode; onMode: (m: ReadingMode) => void }) {
+  const id = React.useId();
+  return (
+    <div role="group" aria-label="Reading mode" className="ml-auto flex shrink-0 items-center rounded-pill bg-stage-ink/8 p-1">
+      {MODES.map((m) => {
+        const on = mode === m.value;
+        const Icon = m.icon;
+        return (
+          <button
+            key={m.value}
+            type="button"
+            aria-pressed={on}
+            aria-label={m.label}
+            onClick={() => {
+              onMode(m.value);
+            }}
+            className={cn(
+              "relative isolate inline-flex h-7 items-center gap-1.5 rounded-pill px-2.5 text-[12px] font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring sm:px-3",
+              on ? "text-stage" : "text-stage-ink/65 hover:text-stage-ink",
+            )}
+          >
+            {on ? (
+              <motion.span
+                layoutId={`${id}-mode`}
+                layoutDependency={mode}
+                transition={TAB_SPRING}
+                aria-hidden
+                style={{ borderRadius: 9999 }}
+                className="absolute inset-0 -z-10 bg-stage-ink"
+              />
+            ) : null}
+            <Icon aria-hidden className="size-3.5" />
+            <span className="hidden sm:inline">{m.label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Spread or one page (wide screens only: a narrow one always shows one page). */
+export function BookPagesToggle({ value, onChange }: { value: BookPages; onChange: (v: BookPages) => void }) {
+  return (
+    <Tip
+      label={value === "spread" ? "One page at a time" : "Two-page spread"}
+      aria-label={value === "spread" ? "Show one page at a time" : "Show a two-page spread"}
+      onClick={() => {
+        onChange(value === "spread" ? "single" : "spread");
+      }}
+      className={ICON_BUTTON}
+    >
+      {value === "spread" ? <RectangleVertical aria-hidden /> : <Columns2 aria-hidden />}
+    </Tip>
+  );
+}
+
+/** `a-b / N`: shows the open pages; type a page and press Enter to go there. */
+export function PageField({ field, pages, onPage }: { field: string; pages: number; onPage: (page: number) => void }) {
+  const [draft, setDraft] = React.useState<string | null>(null);
+  return (
+    <form
+      className="flex h-9 items-center gap-1.5 rounded-pill bg-stage-ink/8 px-3 focus-within:bg-stage-ink/12"
+      onSubmit={(e) => {
+        e.preventDefault();
+        const page = draft === null ? null : parsePageField(draft, pages);
+        setDraft(null);
+        (e.currentTarget.elements.namedItem("page") as HTMLInputElement | null)?.blur();
+        if (page !== null) onPage(page);
+      }}
+    >
+      <input
+        name="page"
+        value={draft ?? field}
+        onFocus={(e) => {
+          setDraft(field);
+          e.currentTarget.select();
+        }}
+        onChange={(e) => {
+          setDraft(cleanPageField(e.target.value));
+        }}
+        onBlur={() => {
+          setDraft(null);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") e.currentTarget.blur();
+        }}
+        inputMode="numeric"
+        autoComplete="off"
+        aria-label={`Page, of ${String(pages)}`}
+        className="tabular w-[7ch] bg-transparent text-right font-mono text-[12.5px] text-stage-ink outline-none"
+        style={{ width: `${String(Math.max(3, (draft ?? field).length + 1))}ch` }}
+      />
+      <span className="tabular font-mono text-[12.5px] whitespace-nowrap text-stage-ink/50">/ {pages}</span>
     </form>
   );
 }

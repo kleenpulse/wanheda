@@ -119,13 +119,19 @@ export type Locator =
   | { kind: "epub"; cfi: string };
 
 const PERMILLE = (n: number) => Math.min(1000, Math.max(0, Math.round(n)));
+/**
+ * An md place keeps hundredths of a ‰ (V41, amended 2026-11-06, T49): one ‰ of
+ * a long section with no headings can span pages, and a book page must read
+ * back as the same page. Written without trailing zeros (`452.3`, `350`).
+ */
+const MD_PERMILLE = (n: number) => Math.min(1000, Math.max(0, Math.round(n * 100) / 100));
 
 export function formatLocator(l: Locator): string {
   switch (l.kind) {
     case "pdf":
       return `pdf:${String(Math.max(1, Math.round(l.page)))}:${String(PERMILLE(l.y))}`;
     case "md":
-      return `md:${l.heading}:${String(PERMILLE(l.y))}`;
+      return `md:${l.heading}:${String(MD_PERMILLE(l.y))}`;
     case "epub":
       return `epub:${l.cfi}`;
   }
@@ -143,7 +149,7 @@ export function parseLocator(raw: string): Locator | null {
     const y = Number(pdf[2]);
     return page >= 1 && y <= 1000 ? { kind: "pdf", page, y } : null;
   }
-  const md = /^md:([^:]*):(\d{1,4})$/.exec(raw);
+  const md = /^md:([^:]*):(\d{1,4}(?:\.\d{1,2})?)$/.exec(raw);
   if (md) {
     const heading = md[1] ?? "";
     const y = Number(md[2]);
@@ -225,6 +231,8 @@ export const documentPatchSchema = z
     author: z.string().trim().max(200).nullable().optional(),
     tags: tags.optional(),
     mode: z.enum(READING_MODES).optional(),
+    /** A PDF's page count, read by pdf.js on this device (T49). */
+    pages: z.number().int().positive().max(100_000).optional(),
     collections: z.array(z.uuid()).max(100).optional(),
   })
   .strict();

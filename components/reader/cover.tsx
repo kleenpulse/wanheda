@@ -40,6 +40,12 @@ export function kindLabel(kind: DocKind): string {
   return KIND[kind].label;
 }
 
+/** "312 pages", "1 page", or null when the count isn't known yet (T49: read by pdf.js on add or open). */
+export function pagesLabel(pages: number | null): string | null {
+  if (pages === null) return null;
+  return `${pages.toLocaleString("en-GB")} ${pages === 1 ? "page" : "pages"}`;
+}
+
 export function Cover({
   doc,
   size = "md",

@@ -31,7 +31,7 @@ export interface Section {
 export interface MdPlace {
   /** The heading the reader is under, "" before the first one (or in a document with none). */
   heading: string;
-  /** How far through that section, 0–1000 (‰). */
+  /** How far through that section, 0–1000 (‰, to hundredths). */
   y: number;
 }
 
@@ -52,7 +52,9 @@ export function placeAt(sections: readonly Section[], line: number, end: number)
   const to = sections[i + 1]?.top ?? end;
   const span = to - from;
   const y = span > 0 ? Math.min(1000, Math.max(0, ((line - from) / span) * 1000)) : 0;
-  return { heading: i < 0 ? "" : (sections[i]?.anchor ?? ""), y: Math.round(y) };
+  // Hundredths, rounded up (V41, T49): the place read back lands on the line or just under it, never above,
+  // so a book page's own place resumes on that page and not the one before.
+  return { heading: i < 0 ? "" : (sections[i]?.anchor ?? ""), y: Math.min(1000, Math.max(0, Math.ceil(y * 100 - 1e-6) / 100)) };
 }
 
 /**

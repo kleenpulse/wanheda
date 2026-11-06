@@ -4,28 +4,45 @@ import * as React from "react";
 import { AArrowDown, AArrowUp, ChevronLeft, ChevronRight, EyeOff, ListTree, Maximize, Minimize, X } from "lucide-react";
 import { Tip, TooltipGroup } from "@/components/ui/tooltip";
 import { createDevicePref } from "@/hooks/device-pref";
+import { useReducedMotion } from "@/hooks/use-reduced-motion";
 import { normalizeQuery } from "@/lib/reader/book";
-import { ID_PREFIX, MAX_MATCHES, anchorOf, findRanges, idOf, lineFor, placeAt, scrollPercent, type MdPlace, type Section } from "@/lib/reader/md";
-import { formatLocator, parseLocator, type ReaderDoc } from "@/lib/reader/reader";
+import { ID_PREFIX, MAX_MATCHES, anchorOf, findRanges, idOf, type MdPlace } from "@/lib/reader/md";
+import { formatLocator, parseLocator, type ReaderDoc, type ReadingMode } from "@/lib/reader/reader";
 import { cn } from "@/lib/utils";
-import { AutoScrollControl, BAR_H, Bar, FindBox, ICON_BUTTON, ShowControls, Stage, autoSpeedPref, useAutoScroll, useChrome, useStage } from "../chrome";
+import {
+  AutoScrollControl,
+  BAR_H,
+  Bar,
+  BookPagesToggle,
+  FindBox,
+  ICON_BUTTON,
+  ModeSwitch,
+  PageField,
+  ShowControls,
+  Stage,
+  autoSpeedPref,
+  bookPagesPref,
+  useAutoScroll,
+  useChrome,
+  useStage,
+} from "../chrome";
 import { onForget } from "../doc-cache";
 import { type Paper, PaperMenu, paperPref, paperProps } from "../paper";
 import { useReaderRuntime } from "../reader-provider";
-import { MdBody, TextBody } from "./md-body";
+import { useReaderApi } from "../use-reader";
+import { MdBook, type BookInfo, type MdBookView } from "./md-book";
+import { MdScroll } from "./md-scroll";
+import { headingElements, unpaint, type At, type MdView } from "./view";
 
-// The Markdown and text reader (T48): the document on a sheet of paper over
-// the PDF reader's dark stage, with the same bars, find, paper colours and
-// auto-scroll. Its place is a heading and how far through that section
-// (V41: `md:<heading>:<y‰>`), so it resumes in the same part of the same
-// section on any width or text size. A table of contents lists the headings.
-// Text files read the same way, with no headings.
+// The Markdown and text reader (T48, T49) on the PDF reader's dark stage,
+// with the same bars, find, paper colours and auto-scroll. Two views, one
+// tap apart and remembered per document (V42): a scroll down one sheet of
+// paper (md-scroll.tsx) and a book of pages (md-book.tsx). Both keep one
+// place, a heading and how far through that section (V41:
+// `md:<heading>:<y‰>`), so it resumes in the same part of the same section in
+// either view, on any width or text size. A table of contents lists the
+// headings. Text files read the same way, with no headings.
 
-/** The reading line sits this far under the top bar: the place is wherever it falls. */
-const LINE_PAD = 24;
-/** A jump puts the heading this far under the top bar, above the reading line. */
-const JUMP_PAD = 16;
-const REPORT_MS = 400;
 /** Under this stage width the contents close after a pick. */
 const NARROW = 768;
 
@@ -39,7 +56,6 @@ const textSizePref = createDevicePref<number>(
   },
   (v) => (v === 1 ? null : String(v)),
 );
-const BASE_PX = 17;
 
 /** The text last read, so reopening it paints at once (V24). */
 let lastText: { sha256: string; text: string } | null = null;
@@ -151,33 +167,39 @@ function toRange(idx: TextIndex, start: number, end: number): Range | null {
   return r;
 }
 
-// Matches are painted with the CSS Custom Highlight API: no change to the
-// document's DOM. Where it isn't supported, find still scrolls to each match.
-function highlights(): HighlightRegistry | null {
-  return typeof CSS !== "undefined" && "highlights" in CSS ? CSS.highlights : null;
-}
-function paint(ranges: readonly Range[], current: Range | undefined) {
-  const reg = highlights();
-  if (!reg) return;
-  reg.set("reader-find", new Highlight(...ranges));
-  if (current) reg.set("reader-find-now", new Highlight(current));
-  else reg.delete("reader-find-now");
-}
-function unpaint() {
-  const reg = highlights();
-  reg?.delete("reader-find");
-  reg?.delete("reader-find-now");
-}
 
 function Reader({ doc, text }: { doc: ReaderDoc; text: string }) {
   const runtime = useReaderRuntime();
-  const scroller = React.useRef<HTMLDivElement>(null);
-  const article = React.useRef<HTMLElement>(null);
-  const sections = React.useRef<Section[]>([]);
+  const api = useReaderApi();
+  const reduced = useReducedMotion();
+  const mode: ReadingMode = doc.mode;
+  const book = mode === "flip";
   const [start] = React.useState(() => startPlace(doc));
   const place = React.useRef<MdPlace>(start);
+  const scrollView = React.useRef<MdView>(null);
+  const bookView = React.useRef<MdBookView>(null);
+  /** The element holding the rendered text: the scroll's sheet, or the book's hidden flow. */
+  const [article, setArticle] = React.useState<HTMLElement | null>(null);
   const [headings, setHeadings] = React.useState<Heading[]>([]);
-  const [at, setAt] = React.useState({ heading: start.heading, percent: doc.progress?.percent ?? 0, top: true });
+  // A view's text arrived (or went): its headings make the contents, the same in either view.
+  const onArticle = React.useCallback((el: HTMLElement | null) => {
+    setArticle(el);
+    if (!el) return;
+    setHeadings(
+      headingElements(el).flatMap((h) => {
+        const anchor = anchorOf(h.id);
+        return anchor === null ? [] : [{ anchor, text: h.textContent || "Untitled", level: Number(h.tagName.slice(1)) }];
+      }),
+    );
+  }, []);
+  const articleRef = React.useRef<HTMLElement | null>(null);
+  React.useLayoutEffect(() => {
+    articleRef.current = article;
+  });
+  const [at, setAt] = React.useState<At>({ heading: start.heading, percent: doc.progress?.percent ?? 0, top: true });
+  const percentRef = React.useRef(at.percent);
+  const [bookInfo, setBookInfo] = React.useState<BookInfo | null>(null);
+  const bookPages = bookPagesPref.use();
   const [panel, setPanel] = React.useState<"toc" | null>(null);
   const scale = textSizePref.use();
 
@@ -188,185 +210,68 @@ function Reader({ doc, text }: { doc: ReaderDoc; text: string }) {
   const paperLook = paperProps(paperPreview ?? paper);
   const [auto, setAuto] = React.useState(false);
   const autoSpeed = autoSpeedPref.use();
-  const running = auto && panel === null;
+  // Auto-scroll moves the scroll only: the book has nothing to scroll.
+  const running = auto && panel === null && !book;
   useAutoScroll(
     running,
     "md",
-    () => ({ scroller: scroller.current, book: null }),
+    () => ({ scroller: scrollView.current?.scroller() ?? null, book: null }),
     () => {
       setAuto(false);
     },
   );
   const { chrome, hidden, setHidden, awake, stageEvents, barEvents } = useChrome(running);
 
-  const scaleRef = React.useRef(scale);
-  React.useLayoutEffect(() => {
-    scaleRef.current = scale;
-  });
-  /** The width and text size the headings were last measured at. */
-  const measuredAt = React.useRef({ width: 0, scale: 0 });
-  /** Whether the measured headings still match the text as it is wrapped now. */
-  const measuredFits = React.useCallback(() => {
-    const art = article.current;
-    return art !== null && art.clientWidth === measuredAt.current.width && scaleRef.current === measuredAt.current.scale;
+  const report = React.useCallback(
+    (percent: number) => {
+      const p = place.current;
+      runtime.report({ documentId: doc.id, locator: formatLocator({ kind: "md", heading: p.heading, y: p.y }), percent, at: Date.now() });
+    },
+    [runtime, doc.id],
+  );
+  const onAt = React.useCallback((a: At) => {
+    percentRef.current = a.percent;
+    setAt((prev) => (prev.heading === a.heading && prev.percent === a.percent && prev.top === a.top ? prev : a));
   }, []);
 
-  /** Where each heading starts in the scrolled content. */
-  const measure = React.useCallback(() => {
-    const el = scroller.current;
-    const art = article.current;
-    if (!el || !art) return;
-    measuredAt.current = { width: art.clientWidth, scale: scaleRef.current };
-    const base = el.getBoundingClientRect().top - el.scrollTop;
-    const out: Section[] = [];
-    for (const h of art.querySelectorAll<HTMLElement>("h1[id], h2[id], h3[id], h4[id], h5[id], h6[id]")) {
-      if (h.closest(".footnotes")) continue;
-      const anchor = anchorOf(h.id);
-      if (anchor !== null) out.push({ anchor, top: h.getBoundingClientRect().top - base });
-    }
-    sections.current = out;
-  }, []);
-
-  const readPlace = React.useCallback((): MdPlace => {
-    const el = scroller.current;
-    if (!el) return place.current;
-    return placeAt(sections.current, el.scrollTop + BAR_H + LINE_PAD, el.scrollHeight);
-  }, []);
-
-  /** Back to the held place: on open, and whenever the text reflows (width, text size, fonts, code colours). */
-  const restore = React.useCallback(() => {
-    const el = scroller.current;
-    if (!el) return;
-    const line = lineFor(sections.current, place.current, el.scrollHeight);
-    el.scrollTop = line === null ? 0 : Math.max(0, line - BAR_H - LINE_PAD);
-  }, []);
-
-  const percentNow = React.useCallback(() => {
-    const el = scroller.current;
-    return el ? scrollPercent(el.scrollTop, el.scrollHeight - el.clientHeight) : 0;
-  }, []);
-
-  const report = React.useCallback(() => {
-    const p = place.current;
-    runtime.report({ documentId: doc.id, locator: formatLocator({ kind: "md", heading: p.heading, y: p.y }), percent: percentNow(), at: Date.now() });
-  }, [runtime, doc.id, percentNow]);
-
-  // Open: the headings, then back to the place (V41), then the open itself is a reading event.
-  React.useLayoutEffect(() => {
-    const art = article.current;
-    if (!art) return;
-    measure();
-    setHeadings(
-      [...art.querySelectorAll<HTMLElement>("h1[id], h2[id], h3[id], h4[id], h5[id], h6[id]")]
-        .filter((h) => !h.closest(".footnotes"))
-        .flatMap((h) => {
-          const anchor = anchorOf(h.id);
-          return anchor === null ? [] : [{ anchor, text: h.textContent || "Untitled", level: Number(h.tagName.slice(1)) }];
-        }),
-    );
-    restore();
-    // A heading this file doesn't have resumes from the top: hold the place it landed on.
-    place.current = readPlace();
-    scroller.current?.focus({ preventScroll: true });
+  // The open itself is a reading event: it moves the document up "Continue reading". (The view has found the place by now.)
+  React.useEffect(() => {
+    report(percentRef.current);
     // Once per open.
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  React.useEffect(() => {
-    report();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // A reflow re-measures the headings. Only a new width or text size, which rewraps
-  // everything, puts the reading line back at its ‰ of the section. A change in
-  // height alone (an image or code colours arriving) is left to the browser's
-  // scroll anchoring, so the text being read stays still (Reviewer FIX).
-  React.useLayoutEffect(() => {
-    const art = article.current;
-    if (!art) return;
-    const ro = new ResizeObserver(() => {
-      const rewrapped = !measuredFits();
-      measure();
-      if (rewrapped) restore();
-    });
-    ro.observe(art);
-    return () => {
-      ro.disconnect();
-    };
-  }, [measure, restore, measuredFits]);
-
-  // Scrolling moves the place at once (so a reflow never restores a stale one) and reports it at most every 400 ms.
-  React.useEffect(() => {
-    const el = scroller.current;
-    if (!el) return;
-    let raf = 0;
-    let last = 0;
-    let trailing: ReturnType<typeof setTimeout> | null = null;
-    const onScroll = () => {
-      // The text rewrapped and the headings aren't measured yet (the browser's anchoring
-      // scrolled first): this position means nothing yet. The ResizeObserver restores the place.
-      if (!measuredFits()) return;
-      place.current = readPlace();
-      raf ||= requestAnimationFrame(() => {
-        raf = 0;
-        const next = { heading: place.current.heading, percent: percentNow(), top: el.scrollTop <= 0 };
-        setAt((prev) => (prev.heading === next.heading && prev.percent === next.percent && prev.top === next.top ? prev : next));
-      });
-      const now = performance.now();
-      if (trailing) clearTimeout(trailing);
-      if (now - last >= REPORT_MS) {
-        last = now;
-        report();
-      } else {
-        trailing = setTimeout(() => {
-          last = performance.now();
-          report();
-        }, REPORT_MS);
-      }
-    };
-    el.addEventListener("scroll", onScroll, { passive: true });
-    return () => {
-      el.removeEventListener("scroll", onScroll);
-      cancelAnimationFrame(raf);
-      if (trailing) clearTimeout(trailing);
-    };
-  }, [readPlace, percentNow, report, measuredFits]);
-
-  /** Scrolls an element of the article to just under the top bar. */
-  const jumpTo = React.useCallback((id: string): boolean => {
-    const el = scroller.current;
-    const target = document.getElementById(id);
-    if (!el || !target || !article.current?.contains(target)) return false;
-    const base = el.getBoundingClientRect().top - el.scrollTop;
-    el.scrollTop = Math.max(0, target.getBoundingClientRect().top - base - BAR_H - JUMP_PAD);
-    return true;
-  }, []);
-
-  /** The next heading, or back to the start of this section (the one before, if already there). */
-  const step = (dir: 1 | -1) => {
-    const el = scroller.current;
-    const list = sections.current;
-    if (!el) return;
-    const line = el.scrollTop + BAR_H + LINE_PAD;
-    let i = -1;
-    for (let k = 0; k < list.length && (list[k]?.top ?? Infinity) <= line; k++) i = k;
-    const cur = list[i];
-    const target = dir === 1 ? list[i + 1] : cur && line - cur.top > BAR_H ? cur : list[i - 1];
-    if (target) jumpTo(idOf(target.anchor));
-    else if (dir === -1) el.scrollTop = 0;
+  const setMode = (m: ReadingMode) => {
+    if (m !== mode) api.update({ id: doc.id, mode: m });
   };
+
+  /** Shows an element of the text by id, in either view. */
+  const jumpTo = React.useCallback(
+    (id: string): boolean => {
+      const target = articleRef.current?.querySelector(`[id="${CSS.escape(id)}"]`);
+      if (!target) return false;
+      (book ? bookView.current : scrollView.current)?.show(target);
+      return true;
+    },
+    [book],
+  );
 
   // In-document links (`#section`, footnotes): the sanitizer prefixed the ids they point at.
-  const onArticleClick = (e: React.MouseEvent) => {
-    const a = (e.target as Element).closest("a");
-    const href = a?.getAttribute("href");
-    if (!href?.startsWith("#")) return;
-    e.preventDefault();
-    let id = href.slice(1);
-    try {
-      id = decodeURIComponent(id);
-    } catch {
-      // Keep it as written.
-    }
-    if (id && !jumpTo(id.startsWith(ID_PREFIX) ? id : ID_PREFIX + id)) jumpTo(id);
-  };
+  const onTextClick = React.useCallback(
+    (e: React.MouseEvent) => {
+      const a = (e.target as Element).closest("a");
+      const href = a?.getAttribute("href");
+      if (!href?.startsWith("#")) return;
+      e.preventDefault();
+      let id = href.slice(1);
+      try {
+        id = decodeURIComponent(id);
+      } catch {
+        // Keep it as written.
+      }
+      if (id && !jumpTo(id.startsWith(ID_PREFIX) ? id : ID_PREFIX + id)) jumpTo(id);
+    },
+    [jumpTo],
+  );
 
   // ── Find ──
   const [findText, setFindText] = React.useState("");
@@ -374,47 +279,56 @@ function Reader({ doc, text }: { doc: ReaderDoc; text: string }) {
   const finder = React.useRef<{ query: string; ranges: Range[]; index: number } | null>(null);
   const textIndex = React.useRef<TextIndex | null>(null);
 
-  // Code colours arriving (or anything else) change the text nodes: index again, and keep the marks on.
+  /** The same words again over the text as it is now (its nodes changed, or the view did), keeping the match the owner was on. */
+  const refind = React.useCallback(() => {
+    const art = articleRef.current;
+    const f = finder.current;
+    if (!art || !f) return;
+    const idx = (textIndex.current = indexText(art));
+    const ranges = findRanges(idx.text, f.query).flatMap(([s, e]) => toRange(idx, s, e) ?? []);
+    const index = Math.max(0, Math.min(f.index, ranges.length - 1));
+    finder.current = { query: f.query, ranges, index };
+    (book ? bookView.current : scrollView.current)?.paint(ranges, ranges[index]);
+    setFind(ranges.length ? { kind: "hit", index, count: ranges.length } : { kind: "none" });
+  }, [book]);
+
+  // Code colours arriving (or anything else) change the text nodes, and a switch of view brings new ones: index again, keep the marks on.
   React.useEffect(() => {
-    const art = article.current;
-    if (!art) return;
+    if (!article) return;
+    textIndex.current = null;
+    refind();
     let raf = 0;
     const mo = new MutationObserver(() => {
       textIndex.current = null;
       if (!finder.current || raf) return;
       raf = requestAnimationFrame(() => {
         raf = 0;
-        const f = finder.current;
-        if (!f) return;
-        const idx = (textIndex.current = indexText(art));
-        const ranges = findRanges(idx.text, f.query).flatMap(([s, e]) => toRange(idx, s, e) ?? []);
-        const index = Math.min(f.index, ranges.length - 1);
-        finder.current = { query: f.query, ranges, index };
-        paint(ranges, ranges[index]);
-        setFind(ranges.length ? { kind: "hit", index, count: ranges.length } : { kind: "none" });
+        refind();
       });
     });
-    mo.observe(art, { childList: true, subtree: true, characterData: true });
+    mo.observe(article, { childList: true, subtree: true, characterData: true });
     return () => {
       mo.disconnect();
       cancelAnimationFrame(raf);
-      unpaint();
     };
-  }, []);
+  }, [article, refind]);
+  React.useEffect(() => unpaint, []);
+
+  const view = (): MdView | null => (book ? bookView.current : scrollView.current);
 
   const clearFind = () => {
     finder.current = null;
-    unpaint();
+    view()?.paint([], undefined);
     setFindText("");
     setFind({ kind: "idle" });
   };
 
   const runFind = (dir: 1 | -1) => {
     setAuto(false);
-    const el = scroller.current;
-    const art = article.current;
+    const v = view();
+    const art = articleRef.current;
     const q = normalizeQuery(findText);
-    if (!el || !art) return;
+    if (!v || !art) return;
     if (!q) {
       clearFind();
       return;
@@ -428,12 +342,12 @@ function Reader({ doc, text }: { doc: ReaderDoc; text: string }) {
       const ranges = findRanges(idx.text, q).flatMap(([s, e]) => toRange(idx, s, e) ?? []);
       if (ranges.length === 0) {
         finder.current = { query: q, ranges, index: 0 };
-        unpaint();
+        v.paint([], undefined);
         setFind({ kind: "none" });
         return;
       }
-      // New words: from the reading line on (or back from it), wrapping round. Matches are in document order.
-      const lineY = el.getBoundingClientRect().top + BAR_H + LINE_PAD;
+      // New words: from where reading is on (or back from it), wrapping round. Matches are in document order.
+      const lineY = v.readingY();
       let lo = 0;
       let hi = ranges.length;
       while (lo < hi) {
@@ -446,13 +360,9 @@ function Reader({ doc, text }: { doc: ReaderDoc; text: string }) {
     }
     finder.current = { ...f, index };
     const current = f.ranges[index];
-    paint(f.ranges, current);
+    v.paint(f.ranges, current);
     setFind({ kind: "hit", index, count: f.ranges.length });
-    if (current) {
-      const r = current.getBoundingClientRect();
-      const box = el.getBoundingClientRect();
-      if (r.top < box.top + BAR_H + 8 || r.bottom > box.bottom - BAR_H - 8) el.scrollTop += r.top - box.top - el.clientHeight / 3;
-    }
+    if (current) v.reveal(current);
   };
 
   const findStatus =
@@ -464,17 +374,21 @@ function Reader({ doc, text }: { doc: ReaderDoc; text: string }) {
     if (next !== undefined && next !== scale) textSizePref.set(next);
   };
 
-  // Keys: H hides the controls, + and − change the text size, ← and → go by section. The scroller has focus, so arrows, Space and Page keys scroll.
+  // Keys: H hides the controls, + and − change the text size. The scroll: ← and → go by section (arrows, Space and
+  // Page keys scroll it). The book (V42): ←/→, PageUp/PageDown and Space turn; Home and End go to the first and last page.
   React.useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey) return;
       const t = e.target as HTMLElement | null;
       if (t?.closest("input, textarea, select, pre, [contenteditable=true], [role=dialog], [role=menu]")) return;
+      const v = book ? bookView.current : scrollView.current;
       if (e.key === "h" || e.key === "H") setHidden((h) => !h);
       else if (e.key === "+" || e.key === "=") bumpSize(1);
       else if (e.key === "-") bumpSize(-1);
-      else if (e.key === "ArrowRight") step(1);
-      else if (e.key === "ArrowLeft") step(-1);
+      else if (e.key === "ArrowRight" || (book && (e.key === "PageDown" || (e.key === " " && !e.shiftKey)))) v?.step(1);
+      else if (e.key === "ArrowLeft" || (book && (e.key === "PageUp" || (e.key === " " && e.shiftKey)))) v?.step(-1);
+      else if (book && e.key === "Home") bookView.current?.goTo(1);
+      else if (book && e.key === "End") bookView.current?.goTo(bookInfo?.pages ?? 1);
       else return;
       e.preventDefault();
     };
@@ -488,7 +402,19 @@ function Reader({ doc, text }: { doc: ReaderDoc; text: string }) {
   const current = headings[currentIndex];
   const pick = (anchor: string) => {
     jumpTo(idOf(anchor));
-    if ((stageEl?.clientWidth ?? 0) < NARROW) setPanel(null);
+    // The book's contents cover a page: close them to show the one turned to.
+    if (book || (stageEl?.clientWidth ?? 0) < NARROW) setPanel(null);
+  };
+  const viewProps = {
+    text,
+    kind: doc.kind === "txt" ? ("txt" as const) : ("md" as const),
+    scale,
+    placeRef: place,
+    onArticle,
+    onAt,
+    onReport: report,
+    title: doc.title,
+    onTextClick,
   };
 
   return (
@@ -520,33 +446,18 @@ function Reader({ doc, text }: { doc: ReaderDoc; text: string }) {
               setAuto(false);
             }}
           />
-          <span className="ml-auto flex shrink-0">
+          <span className="ml-auto flex shrink-0 items-center gap-2">
             <PaperMenu paper={paper} onPaper={paperPref.set} onPreview={setPaperPreview} container={stageEl} className={ICON_BUTTON} />
+            <ModeSwitch mode={mode} onMode={setMode} />
           </span>
         </div>
       </Bar>
 
-      <div
-        ref={scroller}
-        tabIndex={-1}
-        aria-label={doc.title}
-        // Scroll anchoring stays on: it holds the text still when content above or below changes height.
-        className={cn(
-          "absolute inset-0 overflow-x-hidden overflow-y-auto overscroll-contain outline-none [scrollbar-gutter:stable]",
-          // Room for the open contents beside the sheet, where there is room.
-          panel === "toc" && "lg:pl-80",
-        )}
-        style={{ paddingTop: BAR_H + 20, paddingBottom: BAR_H + 40 }}
-      >
-        <article
-          ref={article}
-          onClick={onArticleClick}
-          className="md-sheet mx-auto w-[calc(100%-1.5rem)] max-w-[42em] rounded-[14px] px-5 py-8 sm:px-12 sm:py-12"
-          style={{ fontSize: `${String(BASE_PX * scale)}px` }}
-        >
-          {doc.kind === "md" ? <MdBody text={text} /> : <TextBody text={text} />}
-        </article>
-      </div>
+      {book ? (
+        <MdBook ref={bookView} {...viewProps} reduced={reduced} chrome={chrome} onBook={setBookInfo} />
+      ) : (
+        <MdScroll ref={scrollView} {...viewProps} aside={panel === "toc"} />
+      )}
 
       {panel === "toc" ? (
         <Contents
@@ -570,39 +481,63 @@ function Reader({ doc, text }: { doc: ReaderDoc; text: string }) {
                 <AArrowUp aria-hidden />
               </Tip>
             </div>
-            <div className="flex min-w-0 items-center gap-0.5">
-              {headings.length > 0 ? (
-                <Tip label="Previous section" aria-label="Previous section" onClick={() => { step(-1); }} disabled={at.top} className={ICON_BUTTON}>
+            {book ? (
+              <div className="flex items-center gap-0.5">
+                <Tip label="Previous" aria-label="Previous page" onClick={() => bookView.current?.step(-1)} disabled={bookInfo?.atStart ?? true} className={ICON_BUTTON}>
                   <ChevronLeft aria-hidden />
                 </Tip>
-              ) : null}
-              <button
-                type="button"
-                onClick={() => {
-                  setPanel((p) => (p === "toc" ? null : "toc"));
-                }}
-                disabled={headings.length === 0}
-                aria-label={current ? `${current.text}, ${String(at.percent)}% read. Contents` : `${String(at.percent)}% read`}
-                className="flex h-9 max-w-[min(22rem,34vw)] min-w-0 items-center gap-2 rounded-pill bg-stage-ink/8 px-3 outline-none transition-colors hover:bg-stage-ink/12 focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none"
-              >
-                {current ? <span className="min-w-0 truncate text-[12.5px] text-stage-ink/85">{current.text}</span> : null}
-                <span className="tabular shrink-0 font-mono text-[12.5px] text-stage-ink/55">{at.percent}%</span>
-              </button>
-              {headings.length > 0 ? (
-                <Tip label="Next section" aria-label="Next section" onClick={() => { step(1); }} disabled={currentIndex >= headings.length - 1} className={ICON_BUTTON}>
+                {bookInfo ? (
+                  <PageField
+                    field={bookInfo.field}
+                    pages={bookInfo.pages}
+                    onPage={(page) => {
+                      bookView.current?.goTo(page);
+                    }}
+                  />
+                ) : null}
+                <Tip label="Next" aria-label="Next page" onClick={() => bookView.current?.step(1)} disabled={bookInfo?.atEnd ?? true} className={ICON_BUTTON}>
                   <ChevronRight aria-hidden />
                 </Tip>
-              ) : null}
-            </div>
+              </div>
+            ) : (
+              <div className="flex min-w-0 items-center gap-0.5">
+                {headings.length > 0 ? (
+                  <Tip label="Previous section" aria-label="Previous section" onClick={() => scrollView.current?.step(-1)} disabled={at.top} className={ICON_BUTTON}>
+                    <ChevronLeft aria-hidden />
+                  </Tip>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPanel((p) => (p === "toc" ? null : "toc"));
+                  }}
+                  disabled={headings.length === 0}
+                  aria-label={current ? `${current.text}, ${String(at.percent)}% read. Contents` : `${String(at.percent)}% read`}
+                  className="flex h-9 max-w-[min(22rem,34vw)] min-w-0 items-center gap-2 rounded-pill bg-stage-ink/8 px-3 outline-none transition-colors hover:bg-stage-ink/12 focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none"
+                >
+                  {current ? <span className="min-w-0 truncate text-[12.5px] text-stage-ink/85">{current.text}</span> : null}
+                  <span className="tabular shrink-0 font-mono text-[12.5px] text-stage-ink/55">{at.percent}%</span>
+                </button>
+                {headings.length > 0 ? (
+                  <Tip label="Next section" aria-label="Next section" onClick={() => scrollView.current?.step(1)} disabled={currentIndex >= headings.length - 1} className={ICON_BUTTON}>
+                    <ChevronRight aria-hidden />
+                  </Tip>
+                ) : null}
+              </div>
+            )}
             <div className="flex items-center justify-end gap-0.5">
-              <AutoScrollControl
-                on={auto}
-                speed={autoSpeed}
-                onToggle={() => {
-                  setAuto((a) => !a);
-                }}
-                onSpeed={autoSpeedPref.set}
-              />
+              {book ? (
+                bookInfo && !bookInfo.narrow ? <BookPagesToggle value={bookPages} onChange={bookPagesPref.set} /> : null
+              ) : (
+                <AutoScrollControl
+                  on={auto}
+                  speed={autoSpeed}
+                  onToggle={() => {
+                    setAuto((a) => !a);
+                  }}
+                  onSpeed={autoSpeedPref.set}
+                />
+              )}
               <Tip label="Hide controls (H)" aria-label="Hide controls" onClick={() => { setHidden(true); }} className={ICON_BUTTON}>
                 <EyeOff aria-hidden />
               </Tip>

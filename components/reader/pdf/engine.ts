@@ -4,6 +4,7 @@ import { pdfjs } from "react-pdf";
 import type { PDFDocumentLoadingTask, PDFDocumentProxy, PDFPageProxy } from "pdfjs-dist";
 import { queryPattern, renderScale, textHas } from "@/lib/reader/book";
 import { onForget } from "../doc-cache";
+import { CMAPS, STANDARD_FONTS } from "./pdf-data";
 
 // pdf.js for the reader (T47), browser only: loaded through next/dynamic with
 // ssr off, because pdf.js needs DOMMatrix and canvas. Everything about the
@@ -11,8 +12,9 @@ import { onForget } from "../doc-cache";
 // - the worker is this app's own copy, emitted by the bundler and served
 //   from this origin (never a CDN, never a file copied into public/);
 // - pdf.js 6 has no eval path at all (lib/reader/pdfjs-bundle.test.ts);
-// - wasm decoders come from the same place, through BinaryDataFactory, and
-//   nothing else may be fetched for a document;
+// - wasm decoders, CMaps and standard fonts come from the same place
+//   (pdf-data.ts), through BinaryDataFactory, and nothing else may be
+//   fetched for a document;
 // - the annotation layer stays off, so a PDF's links and forms never render.
 
 pdfjs.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString();
@@ -22,10 +24,21 @@ const WASM: Readonly<Record<string, URL>> = {
   "jbig2.wasm": new URL("pdfjs-dist/wasm/jbig2.wasm", import.meta.url),
 };
 
-/** pdf.js asks the page for binary data by file name; only the two image decoders are given. */
+const DATA: Readonly<Record<string, Readonly<Record<string, URL>>>> = {
+  wasmUrl: WASM,
+  cMapUrl: CMAPS,
+  standardFontDataUrl: STANDARD_FONTS,
+};
+
+/**
+ * pdf.js asks the page for binary data by kind and file name: the image
+ * decoders, CMaps and standard fonts, each a known asset of this app. Any
+ * other name is refused, so a document can never make the reader fetch a URL.
+ */
 class SameOriginData {
   async fetch({ kind, filename }: { kind: string; filename: string }): Promise<Uint8Array> {
-    const url = kind === "wasmUrl" ? WASM[filename] : undefined;
+    const files = Object.hasOwn(DATA, kind) ? DATA[kind] : undefined;
+    const url = files && Object.hasOwn(files, filename) ? files[filename] : undefined;
     if (!url) throw new Error(`No ${kind} data: ${filename}`);
     const res = await fetch(url);
     if (!res.ok) throw new Error(`${filename}: ${String(res.status)}`);
@@ -299,13 +312,14 @@ export async function coverOf(pdf: PDFDocumentProxy): Promise<Blob | null> {
   }
 }
 
-/** A cover straight from a file just added, without holding the document open. */
-export async function coverOfFile(file: File): Promise<Blob | null> {
+/** A file just added, read once without holding it open: its page count, and its cover when asked for. */
+export async function pdfFactsOfFile(file: File, withCover: boolean): Promise<{ pages: number | null; cover: Blob | null }> {
   const { task, doc } = load(file);
   try {
-    return await coverOf(await doc);
+    const pdf = await doc;
+    return { pages: pdf.numPages, cover: withCover ? await coverOf(pdf) : null };
   } catch {
-    return null;
+    return { pages: null, cover: null };
   } finally {
     destroy(task);
   }

@@ -1,4 +1,5 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { createRequire } from "node:module";
 import { describe, expect, it } from "vitest";
 
@@ -32,5 +33,22 @@ describe("pdf.js bundles are eval-free (V40)", () => {
       expect(FORBIDDEN.some(([, re]) => re.test(sample)), sample).toBe(true);
     }
     expect(FORBIDDEN.some(([, re]) => re.test("new FunctionBasedShading(d)"))).toBe(false);
+  });
+});
+
+// T49: CMaps and standard fonts are served from this origin, one hashed asset
+// each (components/reader/pdf/pdf-data.ts). An upgrade that adds or drops a
+// file must regenerate that map, or a document needing the file would fall
+// back to the system (or show nothing).
+describe("pdf.js data files are all served same-origin (V40)", () => {
+  const dist = dirname(require.resolve("pdfjs-dist/package.json"));
+  it("every CMap and standard font has an asset, and nothing else does", async () => {
+    const { CMAPS, STANDARD_FONTS } = await import("@/components/reader/pdf/pdf-data");
+    const cmaps = readdirSync(join(dist, "cmaps")).filter((f) => f.endsWith(".bcmap")).sort();
+    const fonts = readdirSync(join(dist, "standard_fonts")).filter((f) => /\.(pfb|ttf)$/.test(f)).sort();
+    expect(cmaps.length).toBeGreaterThan(100);
+    expect(Object.keys(CMAPS).sort()).toEqual(cmaps);
+    expect(Object.keys(STANDARD_FONTS).sort()).toEqual(fonts);
+    for (const [name, url] of [...Object.entries(CMAPS), ...Object.entries(STANDARD_FONTS)]) expect(url.pathname.endsWith(`/${name}`)).toBe(true);
   });
 });

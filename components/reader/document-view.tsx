@@ -9,7 +9,7 @@ import { EmptyState } from "@/components/shell/page-frame";
 import { buttonClass } from "@/components/ui/button";
 import { parseLocator, type ReaderDoc } from "@/lib/reader/reader";
 import { cn } from "@/lib/utils";
-import { kindLabel } from "./cover";
+import { kindLabel, pagesLabel } from "./cover";
 import { onForget } from "./doc-cache";
 import { MdReader } from "./md/md-reader";
 import { closeDoc, useFilePicker } from "./open-file";
@@ -64,8 +64,7 @@ function BackBar({ doc }: { doc?: ReaderDoc }) {
           <h2 className="truncate font-display text-[17px] font-semibold tracking-[-0.01em] text-foreground">{doc.title}</h2>
           {doc.author ? <span className="hidden truncate text-[12.5px] text-ink-2 sm:inline">{doc.author}</span> : null}
           <span className="tabular ml-auto shrink-0 font-mono text-[10.5px] tracking-wide text-ink-3 uppercase">
-            {kindLabel(doc.kind)}
-            {doc.progress ? ` · ${String(doc.progress.percent)}%` : ""}
+            {[kindLabel(doc.kind), pagesLabel(doc.pages), doc.progress ? `${String(doc.progress.percent)}%` : null].filter(Boolean).join(" · ")}
           </span>
         </div>
       ) : null}
