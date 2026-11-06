@@ -16,6 +16,10 @@ const nextConfig: NextConfig = {
 		// worker bundles resolve as `browser` too. The table build works everywhere.
 		resolveAlias: {
 			"decode-named-character-reference": "./node_modules/decode-named-character-reference/index.js",
+			// The speech worker's ONNX Runtime (ADR-0012): the plain wasm build, which loads
+			// ort-wasm-simd-threaded.{mjs,wasm} from this origin. The package's default here is
+			// a bundle with that glue inlined, which isn't the build the eval check clears.
+			"onnxruntime-web/wasm": "./node_modules/onnxruntime-web/dist/ort.wasm.min.mjs",
 		},
 		rules: {
 			"*.css": {
