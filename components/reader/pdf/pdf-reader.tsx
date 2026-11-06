@@ -183,7 +183,9 @@ function Reader({ doc, loaded }: { doc: ReaderDoc; loaded: Loaded }) {
   const [measureRef, width] = useElementWidth<HTMLDivElement>();
   const bookPages = bookPagesPref.use();
   const narrow = width > 0 && width < SINGLE_BELOW;
-  const single = narrow || bookPages === "single";
+  // One page is a single page (user 2026-11-06): a spread would show it in the right half, the left one empty.
+  const onePage = pages === 1;
+  const single = narrow || onePage || bookPages === "single";
   const layout = React.useMemo<BookLayout>(() => ({ pages, single }), [pages, single]);
 
   const book = React.useRef<BookHandle>(null);
@@ -361,7 +363,7 @@ function Reader({ doc, loaded }: { doc: ReaderDoc; loaded: Loaded }) {
         field={mode === "flip" ? pageFieldText(spread, layout) : String(place.page)}
         zoom={zoom}
         full={full}
-        bookPages={mode === "flip" && !narrow ? bookPages : null}
+        bookPages={mode === "flip" && !narrow && !onePage ? bookPages : null}
         onBookPages={bookPagesPref.set}
         auto={canAuto ? { on: autoOn, speed: autoSpeed } : null}
         onAuto={() => {

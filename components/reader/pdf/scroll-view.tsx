@@ -87,6 +87,27 @@ export const ScrollView = React.forwardRef<
     setTop(el.scrollTop);
   }, [size.width, slot, pageHeight, pages]);
 
+  // Zoom keeps the middle of the view in the middle across (user 2026-11-06): from 100% the pages zoom in
+  // centred, not pinned to the left. Down the page, the place (anchor above) already holds.
+  const middleX = React.useRef(0.5);
+  React.useEffect(() => {
+    const el = scroller.current;
+    if (!el) return;
+    const read = () => {
+      middleX.current = el.scrollWidth > el.clientWidth ? (el.scrollLeft + el.clientWidth / 2) / el.scrollWidth : 0.5;
+    };
+    read();
+    el.addEventListener("scroll", read, { passive: true });
+    return () => {
+      el.removeEventListener("scroll", read);
+    };
+  }, []);
+  React.useLayoutEffect(() => {
+    const el = scroller.current;
+    if (!el || !size.width) return;
+    el.scrollLeft = Math.max(0, middleX.current * el.scrollWidth - el.clientWidth / 2);
+  }, [pageWidth, size.width]);
+
   React.useEffect(() => {
     const el = scroller.current;
     if (!el || !size.width) return;

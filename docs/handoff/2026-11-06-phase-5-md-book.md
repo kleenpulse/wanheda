@@ -5,7 +5,7 @@
 | Date | 2026-11-06 |
 | Phase / checkpoint | Phase 5 CP4: T49 built, PR open |
 | Branch | `phase-5/md-book` (off `main` at `ad1fb9a`, PR #33 merged) |
-| HEAD | `613ffb3` — feat: Markdown and text as a paged book (T49); this hand-off follows it |
+| HEAD | the one-page and zoom commit on top of `613ffb3` (T49) and `55a914d` (this hand-off) |
 | Open PR | #34 (https://github.com/kleenpulse/wanheda/pull/34), not merged |
 | Previous hand-off | docs/handoff/2026-11-06-phase-5-md-viewer.md |
 
@@ -20,6 +20,7 @@ Markdown and text files now have Book / Scroll, remembered per document (text st
 - **T47 polish**: CMaps + standard fonts same-origin; `pages` on patch schema, store, `setPages`, read on add and open, shown in the library and back bar.
 - **Fixed on the way**: PDF book's next page curled in blank after each window rebuild (`held` counter in FlipBook).
 - **Found in the browser and fixed**: a hook behind `||` crashed the book when the stage turned narrow; a remount (motion setting) jumped the book back to the page it was laid out on; pages appeared one frame after the stage (page-flip now built in a layout effect).
+- **User asks after the PR (2026-11-06, recording 16:23)**, pushed to the same PR #34: a 1-page document (PDF or text) opens as a single, centred page with no spread toggle (the device preference is left alone); zoom keeps the middle of the view in the middle, so from 100% the page zooms in centred (book and scroll view); a zoomed book pans by mouse drag or touch, and page-flip gets no press, move or hover while zoomed (no corner fold, no turn by drag; arrows, keys and the page field still turn); switching spread ↔ one page while zoomed opens the new book centred.
 - **Reviewer peer**: FIX (block lines re-read at every break, O(pages × lines) for a one-paragraph text file), fixed (read once, binary search) → LGTM.
 
 ## Things the next session must know
@@ -31,6 +32,7 @@ Markdown and text files now have Book / Scroll, remembered per document (text st
 - **Big text**: the first switch to the book blocks once: ~0.7–1 s for 1 MB, ~3 s at the 5 MB cap.
 - **pdf-data.ts** is generated from `node_modules/pdfjs-dist/{cmaps,standard_fonts}`. On a pdf.js upgrade the bundle test fails until it is regenerated (one literal `new URL` per file).
 - Synthetic `keydown` dispatched on `window` throws in both readers' key handlers (`t.closest` on a non-element). Real keys target the body; harmless, but don't test keys that way.
+- **Zoom internals** (`flip-book.tsx`): the view's middle is kept as fractions of the scrolled box (read on scroll, at mount and after each zoom) and restored in a layout effect on zoom change. Pan blocks `mousedown|mousemove|touchstart|touchmove|pointerup` in the capture phase on the scroller, which keeps page-flip's own listeners (and the reduced-motion swipe) from ever seeing them. The scroll view (`scroll-view.tsx`) only centres; dragging there still selects text.
 - Demo files live only in the tab: device emulation (mobile) reloads the page and loses them.
 
 ## Verification (actual results)

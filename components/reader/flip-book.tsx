@@ -399,10 +399,100 @@ export const FlipBook = React.forwardRef<BookHandle, FlipBookProps>(function Fli
 
   // Wherever the box scrolls (fitted to the width, or zoomed), a turn starts at the top of the new page.
   // Auto-scroll leans on it: at the foot it turns, and a box left at the foot would turn again at once.
+  // Only a turn: zooming keeps its own place (below).
   const scrolls = fitWidth || zoom > 1;
+  const turnedFrom = React.useRef(spread);
   React.useEffect(() => {
+    if (turnedFrom.current === spread) return;
+    turnedFrom.current = spread;
     if (scrolls && scroller.current) scroller.current.scrollTop = 0;
   }, [scrolls, spread]);
+
+  // Zoom keeps what's in the middle of the view in the middle (user 2026-11-06): from 100% the page zooms
+  // in centred, not pinned to the left. The middle is kept as fractions of the scrolled box, read on scroll.
+  const middle = React.useRef({ x: 0.5, y: 0.5 });
+  const readMiddle = React.useCallback(() => {
+    const el = scroller.current;
+    if (!el) return;
+    middle.current = {
+      x: el.scrollWidth > el.clientWidth ? (el.scrollLeft + el.clientWidth / 2) / el.scrollWidth : 0.5,
+      y: el.scrollHeight > el.clientHeight ? (el.scrollTop + el.clientHeight / 2) / el.scrollHeight : 0.5,
+    };
+  }, []);
+  React.useEffect(() => {
+    const el = scroller.current;
+    if (!el) return;
+    readMiddle();
+    el.addEventListener("scroll", readMiddle, { passive: true });
+    return () => {
+      el.removeEventListener("scroll", readMiddle);
+    };
+  }, [readMiddle]);
+  const zoomedFrom = React.useRef<number | null>(null);
+  React.useLayoutEffect(() => {
+    const el = scroller.current;
+    if (!el || zoomedFrom.current === zoom) return;
+    // A new book already zoomed (spread ↔ one page while zoomed): centred across, at the top of the page.
+    if (zoomedFrom.current === null) {
+      zoomedFrom.current = zoom;
+      if (zoom > 1) el.scrollLeft = Math.max(0, (el.scrollWidth - el.clientWidth) / 2);
+      readMiddle();
+      return;
+    }
+    zoomedFrom.current = zoom;
+    const { x, y } = middle.current;
+    el.scrollLeft = Math.max(0, x * el.scrollWidth - el.clientWidth / 2);
+    // Fitted to the width the page already scrolled down: keep that place; otherwise the middle.
+    el.scrollTop = Math.max(0, y * el.scrollHeight - el.clientHeight / 2);
+    readMiddle();
+  }, [zoom, readMiddle]);
+
+  // Zoomed, the page pans (user 2026-11-06): a mouse drags it about, a finger scrolls it natively. page-flip
+  // gets no press, move or hover while zoomed (stopped on the way down, before its own listeners), so a pan
+  // never folds a corner or turns the page; the arrows, keys and page field still turn.
+  const zoomed = zoom > 1;
+  React.useEffect(() => {
+    const el = scroller.current;
+    if (!el || !zoomed) return;
+    let drag: { id: number; x: number; y: number; left: number; top: number } | null = null;
+    const block = (e: Event) => {
+      e.stopPropagation();
+    };
+    const down = (e: PointerEvent) => {
+      e.stopPropagation();
+      if (e.pointerType !== "mouse" || e.button !== 0) return;
+      e.preventDefault();
+      drag = { id: e.pointerId, x: e.clientX, y: e.clientY, left: el.scrollLeft, top: el.scrollTop };
+      el.setPointerCapture(e.pointerId);
+      el.style.cursor = "grabbing";
+    };
+    const move = (e: PointerEvent) => {
+      if (!drag || e.pointerId !== drag.id) return;
+      el.scrollLeft = drag.left - (e.clientX - drag.x);
+      el.scrollTop = drag.top - (e.clientY - drag.y);
+    };
+    const up = (e: PointerEvent) => {
+      if (!drag || e.pointerId !== drag.id) return;
+      drag = null;
+      el.style.cursor = "";
+      if (el.hasPointerCapture(e.pointerId)) el.releasePointerCapture(e.pointerId);
+    };
+    const opts = { capture: true };
+    const blocked = ["mousedown", "mousemove", "touchstart", "touchmove", "pointerup"] as const;
+    el.addEventListener("pointerdown", down, opts);
+    el.addEventListener("pointermove", move, opts);
+    el.addEventListener("pointerup", up, opts);
+    el.addEventListener("pointercancel", up, opts);
+    for (const t of blocked) el.addEventListener(t, block, opts);
+    return () => {
+      el.removeEventListener("pointerdown", down, opts);
+      el.removeEventListener("pointermove", move, opts);
+      el.removeEventListener("pointerup", up, opts);
+      el.removeEventListener("pointercancel", up, opts);
+      for (const t of blocked) el.removeEventListener(t, block, opts);
+      el.style.cursor = "";
+    };
+  }, [zoomed]);
 
   const box = rect && layout.pages > 0 ? visibleBox(rect, layout, spread) : null;
   const before = spreadPages(spread, layout)[0] ?? 1;
@@ -430,7 +520,12 @@ export const FlipBook = React.forwardRef<BookHandle, FlipBookProps>(function Fli
             height: fitWidth && frameWidth ? Math.round(Math.min(frameWidth * zoom - FRAME_X, FIT_MAX * zoom) * aspect + 2 * (inset + FRAME_Y)) : `${String(zoom * 100)}%`,
           }}
         >
-          <div ref={host} className={cn("relative size-full touch-pan-y", layout.single && "book-single")} {...pointer}>
+          <div
+            ref={host}
+            // Zoomed, a finger pans either way; otherwise only down the page (page-flip takes the sideways swipe).
+            className={cn("relative size-full", zoomed ? "cursor-grab touch-pan-x touch-pan-y" : "touch-pan-y", layout.single && "book-single")}
+            {...pointer}
+          >
             {box ? (
               <>
                 <span aria-hidden className="book-edge rounded-l-[2px]" style={{ left: box.left - stack(before - 1), top: box.top + 2, width: stack(before - 1), height: box.height - 4 }} />

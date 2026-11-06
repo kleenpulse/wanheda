@@ -34,7 +34,7 @@ export interface BookInfo {
   pages: number;
   atStart: boolean;
   atEnd: boolean;
-  /** The stage is narrow: one page only, so no spread / one-page choice. */
+  /** The stage is narrow, or the text fits one page: one page only, so no spread / one-page choice. */
   narrow: boolean;
 }
 
@@ -116,7 +116,10 @@ export const MdBook = React.forwardRef<
   const narrow = width > 0 && width < SINGLE_BELOW;
   // Read every render (a hook): never behind the `||`, or turning narrow would skip it.
   const bookPages = bookPagesPref.use();
-  const single = narrow || bookPages === "single";
+  // A text that fits one page reads as a single page (user 2026-11-06): a spread would show it in the right
+  // half, the left one empty. Its single page is no smaller than a spread's, so it stays one page.
+  const [onePage, setOnePage] = React.useState(false);
+  const single = narrow || onePage || bookPages === "single";
   const [room, setRoom] = React.useState<{ w: number; h: number } | null>(null);
   const box = React.useMemo(() => (room ? mdPageBox(room.w, room.h, single) : null), [room, single]);
   const fontSize = BASE_PX * scale;
@@ -169,7 +172,7 @@ export const MdBook = React.forwardRef<
       if (!l) return;
       const open = spreadPages(s, lay);
       live.current.onAt({ heading: placeRef.current.heading, percent: bookPercent(open, l.pages, l.total), top: s <= 0 });
-      live.current.onBook({ field: pageFieldText(s, lay), pages: lay.pages, atStart: s <= 0, atEnd: s >= spreadCount(lay) - 1, narrow });
+      live.current.onBook({ field: pageFieldText(s, lay), pages: lay.pages, atStart: s <= 0, atEnd: s >= spreadCount(lay) - 1, narrow: narrow || lay.pages <= 1 });
     },
     [placeRef, narrow],
   );
@@ -198,6 +201,7 @@ export const MdBook = React.forwardRef<
     laidRef.current = l;
     setLaid(l);
     setAtPage(start);
+    setOnePage(pages.length === 1);
   }, [box, textH, textW, fontSize, content, text, heldPage]);
 
   const tellRef = React.useRef(tell);
