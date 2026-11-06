@@ -8,7 +8,7 @@ import { AddPasskeyButton, SignOutButton } from "@/components/auth/account-actio
 import { AppearanceSection, PrefsNote, TimersSection } from "@/components/settings/appearance-prefs";
 import { ConnectionsSection } from "@/components/settings/connections-section";
 import { MoneySection } from "@/components/settings/money-prefs";
-import { ReaderSection } from "@/components/settings/reader-prefs";
+import { ReaderPrefsNote, ReaderSection } from "@/components/settings/reader-prefs";
 import { SettingRow, SettingsCard } from "@/components/settings/setting-row";
 import { useAccount } from "@/components/shell/account";
 import { Kbd } from "@/components/ui/kbd";
@@ -31,8 +31,8 @@ interface Section {
   icon: LucideIcon;
   /** Shows where prefs are saved, beside the section title. */
   prefs?: boolean;
-  /** Saved on this device only (localStorage), not synced: says so beside the title. */
-  device?: boolean;
+  /** Shows where the reader's prefs are saved, beside the section title. */
+  readerPrefs?: boolean;
 }
 
 const SECTIONS = {
@@ -61,7 +61,7 @@ const SECTIONS = {
     blurb: "Library covers, the book's pages and turn, text size, paper and auto-scroll.",
     group: "Preferences",
     icon: BookOpen,
-    device: true,
+    readerPrefs: true,
   },
   keyboard: { label: "Keyboard", blurb: "The shortcuts that work anywhere in Wanheda.", group: "Preferences", icon: Keyboard },
   connections: {
@@ -239,8 +239,10 @@ function SectionHeader({ section, onBack }: { section: SectionId; onBack: () => 
           <p className="shrink-0 text-right text-[12px] text-ink-2">
             <PrefsNote />
           </p>
-        ) : s.device ? (
-          <p className="shrink-0 text-right text-[12px] text-ink-2">Saved on this device</p>
+        ) : s.readerPrefs ? (
+          <p className="shrink-0 text-right text-[12px] text-ink-2">
+            <ReaderPrefsNote />
+          </p>
         ) : null}
       </div>
     </div>

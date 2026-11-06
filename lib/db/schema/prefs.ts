@@ -1,4 +1,4 @@
-import { char, pgTable, text } from "drizzle-orm/pg-core";
+import { char, jsonb, pgTable, text } from "drizzle-orm/pg-core";
 import { user } from "./auth";
 import { createdAt, updatedAt } from "./columns";
 
@@ -18,6 +18,10 @@ export const userPrefs = pgTable("user_prefs", {
   // by default), and "today" is the owner's calendar day in this zone (SPEC V27).
   baseCurrency: char("base_currency", { length: 3 }).notNull().default("NGN"),
   timeZone: text("time_zone").notNull().default("Africa/Lagos"),
+  // Reader (Settings → Reader, 2026-11-06): covers, book pages, turn, text size,
+  // paper, auto-scroll speed. Null until the first save; lib/reader/prefs.ts
+  // checks it field by field, so a missing or bad field keeps the device's value.
+  reader: jsonb("reader").$type<unknown>(),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 }).enableRLS();

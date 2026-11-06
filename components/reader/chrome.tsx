@@ -4,8 +4,8 @@ import * as React from "react";
 import { BookOpen, ChevronDown, ChevronUp, ChevronsDown, Columns2, Eye, Pause, RectangleVertical, ScrollText, Search, X } from "lucide-react";
 import { motion } from "motion/react";
 import { Tip } from "@/components/ui/tooltip";
-import { createDevicePref } from "@/hooks/device-pref";
 import { autoScrollSpeed, cleanPageField, parsePageField } from "@/lib/reader/book";
+import { autoSpeedPref, bookPagesPref, type BookPages } from "./prefs";
 import { TAB_SPRING } from "@/lib/motion";
 import type { ReadingMode } from "@/lib/reader/reader";
 import { cn } from "@/lib/utils";
@@ -176,14 +176,7 @@ export function ShowControls({ awake, onShow }: { awake: boolean; onShow: () => 
 // own at a speed set on a slider (this device's choice, every document). Off
 // on every open. The slider stores its position, 0–100; autoScrollSpeed turns
 // it into px a second on a curve.
-export const autoSpeedPref = createDevicePref<number>(
-  "wanheda-reader-autoscroll",
-  (raw) => {
-    const n = Number(raw);
-    return raw !== null && Number.isFinite(n) ? Math.min(100, Math.max(0, Math.round(n))) : 50;
-  },
-  (v) => String(v),
-);
+export { autoSpeedPref };
 
 /** A book that turns at the foot of a page instead of stopping there. */
 export interface AutoBook {
@@ -432,12 +425,7 @@ export function FindBox({
 
 // Spread or one page on a wide screen (user 2026-11-06: small print reads
 // better one page at a time). This device's choice for every book, PDF or text.
-export type BookPages = "spread" | "single";
-export const bookPagesPref = createDevicePref<BookPages>(
-  "wanheda-reader-book-pages",
-  (raw) => (raw === "single" ? "single" : "spread"),
-  (v) => v,
-);
+export { bookPagesPref, type BookPages };
 
 const MODES: readonly { value: ReadingMode; label: string; icon: typeof BookOpen }[] = [
   { value: "flip", label: "Book", icon: BookOpen },

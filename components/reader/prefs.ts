@@ -1,49 +1,87 @@
 "use client";
 
-import { createDevicePref } from "@/hooks/device-pref";
+import { createDevicePref, type DevicePref } from "@/hooks/device-pref";
+import {
+  parseAutoSpeed,
+  parseBookPages,
+  parseCoverFit,
+  parseCoverStyle,
+  parsePageTurn,
+  parsePaper,
+  parseTextSize,
+  type BookPages,
+  type CoverFit,
+  type CoverStyle,
+  type PageTurn,
+  type Paper,
+  type ReaderPrefs,
+} from "@/lib/reader/prefs";
 
-// The reader's settings that Settings → Reader tunes (user 2026-11-06), kept on
-// this device like every reader preference. The book's spread / one page
-// (`bookPagesPref`, chrome.tsx), auto-scroll speed (`autoSpeedPref`,
-// chrome.tsx) and the paper (`paperPref`, paper.tsx) live beside the controls
-// that set them in the reader; these are the rest.
+// The reader's settings (user 2026-11-06): Settings → Reader and the reader's
+// own bars set the same ones. Read from this device at once, so a change shows
+// everywhere without waiting, and kept in the owner's account too
+// (reader-prefs-sync.tsx), so they follow to another device. Values are
+// checked by lib/reader/prefs.ts, shared with the server. A light module: the
+// shell imports it for the sync, so it must not pull in the reader's UI.
+
+export { TEXT_SIZES, TEXT_SIZE_LABELS, type BookPages, type CoverFit, type CoverStyle, type PageTurn, type Paper } from "@/lib/reader/prefs";
 
 // ── Library covers ───────────────────────────────────────────────────────
 
-/** What a PDF's cover shows: its page one, or the title card every document has until then. */
-export type CoverStyle = "page" | "title";
 export const coverStylePref = createDevicePref<CoverStyle>(
   "wanheda-reader-cover",
-  (raw) => (raw === "title" ? "title" : "page"),
+  (raw) => parseCoverStyle(raw) ?? "page",
   (v) => (v === "page" ? null : v),
 );
 
-/** How page one sits in the cover: filling it (cropped, top kept) or whole (nothing cut). */
-export type CoverFit = "fill" | "whole";
 export const coverFitPref = createDevicePref<CoverFit>(
   "wanheda-reader-cover-fit",
-  (raw) => (raw === "whole" ? "whole" : "fill"),
+  (raw) => parseCoverFit(raw) ?? "fill",
   (v) => (v === "fill" ? null : v),
 );
 
 // ── Reading ──────────────────────────────────────────────────────────────
 
-/** How a book's page turns: a curl, or at once. Reduced motion always turns at once. */
-export type PageTurn = "curl" | "instant";
+/** Spread or one page on a wide screen, for every book, PDF or text (small print reads better one page at a time). */
+export const bookPagesPref = createDevicePref<BookPages>(
+  "wanheda-reader-book-pages",
+  (raw) => parseBookPages(raw) ?? "spread",
+  (v) => v,
+);
+
 export const pageTurnPref = createDevicePref<PageTurn>(
   "wanheda-reader-turn",
-  (raw) => (raw === "instant" ? "instant" : "curl"),
+  (raw) => parsePageTurn(raw) ?? "curl",
   (v) => (v === "curl" ? null : v),
 );
 
-/** Text size for Markdown and text: the sheet's (and the book's) type scale. */
-export const TEXT_SIZES: readonly number[] = [0.875, 1, 1.125, 1.25, 1.5];
-export const TEXT_SIZE_LABELS: readonly string[] = ["Small", "Default", "Large", "Larger", "Largest"];
 export const textSizePref = createDevicePref<number>(
   "wanheda-reader-text-size",
-  (raw) => {
-    const n = Number(raw);
-    return raw !== null && TEXT_SIZES.includes(n) ? n : 1;
-  },
+  (raw) => parseTextSize(raw) ?? 1,
   (v) => (v === 1 ? null : String(v)),
 );
+
+/** The page's paper in every document (paper.tsx draws it). */
+export const paperPref = createDevicePref<Paper>(
+  "wanheda-reader-paper",
+  (raw) => parsePaper(raw) ?? "plain",
+  (v) => (v === "plain" ? null : v),
+);
+
+/** The auto-scroll slider's position, 0–100; chrome.tsx turns it into px a second on a curve. */
+export const autoSpeedPref = createDevicePref<number>(
+  "wanheda-reader-autoscroll",
+  (raw) => parseAutoSpeed(raw) ?? 50,
+  (v) => String(v),
+);
+
+/** Every reader pref by its field in `ReaderPrefs`, for the account sync. */
+export const READER_DEVICE_PREFS: { [K in keyof ReaderPrefs]: DevicePref<ReaderPrefs[K]> } = {
+  coverStyle: coverStylePref,
+  coverFit: coverFitPref,
+  bookPages: bookPagesPref,
+  pageTurn: pageTurnPref,
+  textSize: textSizePref,
+  paper: paperPref,
+  autoSpeed: autoSpeedPref,
+};

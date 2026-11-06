@@ -2,18 +2,23 @@
 
 import * as React from "react";
 
-// A preference kept on this device only (localStorage), shared by every tab:
-// Home's pinned billing cycle, the reader's pin, spread or one page, auto-scroll
-// speed and paper. Where localStorage refuses writes (some private windows) the
-// value lives in this page until it reloads.
+// A preference kept on this device (localStorage), shared by every tab: Home's
+// pinned billing cycle, the reader's pin, and the reader's settings (which the
+// owner's account also keeps: components/reader/reader-prefs-sync.tsx). Where
+// localStorage refuses writes (some private windows) the value lives in this
+// page until it reloads.
 
 export interface DevicePref<T> {
   use: () => T;
+  get: () => T;
   set: (value: T) => void;
+  /** Called after a `set` in this tab only, never for another tab's change. */
+  watch: (listener: (value: T) => void) => () => void;
 }
 
 export function createDevicePref<T>(key: string, parse: (raw: string | null) => T, serialize: (value: T) => string | null): DevicePref<T> {
   const listeners = new Set<() => void>();
+  const watchers = new Set<(value: T) => void>();
   let fallback: { value: T } | null = null;
   // Cached by the stored string, so useSyncExternalStore sees a stable value between changes.
   let cache: { raw: string | null; value: T } | null = null;
@@ -43,6 +48,7 @@ export function createDevicePref<T>(key: string, parse: (raw: string | null) => 
   const initial = parse(null);
   return {
     use: () => React.useSyncExternalStore(subscribe, read, () => initial),
+    get: read,
     set: (value) => {
       const raw = serialize(value);
       try {
@@ -54,6 +60,13 @@ export function createDevicePref<T>(key: string, parse: (raw: string | null) => 
         fallback = { value };
       }
       for (const l of listeners) l();
+      for (const w of watchers) w(value);
+    },
+    watch: (listener) => {
+      watchers.add(listener);
+      return () => {
+        watchers.delete(listener);
+      };
     },
   };
 }

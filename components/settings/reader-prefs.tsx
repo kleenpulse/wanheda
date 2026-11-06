@@ -2,19 +2,34 @@
 
 import * as React from "react";
 import { SettingRow, SettingsCard } from "@/components/settings/setting-row";
-import { AutoScrollSpeed, bookPagesPref, type BookPages } from "@/components/reader/chrome";
+import { AutoScrollSpeed } from "@/components/reader/chrome";
 import { Cover } from "@/components/reader/cover";
-import { PaperPicker, paperPref } from "@/components/reader/paper";
-import { TEXT_SIZES, TEXT_SIZE_LABELS, coverFitPref, coverStylePref, pageTurnPref, textSizePref, type CoverFit, type CoverStyle, type PageTurn } from "@/components/reader/prefs";
+import { PaperPicker } from "@/components/reader/paper";
+import {
+  TEXT_SIZES,
+  TEXT_SIZE_LABELS,
+  bookPagesPref,
+  coverFitPref,
+  coverStylePref,
+  pageTurnPref,
+  paperPref,
+  textSizePref,
+  type BookPages,
+  type CoverFit,
+  type CoverStyle,
+  type PageTurn,
+} from "@/components/reader/prefs";
+import { useReaderPrefsSync } from "@/components/reader/reader-prefs-sync";
+import { prefsNote } from "@/components/settings/appearance-prefs";
 import { useReader } from "@/components/reader/use-reader";
 import { Segmented } from "@/components/ui/segmented";
 import { useHydrated } from "@/hooks/use-hydrated";
 
 /*
   Settings → Reader (user 2026-11-06): the reader's preferences in one place,
-  the same ones its bars set, plus the library's covers. All of them live on
-  this device (components/reader/prefs.ts and beside the reader's controls),
-  so a change shows at once, here and in the reader.
+  the same ones its bars set, plus the library's covers. Read from this device
+  (components/reader/prefs.ts), so a change shows at once, here and in the
+  reader, and kept in the owner's account (reader-prefs-sync.tsx).
 */
 
 const COVER_STYLES: readonly { value: CoverStyle; label: string }[] = [
@@ -106,4 +121,10 @@ export function ReaderSection() {
       </SettingsCard>
     </div>
   );
+}
+
+/** Beside the section title: where the reader's prefs are saved and whether the last change was. */
+export function ReaderPrefsNote() {
+  const { source, saveState } = useReaderPrefsSync();
+  return <span aria-live="polite">{prefsNote(source, saveState)}</span>;
 }
