@@ -1,4 +1,4 @@
-import { OPFS_DIR, type HashRequest, type HashResponse } from "./device-protocol";
+import { OPFS_DIR, textName, type HashRequest, type HashResponse } from "./device-protocol";
 
 // This device's copy of reader files (SPEC V38, local-only): OPFS, one file
 // per sha256. Browser only. Every function degrades instead of throwing:
@@ -68,12 +68,13 @@ export async function readDeviceFile(sha256: string, size: number): Promise<File
   }
 }
 
-/** Forgets this device's copy and its cover. Missing is fine. */
+/** Forgets this device's copy, its cover and its text. Missing is fine. */
 export async function removeDeviceFile(sha256: string): Promise<void> {
   try {
     const dir = await folder(false);
     await dir?.removeEntry(sha256).catch(() => undefined);
     await dir?.removeEntry(coverName(sha256)).catch(() => undefined);
+    await dir?.removeEntry(textName(sha256)).catch(() => undefined);
   } catch {
     // Already gone, or OPFS refused: nothing to clean.
   }
@@ -109,6 +110,17 @@ export async function writeCover(sha256: string, blob: Blob): Promise<boolean> {
     return true;
   } catch {
     return false;
+  }
+}
+
+/** A document's sentences file (T50), raw, or null when there is none. Checking it is the caller's job (extract.ts parseTextFile). */
+export async function readTextFile(sha256: string): Promise<File | null> {
+  try {
+    const dir = await folder(false);
+    if (!dir) return null;
+    return await (await dir.getFileHandle(textName(sha256))).getFile();
+  } catch {
+    return null;
   }
 }
 
