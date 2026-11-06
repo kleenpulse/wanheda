@@ -14,6 +14,7 @@ import { onForget } from "./doc-cache";
 import { MdReader } from "./md/md-reader";
 import { closeDoc, useFilePicker } from "./open-file";
 import { STAGE_BOX } from "./stage";
+import { ensureText } from "./text";
 import { onDevice, readDocFile, useDeviceFiles, useReader, useReaderApi } from "./use-reader";
 
 // One document. PDFs open in the PDF reader (T47: pdf/pdf-reader.tsx), a book
@@ -72,6 +73,9 @@ function BackBar({ doc }: { doc?: ReaderDoc }) {
   );
 }
 
+/** How long a document stays open before its text is extracted in the background. */
+const TEXT_AFTER_MS = 3000;
+
 /** The bytes read for one hash: the File, or null when this device doesn't have them after all. */
 type Read = { sha256: string; file: File | null };
 
@@ -110,6 +114,17 @@ function Reading({ doc }: { doc: ReaderDoc }) {
   const current = read?.sha256 === doc.sha256 ? read : null;
   const missing = here === false || current?.file === null;
   const file = here ? (current?.file ?? null) : null;
+
+  // Sentences for voice (T50, V44), once the reader has settled: never in the way of the first paint (V24).
+  React.useEffect(() => {
+    if (!file) return;
+    const t = window.setTimeout(() => {
+      ensureText(doc, file, demo);
+    }, TEXT_AFTER_MS);
+    return () => {
+      window.clearTimeout(t);
+    };
+  }, [file, doc.sha256, doc.kind, demo]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <div className="flex flex-col gap-5">
       <BackBar doc={doc} />

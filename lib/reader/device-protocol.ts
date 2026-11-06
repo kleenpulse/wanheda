@@ -26,3 +26,28 @@ export function toHex(bytes: ArrayBuffer | Uint8Array): string {
   for (const b of view) out += b.toString(16).padStart(2, "0");
   return out;
 }
+
+/** A document's sentences for voice (T50, V44), beside its bytes. Never a bare hash, so listDeviceFiles leaves it out. */
+export function textName(sha256: string): string {
+  return `${sha256}.text.json`;
+}
+
+export type TextDocKind = "pdf" | "md" | "txt";
+
+export type TextRequest =
+  | {
+      type: "extract";
+      id: number;
+      sha256: string;
+      kind: TextDocKind;
+      file: File;
+      /** Write `<sha256>.text.json` into OPFS (owner). False: send the JSON back instead (demo keeps it in the tab). */
+      keep: boolean;
+    }
+  | { type: "cancel"; sha256: string };
+
+export type TextResponse =
+  | { id: number; ok: true; status: "done"; sentences: number; json: string | null }
+  /** Already there and current, or another tab is writing it, or cancelled (deleted) on the way. */
+  | { id: number; ok: true; status: "current" | "busy" | "cancelled" }
+  | { id: number; ok: false };
