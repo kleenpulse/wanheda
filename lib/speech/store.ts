@@ -3,6 +3,7 @@ import { clampRate, isAbort, type EngineId } from "./engine";
 import { piper } from "./piper";
 import { SpeechPlayer } from "./player";
 import { SpeechQueue, type QueueStats } from "./queue";
+import { ratePref, voicePref } from "./prefs";
 import { DEFAULT_VOICE, isInstalled } from "./voices";
 import { webSpeech, webSpeechAvailable } from "./web-speech";
 
@@ -34,13 +35,15 @@ interface SpeechState {
   /** The sentence being spoken (at once after a seek, before its audio starts). */
   sentence: number;
   total: number;
+  /** Speed. Each play starts at the speed pref; a change while speaking is kept as the pref. */
   rate: number;
-  /** The Piper voice to use when it's on this device. */
+  /** The Piper voice used when it's on this device: the voice pref, read at each play. */
   voice: string;
   engine: EngineId | null;
   error: string | null;
 
-  play: (source: SpeechSource, sentences: readonly string[], from?: number) => void;
+  /** `voice` overrides the voice pref for this play only (a sample in Settings). */
+  play: (source: SpeechSource, sentences: readonly string[], from?: number, opts?: { voice?: string }) => void;
   pause: () => void;
   resume: () => void;
   toggle: () => void;
@@ -49,6 +52,8 @@ interface SpeechState {
   prev: () => void;
   seek: (sentence: number) => void;
   setRate: (rate: number) => void;
+  /** The default voice (pref). Used from the next play. */
+  setVoice: (voice: string) => void;
 }
 
 interface Driver {
@@ -282,7 +287,7 @@ export const useSpeech = create<SpeechState>()((set, get) => {
     engine: null,
     error: null,
 
-    play: (source, list, from = 0) => {
+    play: (source, list, from = 0, opts) => {
       generation++;
       const gen = generation;
       finish();
@@ -294,7 +299,16 @@ export const useSpeech = create<SpeechState>()((set, get) => {
       }
       // In the click's turn: the browser lets the audio context run.
       player.unlock();
-      set({ status: "playing", waiting: true, source, sentence: start, total: list.length, error: null });
+      set({
+        status: "playing",
+        waiting: true,
+        source,
+        sentence: start,
+        total: list.length,
+        error: null,
+        voice: opts?.voice ?? voicePref.get(),
+        rate: ratePref.get(),
+      });
       takeLock(() => {
         if (gen !== generation) return;
         generation++;
@@ -365,8 +379,15 @@ export const useSpeech = create<SpeechState>()((set, get) => {
 
     setRate: (rate) => {
       const r = clampRate(rate);
+      ratePref.set(r);
       set({ rate: r });
       driver?.setRate(r);
+    },
+
+    setVoice: (voice) => {
+      voicePref.set(voice);
+      // While speaking, the playing voice stays until the next play.
+      if (get().status === "idle") set({ voice });
     },
   };
 });

@@ -63,17 +63,32 @@ export interface PiperVoiceConfig {
   inference: { noise_scale: number; length_scale: number; noise_w: number };
   num_speakers: number;
   phoneme_id_map: PhonemeIdMap;
+  /** The espeak-ng voice the model was trained with (`en-us`, `en`, `en-gb-x-rp`): its phonemes must come from the same one. */
+  espeak: { voice: string };
 }
+
+/** The espeak-ng voices the bundled phonemizer has (English only, ADR-0012). */
+export const ESPEAK_VOICES: ReadonlySet<string> = new Set(["en", "en-029", "en-gb", "en-gb-scotland", "en-gb-x-gbclan", "en-gb-x-gbcwmd", "en-gb-x-rp", "en-us", "en-us-nyc"]);
 
 /** A voice config read back, or null when it isn't one Piper can run. */
 export function parseVoiceConfig(raw: unknown): PiperVoiceConfig | null {
   if (typeof raw !== "object" || raw === null) return null;
-  const c = raw as Partial<PiperVoiceConfig>;
+  const c = raw as Partial<Omit<PiperVoiceConfig, "espeak">> & { espeak?: { voice?: unknown }; phoneme_type?: unknown };
   const rate = c.audio?.sample_rate;
   const inf = c.inference;
   const map = c.phoneme_id_map;
   if (typeof rate !== "number" || !(rate > 0) || !inf || typeof map !== "object") return null;
   if (![inf.noise_scale, inf.length_scale, inf.noise_w].every((n) => typeof n === "number" && Number.isFinite(n))) return null;
   for (const k of ["^", "$", "_"]) if (!Array.isArray(map[k])) return null;
-  return { audio: { sample_rate: rate }, inference: inf, num_speakers: typeof c.num_speakers === "number" ? c.num_speakers : 1, phoneme_id_map: map };
+  // Older configs have no phoneme_type: espeak was the only kind then.
+  if (c.phoneme_type !== undefined && c.phoneme_type !== "espeak") return null;
+  const espeak = c.espeak?.voice ?? "en-us";
+  if (typeof espeak !== "string" || !ESPEAK_VOICES.has(espeak)) return null;
+  return {
+    audio: { sample_rate: rate },
+    inference: inf,
+    num_speakers: typeof c.num_speakers === "number" ? c.num_speakers : 1,
+    phoneme_id_map: map,
+    espeak: { voice: espeak },
+  };
 }

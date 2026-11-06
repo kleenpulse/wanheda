@@ -5,6 +5,8 @@ import { LiveActivity } from "@/components/island/live-activity";
 import { moneyAlertActivity, useMoneyAlerts } from "@/components/island/money-alert-activity";
 import { saasAlertActivity, useSaasAlerts } from "@/components/island/saas-alert-activity";
 import { orderTimers, timerActivity } from "@/components/island/timer-activity";
+import { transferActivity } from "@/components/island/transfer-activity";
+import { useVoiceManager } from "@/components/settings/voice-manager";
 import { ACTIVITY_STORAGE_KEY, useActivity } from "@/lib/activity/store";
 
 /**
@@ -41,9 +43,17 @@ export function Island() {
   const lastStartedAt = useActivity((s) => s.lastStartedAt);
   const { alerts, today } = useMoneyAlerts();
   const saas = useSaasAlerts();
+  // The set of downloads, not their progress (a string, so a progress tick doesn't re-render): the views read progress themselves.
+  const transferKey = useVoiceManager((s) => Object.keys(s.downloads).join(" "));
+  const transfers = React.useMemo(() => (transferKey ? transferKey.split(" ").map(transferActivity) : []), [transferKey]);
   const activities = React.useMemo(
-    () => [...orderTimers(timers).map(timerActivity), ...saas.map(saasAlertActivity), ...alerts.map((a) => moneyAlertActivity(a, today))],
-    [timers, saas, alerts, today],
+    () => [
+      ...orderTimers(timers).map(timerActivity),
+      ...transfers,
+      ...saas.map(saasAlertActivity),
+      ...alerts.map((a) => moneyAlertActivity(a, today)),
+    ],
+    [timers, transfers, saas, alerts, today],
   );
 
   if (!ready || activities.length === 0) return null;

@@ -55,4 +55,16 @@ describe("parseVoiceConfig", () => {
     expect(parseVoiceConfig({ ...ok, inference: { noise_scale: "x", length_scale: 1, noise_w: 1 } })).toBeNull();
     expect(parseVoiceConfig({ ...ok, phoneme_id_map: { a: [1] } })).toBeNull();
   });
+
+  it("phonemizes with the espeak voice the model was trained on, en-us when the config has none", () => {
+    expect(parseVoiceConfig(ok)?.espeak.voice).toBe("en-us");
+    expect(parseVoiceConfig({ ...ok, espeak: { voice: "en-gb-x-rp" } })?.espeak.voice).toBe("en-gb-x-rp");
+    expect(parseVoiceConfig({ ...ok, espeak: { voice: "en" }, phoneme_type: "espeak" })?.espeak.voice).toBe("en");
+  });
+
+  it("refuses a voice the bundled phonemizer can't speak, or one that isn't phoneme-based", () => {
+    expect(parseVoiceConfig({ ...ok, espeak: { voice: "de" } })).toBeNull();
+    expect(parseVoiceConfig({ ...ok, espeak: { voice: 7 } })).toBeNull();
+    expect(parseVoiceConfig({ ...ok, phoneme_type: "text" })).toBeNull();
+  });
 });

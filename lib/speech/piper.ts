@@ -89,6 +89,18 @@ class PiperEngine implements PcmEngine {
     });
   }
 
+  /**
+   * The voice was deleted (V46): the worker frees its model, and nothing
+   * re-warms it. Speech still using it fails on its next unit and carries on
+   * in the browser's voice (store.ts).
+   */
+  drop(voice: string): void {
+    if (this.lastVoice === voice) this.lastVoice = null;
+    this.loads.get(voice)?.settle("voice deleted");
+    this.loads.delete(voice);
+    this.worker?.postMessage({ type: "drop", voice } satisfies PiperRequest);
+  }
+
   /** A reader (or speech) wants the engine kept. Returns the release. */
   hold(): () => void {
     this.holds++;
