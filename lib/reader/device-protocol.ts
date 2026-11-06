@@ -51,3 +51,14 @@ export type TextResponse =
   /** Already there and current, or another tab is writing it, or cancelled (deleted) on the way. */
   | { id: number; ok: true; status: "current" | "busy" | "cancelled" }
   | { id: number; ok: false };
+
+/** How far a running extraction is (PDF pages read of all), sent now and then while it runs (V48: play before text.json shows it). */
+export interface TextProgress {
+  type: "progress";
+  sha256: string;
+  done: number;
+  total: number;
+}
+
+/** Everything the text worker sends: an answer to a request, or progress on one. */
+export type TextMessage = TextResponse | TextProgress;

@@ -4,7 +4,7 @@ import * as React from "react";
 import type { PDFDocumentProxy } from "pdfjs-dist";
 import { pagesToRender, spreadPages, type BookLayout } from "@/lib/reader/book";
 import { FlipBook, type BookHandle, type OpenBook } from "../flip-book";
-import { anyImage, cachedImage, matchBoxes, pageImage } from "./engine";
+import { anyImage, cachedImage, matchBoxes, pageImage, type SayBoxes } from "./engine";
 
 // The PDF book (SPEC V42): pdf.js page images in the shared page-flip book
 // (../flip-book.tsx). Pages are <img>, not canvases: in portrait page-flip
@@ -27,11 +27,14 @@ function newPageElement(page: number): HTMLElement {
   // The paper colour's wash (paper.tsx): over the page, under the find marks.
   const wash = document.createElement("div");
   wash.className = "paper-wash";
+  // The sentence read aloud (V48), under find's marks.
+  const say = document.createElement("div");
+  say.className = "book-say pointer-events-none absolute inset-0";
   const hl = document.createElement("div");
   hl.className = "book-hl absolute inset-0";
   const spine = document.createElement("div");
   spine.className = "book-spine";
-  el.append(num, img, wash, hl, spine);
+  el.append(num, img, wash, say, hl, spine);
   return el;
 }
 
@@ -55,21 +58,23 @@ export const BookView = React.forwardRef<
     zoom: number;
     /** Find's query (normalised); its runs are boxed on the rendered pages. */
     query: string;
+    /** The sentence read aloud, boxed on its pages (V48). */
+    say: readonly SayBoxes[] | null;
     onSpread: (spread: number) => void;
     fitWidth: boolean;
     inset: number;
     chrome: boolean;
   }
->(function BookView({ pdf, layout, query, ...book }, ref) {
+>(function BookView({ pdf, layout, query, say, ...book }, ref) {
   return (
     <FlipBook ref={ref} layout={layout} makePage={newPageElement} dropPage={freePage} {...book}>
-      {(open) => <PdfPages pdf={pdf} layout={layout} query={query} open={open} />}
+      {(open) => <PdfPages pdf={pdf} layout={layout} query={query} say={say} open={open} />}
     </FlipBook>
   );
 });
 
 /** Fills the open pages: images for the spread ± 1, and find's boxes on the spread. */
-function PdfPages({ pdf, layout, query, open }: { pdf: PDFDocumentProxy; layout: BookLayout; query: string; open: OpenBook }) {
+function PdfPages({ pdf, layout, query, say, open }: { pdf: PDFDocumentProxy; layout: BookLayout; query: string; say: readonly SayBoxes[] | null; open: OpenBook }) {
   const { spread, elements, pageWidth, held } = open;
 
   // Pages as images: the open spread first, then one either side (V42, V43). Everything else in the window is let go.
@@ -100,6 +105,23 @@ function PdfPages({ pdf, layout, query, open }: { pdf: PDFDocumentProxy; layout:
       ctrl.abort();
     };
   }, [pdf, spread, layout, pageWidth, elements, held]);
+
+  // Read aloud: the spoken sentence's boxes, on whichever held pages show it.
+  React.useEffect(() => {
+    for (const [p, el] of elements) {
+      const layer = el.querySelector(".book-say");
+      if (!layer) continue;
+      const boxes = say?.find((b) => b.page === p)?.boxes ?? [];
+      layer.replaceChildren(
+        ...boxes.map(([l, t, w, h]) => {
+          const mark = document.createElement("div");
+          mark.className = "absolute rounded-[2px] bg-signal/22";
+          mark.style.cssText = `left:${String(l * 100)}%;top:${String(t * 100)}%;width:${String(w * 100)}%;height:${String(h * 100)}%`;
+          return mark;
+        }),
+      );
+    }
+  }, [say, elements, held]);
 
   // Find: box the query's runs on the open spread.
   React.useEffect(() => {

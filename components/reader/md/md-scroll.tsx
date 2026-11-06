@@ -2,10 +2,11 @@
 
 import * as React from "react";
 import { anchorOf, idOf, lineFor, placeAt, scrollPercent, type Section } from "@/lib/reader/md";
+import { directionOf, mdVoiceLocator } from "@/lib/reader/read-along";
 import { cn } from "@/lib/utils";
 import { BAR_H } from "../chrome";
 import { MdBody, TextBody } from "./md-body";
-import { BASE_PX, headingElements, paintRanges, type MdView, type ViewProps } from "./view";
+import { BASE_PX, headingElements, paintRanges, paintSay, type MdView, type ViewProps } from "./view";
 
 // The scroll view (T48): the document on one sheet of paper down the stage.
 // Its place is wherever the reading line falls: a heading and how far through
@@ -199,8 +200,47 @@ export const MdScroll = React.forwardRef<MdView, ViewProps & { aside: boolean }>
         else if (dir === -1) el.scrollTop = 0;
       },
       scroller: () => scroller.current,
+
+      say: (range) => {
+        paintSay(range ? [range] : []);
+      },
+      // Read along: the sentence's top on the reading line when it isn't comfortably in view, so it reads down
+      // the screen and the view moves about once a screenful.
+      bring: (range, smooth) => {
+        const el = scroller.current;
+        if (!el) return;
+        const r = range.getBoundingClientRect();
+        const box = el.getBoundingClientRect();
+        const line = box.top + BAR_H + LINE_PAD;
+        if (r.top >= line - 2 && r.bottom <= box.bottom - BAR_H - LINE_PAD) return;
+        el.scrollTo({ top: Math.max(0, el.scrollTop + r.top - line), behavior: smooth ? "smooth" : "instant" });
+      },
+      where: (range) => {
+        const el = scroller.current;
+        if (!el) return null;
+        const r = range.getBoundingClientRect();
+        const box = el.getBoundingClientRect();
+        return directionOf(r.top, r.bottom, box.top + BAR_H, box.bottom - BAR_H);
+      },
+      placeOf: (range) => {
+        const el = scroller.current;
+        if (!el) return null;
+        if (!measuredFits()) measure();
+        const base = el.getBoundingClientRect().top - el.scrollTop;
+        const line = range.getBoundingClientRect().top - base;
+        const place = placeAt(sections.current, line, el.scrollHeight);
+        placeRef.current = place;
+        return { place, locator: mdVoiceLocator(sections.current, line, el.scrollHeight), percent: percentNow() };
+      },
+      placeY: () => (scroller.current?.getBoundingClientRect().top ?? 0) + BAR_H + LINE_PAD,
+      placeLineY: (place) => {
+        const el = scroller.current;
+        if (!el) return null;
+        const line = lineFor(sections.current, place, el.scrollHeight);
+        return line === null ? null : line + el.getBoundingClientRect().top - el.scrollTop;
+      },
     }),
-    [show],
+    [show, measure, measuredFits, percentNow, placeRef],
   );
 
   return (

@@ -5,6 +5,8 @@ import { Page } from "react-pdf";
 import "react-pdf/dist/Page/TextLayer.css";
 import type { PDFDocumentProxy } from "pdfjs-dist";
 import { clampPage, highlightRun, pdfPercent } from "@/lib/reader/book";
+import { directionOf } from "@/lib/reader/read-along";
+import type { SayBoxes } from "./engine";
 
 // The scroll view (V42's alternative to the book): every page in one column,
 // but only the pages in view ± 2 exist (V43); the rest are empty slots of
@@ -18,7 +20,16 @@ export interface ScrollHandle {
   goTo(page: number): void;
   /** The element that scrolls. */
   scroller(): HTMLElement | null;
+  /** Read-along (V48): where a line (page, y‰) is from the view, null when it shows. */
+  where(page: number, y: number): "up" | "down" | null;
+  /** Scrolls a line just under the top bar, unless it's already comfortably in view. */
+  bring(page: number, y: number, smooth: boolean): void;
 }
+
+/** A spoken line's height for "comfortably in view", as a share of the page. */
+const LINE_SHARE = 0.03;
+/** A followed line rests this far under the top bar. */
+const FOLLOW_PAD = 24;
 
 const GAP = 16;
 const MAX_WIDTH = 880;
@@ -35,10 +46,12 @@ export const ScrollView = React.forwardRef<
     zoom: number;
     query: string;
     onPlace: (page: number, y: number, percent: number) => void;
+    /** The sentence read aloud (V48), boxed on its pages. */
+    say: readonly SayBoxes[] | null;
     /** Height of the translucent bars over the top and bottom: the first and last pages rest clear of them. */
     inset: number;
   }
->(function ScrollView({ pdf, pages, aspect, start, zoom, query, onPlace, inset }, ref) {
+>(function ScrollView({ pdf, pages, aspect, start, zoom, query, onPlace, say, inset }, ref) {
   const scroller = React.useRef<HTMLDivElement>(null);
   const [size, setSize] = React.useState({ width: 0, height: 0 });
   const [top, setTop] = React.useState(0);
@@ -139,6 +152,12 @@ export const ScrollView = React.forwardRef<
     };
   }, [size.width, placeAt]);
 
+  /** A line's top in the scrolled content: a page's slot, then its share of the page. */
+  const lineTop = React.useCallback(
+    (page: number, y: number) => inset + (clampPage(page, pages) - 1) * slot + GAP / 2 + (Math.min(1000, Math.max(0, y)) / 1000) * pageHeight,
+    [inset, pages, slot, pageHeight],
+  );
+
   const goTo = React.useCallback(
     (page: number) => {
       const el = scroller.current;
@@ -160,8 +179,22 @@ export const ScrollView = React.forwardRef<
         goTo(anchor.current.y > 40 ? anchor.current.page : anchor.current.page - 1);
       },
       scroller: () => scroller.current,
+      where: (page, y) => {
+        const el = scroller.current;
+        if (!el) return null;
+        const top = lineTop(page, y);
+        return directionOf(top, top + pageHeight * LINE_SHARE, el.scrollTop + inset, el.scrollTop + el.clientHeight - inset);
+      },
+      bring: (page, y, smooth) => {
+        const el = scroller.current;
+        if (!el) return;
+        const top = lineTop(page, y);
+        const line = pageHeight * LINE_SHARE;
+        if (top >= el.scrollTop + inset && top + 2 * line <= el.scrollTop + el.clientHeight - inset) return;
+        el.scrollTo({ top: Math.max(0, top - inset - FOLLOW_PAD), behavior: smooth ? "smooth" : "instant" });
+      },
     }),
-    [goTo],
+    [goTo, lineTop, pageHeight, inset],
   );
 
   const first = Math.max(0, Math.floor(top / slot) - OVERSCAN);
@@ -196,12 +229,29 @@ export const ScrollView = React.forwardRef<
             />
             {/* The paper colour's wash (paper.tsx); clicks and selection pass through to the text. */}
             <span aria-hidden className="paper-wash" />
+            <SayMarks boxes={say?.find((p) => p.page === n)?.boxes} />
           </div>
         ))}
       </div>
     </div>
   );
 });
+
+/** The spoken sentence's boxes over a page: absolute, under nothing the owner touches, so neither layout nor selection changes. */
+function SayMarks({ boxes }: { boxes: SayBoxes["boxes"] | undefined }) {
+  if (!boxes?.length) return null;
+  return (
+    <span aria-hidden className="pointer-events-none absolute inset-0">
+      {boxes.map(([l, t, w, h], i) => (
+        <span
+          key={i}
+          className="absolute rounded-[2px] bg-signal/22"
+          style={{ left: `${String(l * 100)}%`, top: `${String(t * 100)}%`, width: `${String(w * 100)}%`, height: `${String(h * 100)}%` }}
+        />
+      ))}
+    </span>
+  );
+}
 
 function PageNumber({ n, failed = false }: { n: number; failed?: boolean }) {
   return (

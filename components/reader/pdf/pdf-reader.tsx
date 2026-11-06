@@ -35,6 +35,7 @@ import {
   turnFor,
   type BookLayout,
 } from "@/lib/reader/book";
+import { firstPdfSentence, pageDirection, pdfAt } from "@/lib/reader/read-along";
 import { formatLocator, parseLocator, type Progress, type ReaderDoc, type ReadingMode } from "@/lib/reader/reader";
 import { cn } from "@/lib/utils";
 import { hasCover, keepCover } from "../covers";
@@ -59,10 +60,11 @@ import {
 } from "../chrome";
 import { type Paper, PaperMenu, paperPref, paperProps } from "../paper";
 import { pageTurnPref } from "../prefs";
+import { FollowPill, ReadAloudControls, useReadAlong, type ReadAlongTarget } from "../read-along";
 import { useResume } from "../resume";
 import { useReaderApi } from "../use-reader";
 import { BookView, type BookHandle } from "./book-view";
-import { coverOf, findPage, firstPageAspect, heldSha, onBroken, openPdf } from "./engine";
+import { coverOf, findPage, firstPageAspect, heldSha, onBroken, openPdf, sentenceBoxes, type SayBoxes } from "./engine";
 import { ScrollView, type ScrollHandle } from "./scroll-view";
 import { Thumbnails } from "./thumbnails";
 
@@ -162,10 +164,10 @@ export default function PdfReader({ doc, file }: { doc: ReaderDoc; file: File })
     );
   }
   if (!loaded) return <Stage busy />;
-  return <Reader key={loaded.sha256} doc={doc} loaded={loaded} />;
+  return <Reader key={loaded.sha256} doc={doc} file={file} loaded={loaded} />;
 }
 
-function Reader({ doc, loaded }: { doc: ReaderDoc; loaded: Loaded }) {
+function Reader({ doc, file, loaded }: { doc: ReaderDoc; file: File; loaded: Loaded }) {
   const { pdf, pages, aspect } = loaded;
   const api = useReaderApi();
   // Reduced motion, or Settings → Reader's "instant" page turn: no curl.
@@ -178,6 +180,8 @@ function Reader({ doc, loaded }: { doc: ReaderDoc; loaded: Loaded }) {
     return { page: clampPage(p.page, pages), y: p.y };
   });
   const placeRef = React.useRef(place);
+  /** Read-along looks again after a turn (set below, once it exists). */
+  const raUpdateRef = React.useRef<() => void>(() => undefined);
   const [zoom, setZoom] = React.useState(1);
   const [panel, setPanel] = React.useState<"thumbs" | "outline" | null>(null);
   const [query, setQuery] = React.useState("");
@@ -200,7 +204,17 @@ function Reader({ doc, loaded }: { doc: ReaderDoc; loaded: Loaded }) {
 
   // A place saved later on another device (the server's answer to the open, or the library refetched on focus):
   // the view is made again at it (close on the desktop, open on the phone: same page).
+  // Not while read aloud holds the place (V48).
   const [resumed, setResumed] = React.useState(0);
+  const voiceHolds = React.useRef(false);
+  /** Read-along's follow off, for turns made with the reader's own controls (set below). */
+  const turned = React.useRef<() => void>(() => undefined);
+  /** The page and line of the sentence read aloud, while there is one. */
+  const spoken = React.useRef<{ page: number; y: number } | null>(null);
+  const layoutRef = React.useRef(layout);
+  React.useLayoutEffect(() => {
+    layoutRef.current = layout;
+  });
   const resume = useResume(doc, stageEl, (next: Progress) => {
     const l = parseLocator(next.locator);
     if (l?.kind !== "pdf") return;
@@ -209,15 +223,21 @@ function Reader({ doc, loaded }: { doc: ReaderDoc; loaded: Loaded }) {
     placeRef.current = p;
     setPlace(p);
     setResumed((n) => n + 1);
-  });
+  }, voiceHolds);
 
   const report = React.useCallback(
     (p: Place, percent: number) => {
       placeRef.current = p;
       setPlace(p);
+      // Following the voice, the voice saves the place. A book turned away from its page is the owner's turn: follow off.
+      if (voiceHolds.current) {
+        const page = spoken.current?.page;
+        if (mode !== "flip" || page === undefined || spreadPages(spreadOf(p.page, layoutRef.current), layoutRef.current).includes(page)) return;
+        turned.current();
+      }
       resume.save(formatLocator({ kind: "pdf", page: p.page, y: p.y }), percent);
     },
-    [resume],
+    [resume, mode],
   );
 
   // The open itself moves the document up "Continue reading", under the place's own clock (resume.ts).
@@ -231,6 +251,7 @@ function Reader({ doc, loaded }: { doc: ReaderDoc; loaded: Loaded }) {
 
   const onSpread = React.useCallback(
     (s: number) => {
+      raUpdateRef.current();
       const open = spreadPages(s, layout);
       // Still on the same page (a resize, a switch back): keep the place within it.
       if (open.includes(placeRef.current.page)) return;
@@ -249,8 +270,54 @@ function Reader({ doc, loaded }: { doc: ReaderDoc; loaded: Loaded }) {
     if (m !== mode) api.update({ id: doc.id, mode: m });
   };
   const goTo = (page: number) => {
+    turned.current();
     view()?.goTo(clampPage(page, pages));
   };
+
+  // ── Read aloud (V48) ──
+  const [say, setSay] = React.useState<SayBoxes[] | null>(null);
+  const sayGen = React.useRef(0);
+  /** The pages the book has open now. */
+  const openNow = () => spreadPages(spreadOf(placeRef.current.page, layoutRef.current), layoutRef.current);
+  const target: ReadAlongTarget = {
+    startAt: (list) => firstPdfSentence(list, placeRef.current),
+    mark: (s) => {
+      const gen = ++sayGen.current;
+      spoken.current = s ? pdfAt(s.locator) : null;
+      if (!s) {
+        setSay(null);
+        return;
+      }
+      void sentenceBoxes(pdf, s).then((boxes) => {
+        if (gen === sayGen.current) setSay(boxes);
+      });
+    },
+    bring: (_s, smooth) => {
+      const at = spoken.current;
+      if (!at) return;
+      if (mode === "flip") {
+        if (!openNow().includes(at.page)) book.current?.goTo(at.page);
+      } else scroll.current?.bring(at.page, at.y, smooth);
+    },
+    where: () => {
+      const at = spoken.current;
+      if (!at) return null;
+      return mode === "flip" ? pageDirection(at.page, openNow()) : (scroll.current?.where(at.page, at.y) ?? null);
+    },
+    save: (s) => {
+      const at = spoken.current;
+      // V44 parity: a PDF sentence's locator is the reader's own place for its line.
+      if (at) resume.follow(s.locator, pdfPercent(at.page, at.y, pages));
+      return at !== null;
+    },
+  };
+  const ra = useReadAlong({ doc, file, stage: stageEl, book: mode === "flip", viewKey: `${mode}:${String(resumed)}:${String(single)}`, target });
+
+  React.useLayoutEffect(() => {
+    turned.current = ra.turned;
+    raUpdateRef.current = ra.update;
+    voiceHolds.current = ra.holding;
+  });
 
   const paper = paperPref.use();
   const [paperPreview, setPaperPreview] = React.useState<Paper | null>(null);
@@ -285,6 +352,8 @@ function Reader({ doc, loaded }: { doc: ReaderDoc; loaded: Loaded }) {
       const v = view();
       if (!v) return;
       const turn = turnFor(e.key, e.shiftKey, mode === "flip");
+      // The reader acts on this key: the owner's move, so follow off (V48), even from a focused button.
+      if (turn !== null) turned.current();
       if (turn === "next") v.next();
       else if (turn === "prev") v.prev();
       else if (turn === "first") v.goTo(1);
@@ -352,13 +421,14 @@ function Reader({ doc, loaded }: { doc: ReaderDoc; loaded: Loaded }) {
               reduced={reduced}
               zoom={zoom}
               query={query}
+              say={say}
               onSpread={onSpread}
               fitWidth={single && !narrow}
               inset={BAR_H}
               chrome={chrome}
             />
           ) : (
-            <ScrollView key={resumed} ref={scroll} pdf={pdf} pages={pages} aspect={aspect} start={place} zoom={zoom} query={query} onPlace={onScrollPlace} inset={BAR_H} />
+            <ScrollView key={resumed} ref={scroll} pdf={pdf} pages={pages} aspect={aspect} start={place} zoom={zoom} query={query} onPlace={onScrollPlace} say={say} inset={BAR_H} />
           )
         ) : null}
         {panel === "outline" ? (
@@ -398,8 +468,14 @@ function Reader({ doc, loaded }: { doc: ReaderDoc; loaded: Loaded }) {
         onFirst={() => {
           goTo(1);
         }}
-        onPrev={() => view()?.prev()}
-        onNext={() => view()?.next()}
+        onPrev={() => {
+          turned.current();
+          view()?.prev();
+        }}
+        onNext={() => {
+          turned.current();
+          view()?.next();
+        }}
         onLast={() => {
           goTo(pages);
         }}
@@ -408,8 +484,10 @@ function Reader({ doc, loaded }: { doc: ReaderDoc; loaded: Loaded }) {
         onHide={() => {
           setHidden(true);
         }}
+        readAloud={<ReadAloudControls ra={ra} />}
         />
       </Bar>
+      <FollowPill ra={ra} />
       {hidden ? (
         <ShowControls
           awake={awake}
@@ -600,6 +678,7 @@ function BottomBar({
   onPage,
   onFull,
   onHide,
+  readAloud,
 }: {
   pages: number;
   field: string;
@@ -624,6 +703,8 @@ function BottomBar({
   onPage: (page: number) => void;
   onFull: () => void;
   onHide: () => void;
+  /** Read aloud's controls (read-along.tsx). */
+  readAloud: React.ReactNode;
 }) {
   const minZoom = zoom <= ZOOM_STEPS[0];
   const maxZoom = zoom >= (ZOOM_STEPS.at(-1) ?? 1);
@@ -661,6 +742,7 @@ function BottomBar({
           </Tip>
         </div>
         <div className="flex items-center justify-end gap-0.5">
+          {readAloud}
           {auto ? <AutoScrollControl on={auto.on} speed={auto.speed} onToggle={onAuto} onSpeed={onAutoSpeed} /> : null}
           {bookPages ? <BookPagesToggle value={bookPages} onChange={onBookPages} /> : null}
           <Tip label="Hide controls (H)" aria-label="Hide controls" onClick={onHide} className={ICON_BUTTON}>

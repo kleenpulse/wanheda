@@ -1,4 +1,4 @@
-import { OPFS_DIR, textName, type TextRequest, type TextResponse } from "@/lib/reader/device-protocol";
+import { OPFS_DIR, textName, type TextMessage, type TextRequest, type TextResponse } from "@/lib/reader/device-protocol";
 import { COMPLETE_TAIL, extractMarkdown, extractPdf, extractText, isCurrent, textFileHead, type Sentence } from "@/lib/reader/extract";
 
 // The reader's text worker (T50, V44): a document's sentences with their
@@ -23,7 +23,7 @@ type WorkerFileHandle = FileSystemFileHandle & { createSyncAccessHandle?: () => 
 
 const scope = self as unknown as {
   onmessage: ((event: MessageEvent<TextRequest>) => void) | null;
-  postMessage: (message: TextResponse) => void;
+  postMessage: (message: TextMessage) => void;
 };
 
 // ── Output ───────────────────────────────────────────────────────────────
@@ -121,7 +121,20 @@ async function storedIsCurrent(dir: FileSystemDirectoryHandle, name: string): Pr
 
 // ── Extraction ───────────────────────────────────────────────────────────
 
-async function extractPdfFile(file: File, emit: (s: Sentence) => void, signal: AbortSignal): Promise<void> {
+/** Progress goes out at most this often: a page a millisecond would flood the page's thread. */
+const PROGRESS_MS = 150;
+
+function progressTo(sha256: string): (done: number, total: number) => void {
+  let last = 0;
+  return (done, total) => {
+    const now = performance.now();
+    if (now - last < PROGRESS_MS && done < total) return;
+    last = now;
+    scope.postMessage({ type: "progress", sha256, done, total });
+  };
+}
+
+async function extractPdfFile(file: File, emit: (s: Sentence) => void, signal: AbortSignal, onPage: (done: number, total: number) => void): Promise<void> {
   const [pdfjs, { pdfParams }] = await Promise.all([import("pdfjs-dist"), import("./pdf/source")]);
   // The reader's own pdf.js worker asset (engine.ts), started from here.
   const src = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url);
@@ -143,7 +156,7 @@ async function extractPdfFile(file: File, emit: (s: Sentence) => void, signal: A
   signal.addEventListener("abort", stop, { once: true });
   try {
     const pdf = await task.promise;
-    await extractPdf(pdf, emit, signal);
+    await extractPdf(pdf, emit, signal, onPage);
     if (read.failed) throw new Error("file read failed");
   } finally {
     signal.removeEventListener("abort", stop);
@@ -155,7 +168,7 @@ async function extractPdfFile(file: File, emit: (s: Sentence) => void, signal: A
 
 async function extract(req: TextRequest & { type: "extract" }, emit: (s: Sentence) => void, signal: AbortSignal): Promise<void> {
   if (req.kind === "pdf") {
-    await extractPdfFile(req.file, emit, signal);
+    await extractPdfFile(req.file, emit, signal, progressTo(req.sha256));
     return;
   }
   // The reader reads Markdown and text the same way (md-reader.tsx: File.text, UTF-8).

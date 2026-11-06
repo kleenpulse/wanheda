@@ -1266,6 +1266,8 @@ html[data-motion="reduce"]::view-transition-new(*) {
 /* Find (CSS Custom Highlight API): every match tinted, the current one solid. */
 ::highlight(reader-find) { background-color: color-mix(in oklab, var(--signal) 30%, transparent); }
 ::highlight(reader-find-now) { background-color: var(--signal); color: var(--stage); }
+/* Read-along (V48): the sentence being read aloud, a soft wash under find's marks. */
+::highlight(reader-say) { background-color: color-mix(in oklab, var(--signal) 18%, transparent); }
 
 /* MarqueeText (components/ui/marquee-text.tsx): only an edge with text running past it fades.
    The component animates --marquee-fade (the left fade) and the slide itself, one pass then a

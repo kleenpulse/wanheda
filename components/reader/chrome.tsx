@@ -141,6 +141,7 @@ export function Bar({
   return (
     <div
       {...events}
+      data-reader-bar=""
       className={cn(
         "absolute inset-x-0 z-20 bg-stage/72 backdrop-blur-md transition-opacity duration-200",
         edge === "top" ? "top-0" : "bottom-0",

@@ -392,6 +392,15 @@ export const useSpeech = create<SpeechState>()((set, get) => {
   };
 });
 
+/**
+ * Lets the audio context run, in a press's own turn. For a press whose play
+ * comes later (read-along waits on the document's text first, V48): the
+ * browser may not allow audio started after the await.
+ */
+export function primeSpeech(): void {
+  player.unlock();
+}
+
 /** The Piper queue's numbers for the current speech (exit log, V50), or null on Web Speech or idle. */
 export function speechStats(): QueueStats | null {
   return driver instanceof PiperDriver ? driver.stats() : null;
