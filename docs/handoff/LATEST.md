@@ -1,6 +1,6 @@
 # Latest hand-off
 
-**Newest:** [2026-11-06-phase-4-net-goals.md](2026-11-06-phase-4-net-goals.md). **Phase 4 CP4 (T43: net view, goals, income alerts on the island) built on `phase-4/net-goals`; Reviewer wanheda-e9 LGTM with nits (both taken) ⇒ committed, pushed, PR opened; merge on green checks (overnight order).** PR #27 (T42) merged under the user's overnight order (review → PR → green → merge → next task). Built: `/income` as three pages (Products, Net, Goals) with shared `RouteTabs`; net = ledger income − spending in the base currency, savings rate, cash, runway; SaaS revenue beside, never added; MRR and savings goals with a 90-day projection; island `saas-alert`. Decisions taken overnight are listed in the hand-off for the user to check. No new SQL (`goal` ∈ 0006), no new deps. Typecheck, Vitest 82 files / 872, tripwire, ESLint on touched files pass; demo browser run done. **Next: T44 needs the user** (real Polar org + metrics token), so the loop stops after T43. `app/globals.css` is another session's edit: left out.
+**Newest:** [2026-11-06-phase-5-reader-core.md](2026-11-06-phase-5-reader-core.md). **T46 (reader core, local-only) built, reviewed (LGTM with nits, nits 1–2 fixed) and in PR #30 for the user to merge.** `drizzle/0007_reader.sql` is generated and **not applied**: `bun run db:migrate` waits for the user's go-ahead, then an owner run (add a PDF, open it on a second device, relink, resume). Next: T47 `phase-5/pdf-viewer` in a fresh session after #30 merges. T44 is still deferred until the first real Polar sale.
 
 Read the hand-off first, then verify it against the repo before trusting it (git, tripwire, typecheck, tests). The Builder and Reviewer prompts below are copied from it.
 
@@ -11,16 +11,18 @@ You are the BUILDER session for Wanheda at D:\Vxrcel\wanheda. Lean mode (user, 2
 tightened 2026-11-05): build features; tests only where they guard real logic or a spec exit
 case; keep tripwire, forged-commit check and CI; one typecheck + test run before a commit;
 after the Reviewer peer's LGTM (or LGTM with nits) commit, push and open the PR without asking
-(user 2026-11-05); merge and db:migrate stay the user's unless the user has said otherwise for
-the session. A short hand-off + continuation prompt after every PR. No worktrees. House goal
-(CLAUDE.md): native-app feel, V24.
+(user 2026-11-05); merge and db:migrate stay the user's. A short hand-off + continuation prompt
+after every PR. No worktrees. One checkpoint per session. House goal (CLAUDE.md): native-app
+feel, V24.
 
-Read docs/handoff/2026-11-06-phase-4-net-goals.md first. T44 (Phase 4 exit) needs the user:
-a Polar organization access token with metrics:read; connect, map products, Sync now, then
-compare Polar's MRR to Wanheda's /income parity card on the same day. Run the other T44 exit
-checks (same webhook 3x = no change; refund before payment; rebuild = same numbers) against
-the owner's data with the user, then write the Phase 4 done hand-off with Phase 5 prompts.
-Leave app/globals.css out. Never bunx an unpinned tool.
+Read docs/handoff/2026-11-06-phase-5-reader-core.md first. Check the T46 PR is merged and
+whether 0007 is applied (ask the user; never migrate yourself). Branch phase-5/pdf-viewer off
+main. Build T47 per SPEC §T and V40, V41, V43: react-pdf 11.0.0 + pdfjs-dist 6.3.289 exact
+(7-day cooldown; no bunx of unpinned tools), viewer client-only, worker via new URL(...,
+import.meta.url) never copied to public/ (no tracked .mjs), isEvalSupported false; virtual
+pages, text layer, find, outline, thumbnails, zoom; progress `pdf:<page>:<y‰>` through the
+existing reader runtime; replace the iframe stopgap in components/reader/document-view.tsx;
+page-one covers as webp in OPFS (`<sha>.cover.webp`).
 ```
 
 ### Reviewer prompt
@@ -29,11 +31,8 @@ Leave app/globals.css out. Never bunx an unpinned tool.
 You are the REVIEWER session for Wanheda at D:\Vxrcel\wanheda. Use the diff-reviewer skill;
 read-only. One pass, bugs and edge cases only, verdict LGTM / LGTM with nits / FIX, sent to the
 Builder. Your LGTM is not the user's approval.
-Target: the T43 diff on phase-4/net-goals (uncommitted). Riskiest: money never summed across
-currencies (netByMonth/cashIn convert per V26, missing rates kept apart; MRR goals one currency);
-goalProgress projection maths and statuses; saveGoal ownership (setWhere user, product owned);
-optimistic goal writes vs a background refetch; undo-delete only on expiry; runway's month
-filter; island alert window (48 h, unread, V37 keys); V24 (no skeleton on a hop between the
-income pages; money Prefetch in Suspense).
-Context: docs/handoff/2026-11-06-phase-4-net-goals.md.
+Target: the T47 diff on phase-5/pdf-viewer. Riskiest: pdf.js hardening (isEvalSupported false,
+same-origin worker, no tracked .mjs), react-pdf and pdfjs-dist versions matching exactly,
+memory (pages rendered only in view ± 2, canvases freed), progress locators and resume,
+V24 (no skeleton on a hop). Context: docs/handoff/2026-11-06-phase-5-reader-core.md.
 ```

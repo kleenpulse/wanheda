@@ -5,6 +5,7 @@ import { AccountProvider } from "@/components/shell/account";
 import { Island } from "@/components/island/island";
 import { MoneyProvider } from "@/components/money/money-provider";
 import { NotesProvider } from "@/components/notes/notes-provider";
+import { ReaderProvider } from "@/components/reader/reader-provider";
 import { QueryProvider } from "@/components/providers/query-provider";
 import { NotificationCentre } from "@/components/notifications/notification-centre";
 import { NotificationsProvider, type NoticesSource } from "@/components/notifications/notifications-provider";
@@ -90,6 +91,7 @@ export function ShellFrame({
       <QueryProvider>
       <NotesProvider>
       <MoneyProvider>
+      <ReaderProvider>
       <PrefsProvider initial={prefs.initial} source={prefs.source}>
       <NotificationsProvider initial={notices.initial} source={notices.source}>
       <div
@@ -112,6 +114,7 @@ export function ShellFrame({
       </div>
       </NotificationsProvider>
       </PrefsProvider>
+      </ReaderProvider>
       </MoneyProvider>
       </NotesProvider>
       </QueryProvider>

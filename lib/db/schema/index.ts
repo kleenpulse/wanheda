@@ -4,4 +4,5 @@ export * from "./money";
 export * from "./notes";
 export * from "./notifications";
 export * from "./prefs";
+export * from "./reader";
 export * from "./saas";

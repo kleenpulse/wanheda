@@ -11,7 +11,7 @@ import { parseLocation, type WeatherLocation } from "@/lib/weather/location";
 // None of these vars is NEXT_PUBLIC_, so server code reads them at runtime and
 // one build serves demo, locked and gated by env alone. Keep it that way.
 
-export type Capability = "db" | "auth" | "connectors";
+export type Capability = "db" | "auth" | "connectors" | "files";
 
 const MIN_SECRET_LENGTH = 32;
 
@@ -42,6 +42,23 @@ export function ownerEmails(): ReadonlySet<string> {
 /** The key that seals connector secrets (SPEC V33), or null if unset or malformed. */
 export function connectorSealKey(): Uint8Array | null {
   return sealKeyBytes(process.env.CONNECTOR_SEAL_KEY);
+}
+
+export interface R2Settings {
+  accountId: string;
+  accessKeyId: string;
+  secretAccessKey: string;
+  bucket: string;
+}
+
+/** The reader's R2 bucket (SPEC V38), or null unless all four parts are set. */
+export function r2Settings(): R2Settings | null {
+  const accountId = value(process.env.R2_ACCOUNT_ID);
+  const accessKeyId = value(process.env.R2_ACCESS_KEY_ID);
+  const secretAccessKey = value(process.env.R2_SECRET_ACCESS_KEY);
+  const bucket = value(process.env.R2_BUCKET);
+  if (!accountId || !accessKeyId || !secretAccessKey || !bucket) return null;
+  return { accountId, accessKeyId, secretAccessKey, bucket };
 }
 
 export interface AuthSettings {
@@ -79,6 +96,9 @@ const PREDICATES: Record<Capability, () => boolean> = {
   auth: () => PREDICATES.db() && authSettings() !== null,
   // Billing connectors keep sealed secrets in the database, so they need both.
   connectors: () => PREDICATES.db() && connectorSealKey() !== null,
+  // Reader files in R2 (V38). Rows live in the database, so it needs both.
+  // Off means local-only: file bytes stay in each device's OPFS.
+  files: () => PREDICATES.db() && r2Settings() !== null,
 };
 
 /** Is this capability configured? Sync, never throws. */

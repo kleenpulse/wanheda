@@ -93,3 +93,37 @@ describe("authSettings", () => {
     expect(authSettings()?.baseURL).toBeUndefined();
   });
 });
+
+describe("files (reader R2, SPEC V38)", () => {
+  const R2 = {
+    R2_ACCOUNT_ID: "0".repeat(32),
+    R2_ACCESS_KEY_ID: "key-id",
+    R2_SECRET_ACCESS_KEY: "key-secret",
+    R2_BUCKET: "wanheda-reader",
+  };
+  const NAMES = Object.keys(R2) as (keyof typeof R2)[];
+  const stubR2 = (values: Partial<typeof R2>) => {
+    for (const name of NAMES) vi.stubEnv(name, values[name] ?? "");
+  };
+
+  it("is off with no R2 vars: the reader is local-only", () => {
+    setEnv(DB);
+    stubR2({});
+    expect(has("files")).toBe(false);
+  });
+
+  it("is off when any one of the four is missing", () => {
+    setEnv(DB);
+    for (const name of NAMES) {
+      stubR2({ ...R2, [name]: "" });
+      expect(has("files")).toBe(false);
+    }
+  });
+
+  it("needs the database too", () => {
+    stubR2(R2);
+    expect(has("files")).toBe(false);
+    setEnv(DB);
+    expect(has("files")).toBe(true);
+  });
+});

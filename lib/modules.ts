@@ -1,4 +1,4 @@
-import { CalendarClock, ChartColumnStacked, CloudSun, Clock, DollarSign, House, NotebookPen, Pin, Settings, Sunrise, Target, Timer, TrendingUp, Wallet, type LucideIcon } from "lucide-react";
+import { BookOpen, BookOpenText, CalendarClock, ChartColumnStacked, CloudSun, Clock, DollarSign, House, NotebookPen, Pin, Settings, Sunrise, Target, Timer, TrendingUp, Wallet, type LucideIcon } from "lucide-react";
 import type { Route } from "next";
 
 // The module registry (FRD 4.2). The shell builds the rail, the tab bar, the
@@ -178,8 +178,26 @@ const INCOME = {
   activities: ["saas-alert"],
 } as const satisfies ModuleManifest;
 
+const READER = {
+  id: "reader",
+  title: "Reader",
+  icon: BookOpen,
+  route: "/reader",
+  blurb: "Your library: PDFs, Markdown and text",
+  widgets: [
+    {
+      id: "reader.continue",
+      title: "Continue reading",
+      blurb: "Pick up where you stopped, on any device",
+      icon: BookOpenText,
+      size: { w: 4, h: 3, minW: 3, minH: 2, maxH: 5 },
+    },
+  ],
+  windows: [],
+} as const satisfies ModuleManifest;
+
 /** The apps, in rail order. */
-export const MODULES = [HOME, MONEY, INCOME, NOTES] as const satisfies readonly ModuleManifest[];
+export const MODULES = [HOME, MONEY, INCOME, NOTES, READER] as const satisfies readonly ModuleManifest[];
 
 const TIMER = {
   id: "timer",
