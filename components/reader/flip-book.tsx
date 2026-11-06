@@ -454,7 +454,7 @@ export const FlipBook = React.forwardRef<BookHandle, FlipBookProps>(function Fli
   React.useEffect(() => {
     const el = scroller.current;
     if (!el || !zoomed) return;
-    let drag: { id: number; x: number; y: number; left: number; top: number } | null = null;
+    let drag: { id: number; x: number; y: number; left: number; top: number; moved: boolean } | null = null;
     const block = (e: Event) => {
       e.stopPropagation();
     };
@@ -462,20 +462,40 @@ export const FlipBook = React.forwardRef<BookHandle, FlipBookProps>(function Fli
       e.stopPropagation();
       if (e.pointerType !== "mouse" || e.button !== 0) return;
       e.preventDefault();
-      drag = { id: e.pointerId, x: e.clientX, y: e.clientY, left: el.scrollLeft, top: el.scrollTop };
+      drag = { id: e.pointerId, x: e.clientX, y: e.clientY, left: el.scrollLeft, top: el.scrollTop, moved: false };
       el.setPointerCapture(e.pointerId);
       el.style.cursor = "grabbing";
     };
+    const end = (id: number) => {
+      drag = null;
+      el.style.cursor = "";
+      if (el.hasPointerCapture(id)) el.releasePointerCapture(id);
+    };
     const move = (e: PointerEvent) => {
       if (!drag || e.pointerId !== drag.id) return;
-      el.scrollLeft = drag.left - (e.clientX - drag.x);
-      el.scrollTop = drag.top - (e.clientY - drag.y);
+      // The button came up somewhere we never heard of (focus left mid-drag): the drag is over.
+      if (e.buttons === 0) {
+        end(e.pointerId);
+        return;
+      }
+      const dx = e.clientX - drag.x;
+      const dy = e.clientY - drag.y;
+      if (Math.abs(dx) > 4 || Math.abs(dy) > 4) drag.moved = true;
+      el.scrollLeft = drag.left - dx;
+      el.scrollTop = drag.top - dy;
     };
     const up = (e: PointerEvent) => {
       if (!drag || e.pointerId !== drag.id) return;
-      drag = null;
-      el.style.cursor = "";
-      if (el.hasPointerCapture(e.pointerId)) el.releasePointerCapture(e.pointerId);
+      // A pan isn't a click: the click that follows it doesn't reach the page (a link on it, say).
+      if (drag.moved) el.addEventListener("click", swallow, { capture: true, once: true });
+      end(e.pointerId);
+    };
+    const lost = (e: PointerEvent) => {
+      if (drag && e.pointerId === drag.id) end(e.pointerId);
+    };
+    const swallow = (e: Event) => {
+      e.stopPropagation();
+      e.preventDefault();
     };
     const opts = { capture: true };
     const blocked = ["mousedown", "mousemove", "touchstart", "touchmove", "pointerup"] as const;
@@ -483,12 +503,15 @@ export const FlipBook = React.forwardRef<BookHandle, FlipBookProps>(function Fli
     el.addEventListener("pointermove", move, opts);
     el.addEventListener("pointerup", up, opts);
     el.addEventListener("pointercancel", up, opts);
+    el.addEventListener("lostpointercapture", lost, opts);
     for (const t of blocked) el.addEventListener(t, block, opts);
     return () => {
       el.removeEventListener("pointerdown", down, opts);
       el.removeEventListener("pointermove", move, opts);
       el.removeEventListener("pointerup", up, opts);
       el.removeEventListener("pointercancel", up, opts);
+      el.removeEventListener("lostpointercapture", lost, opts);
+      el.removeEventListener("click", swallow, opts);
       for (const t of blocked) el.removeEventListener(t, block, opts);
       el.style.cursor = "";
     };

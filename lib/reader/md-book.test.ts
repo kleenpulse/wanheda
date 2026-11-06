@@ -169,6 +169,11 @@ describe("mdPageBox", () => {
     expect(box?.width).toBe(300);
     expect(box && box.height / box.width).toBeCloseTo(2.1, 5);
   });
+  it("can give a single page a shorter text column than a spread page (why one-page is decided at the spread, Reviewer FIX)", () => {
+    const text = (b: ReturnType<typeof mdPageBox>) => (b ? b.height - b.padTop - b.padBottom : 0);
+    // Both capped by the room's height: the wider single page's bigger margins come off the height too.
+    expect(text(mdPageBox(848, 684, true))).toBeLessThan(text(mdPageBox(848, 684, false)));
+  });
   it("is null before the room is measured", () => {
     expect(mdPageBox(0, 500, false)).toBeNull();
   });

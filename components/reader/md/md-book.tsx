@@ -116,13 +116,19 @@ export const MdBook = React.forwardRef<
   const narrow = width > 0 && width < SINGLE_BELOW;
   // Read every render (a hook): never behind the `||`, or turning narrow would skip it.
   const bookPages = bookPagesPref.use();
-  // A text that fits one page reads as a single page (user 2026-11-06): a spread would show it in the right
-  // half, the left one empty. Its single page is no smaller than a spread's, so it stays one page.
-  const [onePage, setOnePage] = React.useState(false);
-  const single = narrow || onePage || bookPages === "single";
   const [room, setRoom] = React.useState<{ w: number; h: number } | null>(null);
-  const box = React.useMemo(() => (room ? mdPageBox(room.w, room.h, single) : null), [room, single]);
   const fontSize = BASE_PX * scale;
+  /** Bumps when the flow's content or height changes under the same width: lay it out again. */
+  const [content, setContent] = React.useState(0);
+  // A text that fits one page reads as a single page (user 2026-11-06): a spread would show it in the right
+  // half, the left one empty. Decided only from a layout at the spread's page, and kept for that room, text
+  // size and content: a single page's wider margins can leave a shorter text column, so the same text may
+  // take 2 single pages, and deciding again from that layout would flip back and forth (Reviewer FIX).
+  const [fitsOne, setFitsOne] = React.useState<{ w: number; h: number; fontSize: number; text: string; content: number } | null>(null);
+  const onePage =
+    fitsOne !== null && room !== null && fitsOne.w === room.w && fitsOne.h === room.h && fitsOne.fontSize === fontSize && fitsOne.text === text && fitsOne.content === content;
+  const single = narrow || onePage || bookPages === "single";
+  const box = React.useMemo(() => (room ? mdPageBox(room.w, room.h, single) : null), [room, single]);
   const textW = box ? box.width - 2 * box.padX : 0;
   const textH = box ? box.height - box.padTop - box.padBottom : 0;
 
@@ -136,8 +142,6 @@ export const MdBook = React.forwardRef<
    */
   const [atPage, setAtPage] = React.useState(1);
   const laidRef = React.useRef<Laid | null>(null);
-  /** Bumps when the flow's content or height changes under the same width: lay it out again. */
-  const [content, setContent] = React.useState(0);
   const spreadRef = React.useRef(0);
   /** Per page filled: flow text node → its copy's. */
   const copies = React.useRef(new Map<number, Map<Text, Text>>());
@@ -201,8 +205,9 @@ export const MdBook = React.forwardRef<
     laidRef.current = l;
     setLaid(l);
     setAtPage(start);
-    setOnePage(pages.length === 1);
-  }, [box, textH, textW, fontSize, content, text, heldPage]);
+    // Laid out at the spread's page: whether it fits one. (A single-page layout never decides it.)
+    if (!single && room) setFitsOne(pages.length === 1 ? { w: room.w, h: room.h, fontSize, text, content } : null);
+  }, [box, textH, textW, fontSize, content, text, heldPage, single, room]);
 
   const tellRef = React.useRef(tell);
   React.useLayoutEffect(() => {
