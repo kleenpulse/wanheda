@@ -126,16 +126,18 @@ function storeWarning(error: "unavailable" | "quota" | "failed" | null) {
 }
 
 /**
- * Makes a PDF's page-one cover in the background (T47). pdf.js loads only
- * now, on the first PDF added, so the library itself never pulls it in.
+ * Reads a PDF just added, in the background and once: its page-one cover
+ * (T47, unless this device has one) and its page count (T49). pdf.js loads
+ * only now, on the first PDF added, so the library itself never pulls it in.
  */
-function makeCover(sha256: string, file: File, demo: boolean) {
-  void (async () => {
-    if (await hasCover(sha256, demo)) return;
-    const { coverOfFile } = await import("./pdf/engine");
-    const blob = await coverOfFile(file);
-    if (blob) await keepCover(sha256, blob, demo);
-  })().catch(() => undefined);
+function readNewPdf(sha256: string, file: File, demo: boolean): Promise<number | null> {
+  return (async () => {
+    const withCover = !(await hasCover(sha256, demo));
+    const { pdfFactsOfFile } = await import("./pdf/engine");
+    const facts = await pdfFactsOfFile(file, withCover);
+    if (facts.cover) await keepCover(sha256, facts.cover, demo);
+    return facts.pages;
+  })().catch(() => null);
 }
 
 export function useReaderApi() {
@@ -147,6 +149,27 @@ export function useReaderApi() {
       qc.setQueryData<ReaderPayload>(READER_KEY, (p) => (p ? fn(p) : p));
     },
     [qc],
+  );
+
+  /**
+   * A PDF's page count, read on this device (T49): in the cache at once, then
+   * saved quietly. A failed save says nothing: the next open reads it again.
+   */
+  const setPages = React.useCallback(
+    (id: string, pages: number) => {
+      const doc = qc.getQueryData<ReaderPayload>(READER_KEY)?.documents.find((d) => d.id === id);
+      if (!doc || doc.pages === pages) return;
+      void qc.cancelQueries({ queryKey: READER_KEY });
+      patchCache((p) => ({ ...p, documents: p.documents.map((d) => (d.id === id ? { ...d, pages } : d)) }));
+      if (demo) return;
+      void updateDocument({ id, pages }).then(
+        (r) => {
+          if (r.ok) patchCache((p) => upsertDoc(p, r.doc));
+        },
+        () => undefined,
+      );
+    },
+    [qc, demo, patchCache],
   );
 
   /**
@@ -173,12 +196,18 @@ export function useReaderApi() {
         if (demo) demoFiles.set(hashed.sha256, file);
         else storeWarning(hashed.storeError);
         refreshDevice(qc);
-        if (check.kind === "pdf") makeCover(hashed.sha256, file, demo);
+        const pagesRead = check.kind === "pdf" ? readNewPdf(hashed.sha256, file, demo) : null;
+        const keepPages = (id: string) => {
+          void pagesRead?.then((n) => {
+            if (n !== null) setPages(id, n);
+          });
+        };
 
         const known = qc.getQueryData<ReaderPayload>(READER_KEY)?.documents.find((d) => d.sha256 === hashed.sha256);
         if (known) {
           toast({ title: `${known.title} is already in your library`, ...(hashed.stored || demo ? { body: "It's on this device now." } : {}) });
           added.push(known);
+          keepPages(known.id);
           continue;
         }
 
@@ -201,7 +230,10 @@ export function useReaderApi() {
         void qc.cancelQueries({ queryKey: READER_KEY });
         patchCache((p) => upsertDoc(p, doc));
         added.push(doc);
-        if (demo) continue;
+        if (demo) {
+          keepPages(doc.id);
+          continue;
+        }
 
         const drop = () => {
           patchCache((p) => ({ ...p, documents: p.documents.filter((d) => d.id !== doc.id) }));
@@ -222,6 +254,7 @@ export function useReaderApi() {
           if (r.existing) drop();
           patchCache((p) => upsertDoc(p, r.doc));
           added[added.length - 1] = r.doc;
+          keepPages(r.doc.id);
         } else {
           drop();
           added.pop();
@@ -233,7 +266,7 @@ export function useReaderApi() {
       }
       return added;
     },
-    [qc, demo, patchCache],
+    [qc, demo, patchCache, setPages],
   );
 
   /**
@@ -282,6 +315,7 @@ export function useReaderApi() {
         ...(patch.author === undefined ? {} : { author: patch.author || null }),
         ...(patch.tags === undefined ? {} : { tags: patch.tags }),
         ...(patch.mode === undefined ? {} : { mode: patch.mode }),
+        ...(patch.pages === undefined ? {} : { pages: patch.pages }),
         ...(patch.collections === undefined ? {} : { collections: [...new Set(patch.collections)].sort() }),
       };
       void qc.cancelQueries({ queryKey: READER_KEY });
@@ -433,5 +467,5 @@ export function useReaderApi() {
     [demo, patchCache],
   );
 
-  return { addFiles, relink, update, remove, saveCollection: saveCollectionWith, removeCollection };
+  return { addFiles, relink, update, setPages, remove, saveCollection: saveCollectionWith, removeCollection };
 }

@@ -2,12 +2,10 @@
 
 import * as React from "react";
 import {
-  BookOpen,
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
-  Columns2,
   EyeOff,
   LayoutGrid,
   ListTree,
@@ -15,11 +13,8 @@ import {
   Minimize,
   Minus,
   Plus,
-  RectangleVertical,
-  ScrollText,
   X,
 } from "lucide-react";
-import { motion } from "motion/react";
 import { Outline } from "react-pdf";
 import type { PDFDocumentProxy } from "pdfjs-dist";
 import { useAccount } from "@/components/shell/account";
@@ -29,11 +24,9 @@ import { useReducedMotion } from "@/hooks/use-reduced-motion";
 import {
   ZOOM_STEPS,
   clampPage,
-  cleanPageField,
   nextZoom,
   normalizeQuery,
   pageFieldText,
-  parsePageField,
   pdfPercent,
   spreadCount,
   spreadOf,
@@ -41,15 +34,31 @@ import {
   spreadPercent,
   type BookLayout,
 } from "@/lib/reader/book";
-import { TAB_SPRING } from "@/lib/motion";
 import { formatLocator, parseLocator, type ReaderDoc, type ReadingMode } from "@/lib/reader/reader";
 import { cn } from "@/lib/utils";
 import { hasCover, keepCover } from "../covers";
 import { forgetDoc, onForget } from "../doc-cache";
 import { useReaderRuntime } from "../reader-provider";
-import { createDevicePref } from "@/hooks/device-pref";
-import { AutoScrollControl, BAR_H, Bar, FindBox, ICON_BUTTON, ShowControls, Stage, autoSpeedPref, useAutoScroll, useChrome, useStage } from "../chrome";
+import {
+  AutoScrollControl,
+  BAR_H,
+  Bar,
+  BookPagesToggle,
+  FindBox,
+  ICON_BUTTON,
+  ModeSwitch,
+  PageField,
+  ShowControls,
+  Stage,
+  autoSpeedPref,
+  bookPagesPref,
+  useAutoScroll,
+  useChrome,
+  useStage,
+  type BookPages,
+} from "../chrome";
 import { type Paper, PaperMenu, paperPref, paperProps } from "../paper";
+import { pageTurnPref } from "../prefs";
 import { useReaderApi } from "../use-reader";
 import { BookView, type BookHandle } from "./book-view";
 import { coverOf, findPage, firstPageAspect, heldSha, onBroken, openPdf } from "./engine";
@@ -64,15 +73,6 @@ import { Thumbnails } from "./thumbnails";
 
 /** Under this stage width the book shows one page at a time (V42). */
 const SINGLE_BELOW = 768;
-
-// Spread or one page on a wide screen (user 2026-11-06: small print reads
-// better one page at a time). This device's choice for every PDF.
-type BookPages = "spread" | "single";
-const bookPagesPref = createDevicePref<BookPages>(
-  "wanheda-reader-book-pages",
-  (raw) => (raw === "single" ? "single" : "spread"),
-  (v) => v,
-);
 
 interface Loaded {
   sha256: string;
@@ -168,7 +168,9 @@ function Reader({ doc, loaded }: { doc: ReaderDoc; loaded: Loaded }) {
   const { pdf, pages, aspect } = loaded;
   const runtime = useReaderRuntime();
   const api = useReaderApi();
-  const reduced = useReducedMotion();
+  // Reduced motion, or Settings → Reader's "instant" page turn: no curl.
+  const reducedMotion = useReducedMotion();
+  const reduced = pageTurnPref.use() === "instant" || reducedMotion;
   const mode: ReadingMode = doc.mode;
 
   const [place, setPlace] = React.useState<Place>(() => {
@@ -184,7 +186,9 @@ function Reader({ doc, loaded }: { doc: ReaderDoc; loaded: Loaded }) {
   const [measureRef, width] = useElementWidth<HTMLDivElement>();
   const bookPages = bookPagesPref.use();
   const narrow = width > 0 && width < SINGLE_BELOW;
-  const single = narrow || bookPages === "single";
+  // One page is a single page (user 2026-11-06): a spread would show it in the right half, the left one empty.
+  const onePage = pages === 1;
+  const single = narrow || onePage || bookPages === "single";
   const layout = React.useMemo<BookLayout>(() => ({ pages, single }), [pages, single]);
 
   const book = React.useRef<BookHandle>(null);
@@ -204,6 +208,8 @@ function Reader({ doc, loaded }: { doc: ReaderDoc; loaded: Loaded }) {
   React.useEffect(() => {
     const p = placeRef.current;
     report(p, pdfPercent(p.page, p.y, pages));
+    // The page count, for the library: documents added before T49 (or on another device) learn it here.
+    if (doc.pages !== pages) api.setPages(doc.id, pages);
     // Once per open.
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -360,7 +366,7 @@ function Reader({ doc, loaded }: { doc: ReaderDoc; loaded: Loaded }) {
         field={mode === "flip" ? pageFieldText(spread, layout) : String(place.page)}
         zoom={zoom}
         full={full}
-        bookPages={mode === "flip" && !narrow ? bookPages : null}
+        bookPages={mode === "flip" && !narrow && !onePage ? bookPages : null}
         onBookPages={bookPagesPref.set}
         auto={canAuto ? { on: autoOn, speed: autoSpeed } : null}
         onAuto={() => {
@@ -524,51 +530,6 @@ function Find({
   return <FindBox text={text} onText={setText} status={status} quiet={state.kind === "none"} onFind={run} onClear={clear} onFocus={onSearch} />;
 }
 
-const MODES: readonly { value: ReadingMode; label: string; icon: typeof BookOpen }[] = [
-  { value: "flip", label: "Book", icon: BookOpen },
-  { value: "scroll", label: "Scroll", icon: ScrollText },
-];
-
-function ModeSwitch({ mode, onMode }: { mode: ReadingMode; onMode: (m: ReadingMode) => void }) {
-  const id = React.useId();
-  return (
-    <div role="group" aria-label="Reading mode" className="ml-auto flex shrink-0 items-center rounded-pill bg-stage-ink/8 p-1">
-      {MODES.map((m) => {
-        const on = mode === m.value;
-        const Icon = m.icon;
-        return (
-          <button
-            key={m.value}
-            type="button"
-            aria-pressed={on}
-            aria-label={m.label}
-            onClick={() => {
-              onMode(m.value);
-            }}
-            className={cn(
-              "relative isolate inline-flex h-7 items-center gap-1.5 rounded-pill px-2.5 text-[12px] font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring sm:px-3",
-              on ? "text-stage" : "text-stage-ink/65 hover:text-stage-ink",
-            )}
-          >
-            {on ? (
-              <motion.span
-                layoutId={`${id}-mode`}
-                layoutDependency={mode}
-                transition={TAB_SPRING}
-                aria-hidden
-                style={{ borderRadius: 9999 }}
-                className="absolute inset-0 -z-10 bg-stage-ink"
-              />
-            ) : null}
-            <Icon aria-hidden className="size-3.5" />
-            <span className="hidden sm:inline">{m.label}</span>
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
 // ── Contents ─────────────────────────────────────────────────────────────
 
 function OutlinePanel({ pdf, onPick, onClose }: { pdf: PDFDocumentProxy; onPick: (page: number) => void; onClose: () => void }) {
@@ -687,18 +648,7 @@ function BottomBar({
         </div>
         <div className="flex items-center justify-end gap-0.5">
           {auto ? <AutoScrollControl on={auto.on} speed={auto.speed} onToggle={onAuto} onSpeed={onAutoSpeed} /> : null}
-          {bookPages ? (
-            <Tip
-              label={bookPages === "spread" ? "One page at a time" : "Two-page spread"}
-              aria-label={bookPages === "spread" ? "Show one page at a time" : "Show a two-page spread"}
-              onClick={() => {
-                onBookPages(bookPages === "spread" ? "single" : "spread");
-              }}
-              className={ICON_BUTTON}
-            >
-              {bookPages === "spread" ? <RectangleVertical aria-hidden /> : <Columns2 aria-hidden />}
-            </Tip>
-          ) : null}
+          {bookPages ? <BookPagesToggle value={bookPages} onChange={onBookPages} /> : null}
           <Tip label="Hide controls (H)" aria-label="Hide controls" onClick={onHide} className={ICON_BUTTON}>
             <EyeOff aria-hidden />
           </Tip>
@@ -709,46 +659,5 @@ function BottomBar({
         </div>
       </div>
     </TooltipGroup>
-  );
-}
-
-/** `a-b / N`: shows the open pages; type a page and press Enter to go there. */
-function PageField({ field, pages, onPage }: { field: string; pages: number; onPage: (page: number) => void }) {
-  const [draft, setDraft] = React.useState<string | null>(null);
-  return (
-    <form
-      className="flex h-9 items-center gap-1.5 rounded-pill bg-stage-ink/8 px-3 focus-within:bg-stage-ink/12"
-      onSubmit={(e) => {
-        e.preventDefault();
-        const page = draft === null ? null : parsePageField(draft, pages);
-        setDraft(null);
-        (e.currentTarget.elements.namedItem("page") as HTMLInputElement | null)?.blur();
-        if (page !== null) onPage(page);
-      }}
-    >
-      <input
-        name="page"
-        value={draft ?? field}
-        onFocus={(e) => {
-          setDraft(field);
-          e.currentTarget.select();
-        }}
-        onChange={(e) => {
-          setDraft(cleanPageField(e.target.value));
-        }}
-        onBlur={() => {
-          setDraft(null);
-        }}
-        onKeyDown={(e) => {
-          if (e.key === "Escape") e.currentTarget.blur();
-        }}
-        inputMode="numeric"
-        autoComplete="off"
-        aria-label={`Page, of ${String(pages)}`}
-        className="tabular w-[7ch] bg-transparent text-right font-mono text-[12.5px] text-stage-ink outline-none"
-        style={{ width: `${String(Math.max(3, (draft ?? field).length + 1))}ch` }}
-      />
-      <span className="tabular font-mono text-[12.5px] whitespace-nowrap text-stage-ink/50">/ {pages}</span>
-    </form>
   );
 }

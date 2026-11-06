@@ -6,11 +6,13 @@ import { FileText, FileType2, Hash, type LucideIcon } from "lucide-react";
 import type { DocKind, ReaderDoc } from "@/lib/reader/reader";
 import { cn } from "@/lib/utils";
 import { useCover } from "./covers";
+import { coverFitPref, coverStylePref } from "./prefs";
 
 // A document's cover, drawn from its metadata: a duo-tone tint picked by the
 // file's hash (stable on every device), the title set in the display face and
 // the kind as a readout. A PDF shows its real page one instead once this
 // device has made it (covers.ts, T47); this is what it falls back to.
+// Settings → Reader picks page one or this title card, and how page one fits.
 
 const TONES = [
   "bg-cat-blue/14 text-cat-blue",
@@ -40,6 +42,12 @@ export function kindLabel(kind: DocKind): string {
   return KIND[kind].label;
 }
 
+/** "312 pages", "1 page", or null when the count isn't known yet (T49: read by pdf.js on add or open). */
+export function pagesLabel(pages: number | null): string | null {
+  if (pages === null) return null;
+  return `${pages.toLocaleString("en-GB")} ${pages === 1 ? "page" : "pages"}`;
+}
+
 export function Cover({
   doc,
   size = "md",
@@ -53,7 +61,11 @@ export function Cover({
   className?: string;
 }) {
   const demo = useAccount().kind !== "owner";
-  const image = useCover(doc, demo);
+  const page = useCover(doc, demo);
+  // Settings → Reader: page one or the title card, and page one filling the cover or whole.
+  const style = coverStylePref.use();
+  const fit = coverFitPref.use();
+  const image = style === "page" ? page : null;
   const t = tone(doc.sha256);
   const { icon: Icon, label } = KIND[doc.kind];
   if (image) {
@@ -63,8 +75,18 @@ export function Cover({
         className={cn("relative aspect-[3/4] w-full overflow-hidden bg-paper", size === "sm" ? "rounded-[8px]" : "rounded-[14px]", className)}
       >
         {/* A blob URL from this device: next/image can't optimise it. */}
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={image} alt="" draggable={false} className="size-full object-cover object-top" />
+        {fit === "whole" ? (
+          <>
+            {/* Whole: nothing cut. The page itself, blurred, fills the bands beside or above it. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={image} alt="" draggable={false} className="absolute inset-0 size-full scale-125 object-cover opacity-55 blur-xl saturate-150" />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={image} alt="" draggable={false} className="relative size-full object-contain" />
+          </>
+        ) : (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={image} alt="" draggable={false} className="size-full object-cover object-top" />
+        )}
         {size === "md" && badge ? <span className="absolute top-3 right-3 flex min-w-0 justify-end">{badge}</span> : null}
       </div>
     );

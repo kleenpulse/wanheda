@@ -157,3 +157,58 @@ export function PaperMenu({
 function Swatch({ paper, className }: { paper: Paper; className?: string }) {
   return <span aria-hidden className={cn("block shrink-0 rounded-full shadow-[inset_0_0_0_1px]", className)} style={{ background: COLOR[paper] }} />;
 }
+
+/** The papers as a row of swatches each for light and dark (Settings → Reader): a radio group. */
+export function PaperPicker({ paper, onPaper, labelledBy }: { paper: Paper; onPaper: (p: Paper) => void; labelledBy: string }) {
+  const all: Paper[] = [...TONES, ...TONES.map((t): Paper => `night-${t}`)];
+  // Ids unique to this picker, so two on screen at once never focus each other's swatches.
+  const base = React.useId();
+  const idOf = (p: Paper) => `${base}-${p}`;
+  const pick = (p: Paper | undefined) => {
+    if (!p) return;
+    onPaper(p);
+    document.getElementById(idOf(p))?.focus();
+  };
+  return (
+    <div
+      role="radiogroup"
+      aria-labelledby={labelledBy}
+      className="flex flex-col gap-1.5"
+      onKeyDown={(e) => {
+        const i = all.indexOf(paper);
+        const step = e.key === "ArrowRight" || e.key === "ArrowDown" ? 1 : e.key === "ArrowLeft" || e.key === "ArrowUp" ? -1 : 0;
+        if (!step) return;
+        e.preventDefault();
+        pick(all[(i + step + all.length) % all.length]);
+      }}
+    >
+      {(["light", "dark"] as const).map((group) => (
+        <div key={group} className="flex items-center gap-1">
+          {TONES.map((t) => {
+            const p: Paper = group === "light" ? t : `night-${t}`;
+            const on = p === paper;
+            return (
+              <button
+                key={p}
+                id={idOf(p)}
+                type="button"
+                role="radio"
+                aria-checked={on}
+                aria-label={labelOf(p)}
+                title={labelOf(p)}
+                tabIndex={on ? 0 : -1}
+                onClick={() => {
+                  onPaper(p);
+                }}
+                className="relative flex size-9 items-center justify-center rounded-[12px] outline-none transition-colors duration-100 hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring dark:hover:bg-accent"
+              >
+                <Swatch paper={p} className="size-7 shadow-foreground/15" />
+                {on ? <Check aria-hidden strokeWidth={2.5} className={cn("absolute size-3.5", isNight(p) ? "text-stage-ink" : "text-stage")} /> : null}
+              </button>
+            );
+          })}
+        </div>
+      ))}
+    </div>
+  );
+}

@@ -1157,19 +1157,22 @@ html[data-motion="reduce"]::view-transition-new(*) {
    stage's dark on a light paper, the stage's light on a dark one. No wash:
    the text is drawn in the paper's own ink. Shiki emits both themes as CSS
    variables (defaultColor false); the paper picks one. Tints, no borders. */
-.md-sheet {
+.md-sheet,
+.md-book-page {
 	--md-ink: var(--stage);
 	--md-ink-2: color-mix(in oklab, var(--md-ink) 74%, var(--paper));
 	--md-ink-3: color-mix(in oklab, var(--md-ink) 52%, var(--paper));
 	--md-rule: color-mix(in oklab, var(--md-ink) 14%, var(--paper));
 	--md-well: color-mix(in oklab, var(--md-ink) 6%, var(--paper));
 	--md-link: color-mix(in oklab, var(--signal) 62%, var(--md-ink));
+}
+.md-sheet {
 	background: var(--paper);
 	color: var(--md-ink);
 	line-height: 1.7;
 	overflow-wrap: anywhere;
 }
-.paper-night .md-sheet { --md-ink: color-mix(in oklab, var(--stage-ink) 90%, var(--paper)); }
+.paper-night :is(.md-sheet, .md-book-page) { --md-ink: color-mix(in oklab, var(--stage-ink) 90%, var(--paper)); }
 .md-sheet > * + * { margin-top: 1em; }
 .md-sheet :is(h1, h2, h3, h4, h5, h6) {
 	font-family: var(--font-display);
@@ -1239,6 +1242,27 @@ html[data-motion="reduce"]::view-transition-new(*) {
 .md-sheet .md-alt { font-style: italic; }
 .md-sheet .footnotes { margin-top: 3em; font-size: 0.88em; color: var(--md-ink-2); }
 .md-sheet .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+/* Markdown and text as a book (T49, components/reader/md/md-book.tsx). The text
+   is laid out once, hidden, at the page's width (.md-book-flow); each page shows
+   its stretch of it through a window (.md-page-text). Pages can't scroll
+   sideways, so code wraps and wide tables are cut; no image is taller than a
+   page (--md-page-h, set on the flow). */
+.md-book-flow { background: none; hyphens: auto; }
+.md-book-flow .md-code pre { white-space: pre-wrap; overflow: hidden; }
+.md-book-flow table { overflow: hidden; }
+.md-book-flow img { max-height: var(--md-page-h); width: auto; }
+.md-page-text { position: absolute; overflow: hidden; }
+.md-page-flow { position: absolute; left: 0; }
+.md-folio {
+	position: absolute;
+	inset-inline: 0;
+	text-align: center;
+	font-family: var(--font-mono);
+	font-size: 10.5px;
+	letter-spacing: 0.04em;
+	color: var(--md-ink-3);
+	pointer-events: none;
+}
 /* Find (CSS Custom Highlight API): every match tinted, the current one solid. */
 ::highlight(reader-find) { background-color: color-mix(in oklab, var(--signal) 30%, transparent); }
 ::highlight(reader-find-now) { background-color: var(--signal); color: var(--stage); }

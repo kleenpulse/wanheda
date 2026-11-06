@@ -12,7 +12,7 @@ import { useNow } from "@/hooks/use-now";
 import { relativeTime } from "@/lib/notifications/notifications";
 import { filterLibrary, sortLibrary, tagsInUse, type Collection, type ReaderDoc, type ReaderPayload } from "@/lib/reader/reader";
 import { cn } from "@/lib/utils";
-import { Cover, kindLabel } from "./cover";
+import { Cover, kindLabel, pagesLabel } from "./cover";
 import { preloadPdfReader } from "./document-view";
 import { EditDialog, type Editing } from "./edit-dialog";
 import { openDoc, useFilePicker } from "./open-file";
@@ -280,7 +280,7 @@ function DocCard({
         </div>
         <div className="flex items-center justify-between gap-2">
           <span className="tabular truncate text-[11.5px] text-ink-3">
-            {opened}
+            {[opened, pagesLabel(doc.pages)].filter(Boolean).join(" · ")}
             {doc.tags.length > 0 ? ` · ${doc.tags.map((t) => `#${t}`).join(" ")}` : ""}
           </span>
           <span className="relative z-10 -mr-1.5 flex shrink-0 items-center text-ink-3">

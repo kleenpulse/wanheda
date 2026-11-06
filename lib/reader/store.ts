@@ -207,6 +207,7 @@ export async function updateDocument(userId: string, p: DocumentPatch): Promise<
     ...(p.author === undefined ? {} : { author: p.author || null }),
     ...(p.tags === undefined ? {} : { tags: p.tags }),
     ...(p.mode === undefined ? {} : { mode: p.mode }),
+    ...(p.pages === undefined ? {} : { pages: p.pages }),
   };
   const same = and(eq(document.id, p.id), eq(document.userId, userId));
   const update = db

@@ -53,6 +53,21 @@ describe("locator (V41)", () => {
     expect(parseLocator("md:a b:10")).toBeNull();
   });
 
+  it("keeps hundredths of a ‰, rounded up, so a place never reads back above its line (T49)", () => {
+    // One section 2,000,000 px tall: a whole ‰ would be 2000 px, pages off.
+    const long: Section[] = [];
+    const place = placeAt(long, 904_321, 2_000_000);
+    expect(place.y).toBe(452.17);
+    expect(lineFor(long, place, 2_000_000)).toBeGreaterThanOrEqual(904_321);
+    expect(lineFor(long, place, 2_000_000)).toBeLessThan(904_321 + 200);
+    const raw = formatLocator({ kind: "md", heading: "", y: place.y });
+    expect(raw).toBe("md::452.17");
+    expect(parseLocator(raw)).toEqual({ kind: "md", heading: "", y: 452.17 });
+    expect(parseLocator("md:x:452.123")).toBeNull();
+    expect(parseLocator("md:x:1000.5")).toBeNull();
+    expect(parseLocator("pdf:3:452.5")).toBeNull();
+  });
+
   const sections: Section[] = [
     { anchor: "one", top: 100 },
     { anchor: "two", top: 300 },
