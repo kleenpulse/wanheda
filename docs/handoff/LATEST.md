@@ -1,14 +1,13 @@
 # Latest hand-off
 
-**Newest:** [2026-11-07-phase-7-media-spike.md](2026-11-07-phase-7-media-spike.md). **Phase 7 planned (V51–V62, T60–T66); T60 engine spike done; docs only. Review: FIX, then delta LGTM. Committed on `phase-7/media-spike`, PR open; the merge is the user's.**
+**Newest:** [2026-11-07-phase-7-media-core.md](2026-11-07-phase-7-media-core.md). **T61 media core on `phase-7/media-core`: review FIX, then LGTM with nits (all taken); PR next. #44, #45, #46 merged; v0.6.0 tagged on `5e2b8dc`.**
 
-- Video.js v10 is GA (2026-10-01), so Phase 7 uses `@videojs/react` 10.2.0, not Vidstack (ADR-0013, ADR-0006 amended).
-- Chrome plays MKV (H.264 + AAC) natively. The remux (Mediabunny → fragmented MP4 → MSE from a worker) covers containers Chrome refuses: MPEG-TS, first frame 293 ms.
-- An AC3 MKV plays as silent video with no error, so the probe checks every track's codec.
-- Gapless music = Mediabunny streaming clipped to exact duration, exact in every format tested. Hardware media keys reach a Web Audio-only page.
-- Settings → Sound (pause | duck | mix) added to the plan (user).
-- The T65 exit wording changed (MKV native; remux proven on MPEG-TS). The owner should confirm.
+- `/media`: open a file (FSA + input fallback), drop one, or paste a link; YouTube, Vimeo, SoundCloud and Spotify embed from an allowlist, src rebuilt from the id.
+- Ladder proven in the browser: MKV H.264 + AAC native, MPEG-TS remuxed (MSE from the worker, seek 74 ms), AC3 MKV says why instead of playing silent.
+- Video.js 10.2.0 works in Next 16 cacheComponents; it and Mediabunny load only on demand.
+- Migration 0009 is written but **not applied**: the owner runs `bun run db:migrate`.
+- T65 exit wording accepted on the owner's behalf while away (overridable).
 
-Next: the user merges the PR (and confirms the T65 exit wording). `wanheda-c2` has been told the PR is up. After the merge, T61 starts in a new session.
+Next: commit, push, PR and merge (the owner's word for this session), then T62.
 
-Read the hand-off first, then verify it against the repo before trusting it (git, tripwire, typecheck, tests). The Reviewer prompt and the T61 Builder prompt are in the hand-off.
+Read the hand-off first, then verify it against the repo before trusting it (git, tripwire, typecheck, tests).

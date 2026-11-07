@@ -7,6 +7,8 @@ import { usePathname, useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import {
   BookOpenText,
+  Clapperboard,
+  Music,
   AppWindow,
   Bell,
   CalendarClock,
@@ -45,8 +47,10 @@ import { rebuildIncome } from "@/actions/connectors";
 import { useIncome } from "@/components/income/use-income";
 import { togglePrivacy, usePrivacy } from "@/components/money/privacy";
 import { pushUrl, replaceUrlParams } from "@/hooks/use-url-param";
+import { formatDuration as formatMediaDuration, mediaHref } from "@/lib/media/media";
 import { lastAccountId, newTxn, useMoney, useMoneyApi, useNewSubscription } from "@/components/money/use-money";
 import { useNoteSearch, useNotesApi } from "@/components/notes/notes-provider";
+import { useMedia } from "@/components/media/use-media";
 import { useReader } from "@/components/reader/use-reader";
 import { useNotifications } from "@/components/notifications/notifications-provider";
 import { usePrefs } from "@/components/prefs/prefs-provider";
@@ -189,6 +193,8 @@ function PaletteBody({
   const incomeProducts = useIncome({ enabled: false }).data?.products.filter((p) => !p.archived) ?? [];
   // Cache only, like income: what Reader (or its widget) last loaded.
   const reading = continueReading(useReader({ enabled: false }).data?.documents ?? [], 5);
+  // Cache only: what /media last loaded.
+  const media = (useMedia({ enabled: false }).data?.items ?? []).slice(0, 5);
   const quick =
     moneyQuery !== null && money.data
       ? parseQuickAdd(moneyQuery, {
@@ -569,6 +575,25 @@ function PaletteBody({
                   // On /reader the view follows the param in place; from elsewhere the hop reads it on mount.
                   if (pathname === "/reader") pushUrl(`/reader?d=${encodeURIComponent(d.id)}`);
                   else router.push(`/reader?d=${encodeURIComponent(d.id)}`);
+                })}
+              />
+            ))}
+          </Command.Group>
+        ) : null}
+
+        {media.length > 0 ? (
+          <Command.Group heading="Media">
+            {media.map((m) => (
+              <Item
+                key={m.id}
+                value={`media-play-${m.id}`}
+                keywords={["play", "watch", "listen", "video", "media", m.title]}
+                icon={m.kind === "audio" ? Music : Clapperboard}
+                title={`Play ${m.title}`}
+                {...(m.durationS ? { hint: formatMediaDuration(m.durationS) } : {})}
+                onSelect={run(() => {
+                  if (pathname === "/media") pushUrl(mediaHref(m.id));
+                  else router.push(mediaHref(m.id));
                 })}
               />
             ))}
