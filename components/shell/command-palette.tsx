@@ -8,7 +8,13 @@ import { useTheme } from "next-themes";
 import {
   BookOpenText,
   Clapperboard,
+  FastForward,
+  Gauge,
+  Maximize,
   Music,
+  PictureInPicture2,
+  RectangleHorizontal,
+  Rewind,
   AppWindow,
   Bell,
   CalendarClock,
@@ -48,8 +54,10 @@ import { useIncome } from "@/components/income/use-income";
 import { togglePrivacy, usePrivacy } from "@/components/money/privacy";
 import { pushUrl, replaceUrlParams } from "@/hooks/use-url-param";
 import { formatDuration as formatMediaDuration, mediaHref } from "@/lib/media/media";
+import { continueList } from "@/lib/media/playback";
 import { lastAccountId, newTxn, useMoney, useMoneyApi, useNewSubscription } from "@/components/money/use-money";
 import { useNoteSearch, useNotesApi } from "@/components/notes/notes-provider";
+import { playerActions, usePlayer } from "@/components/media/player-store";
 import { useMedia } from "@/components/media/use-media";
 import { useReader } from "@/components/reader/use-reader";
 import { useNotifications } from "@/components/notifications/notifications-provider";
@@ -194,7 +202,15 @@ function PaletteBody({
   // Cache only, like income: what Reader (or its widget) last loaded.
   const reading = continueReading(useReader({ enabled: false }).data?.documents ?? [], 5);
   // Cache only: what /media last loaded.
-  const media = (useMedia({ enabled: false }).data?.items ?? []).slice(0, 5);
+  const mediaItems = useMedia({ enabled: false }).data?.items ?? [];
+  const going = continueList(mediaItems, 3);
+  const media = mediaItems.filter((m) => !going.some((g) => g.id === m.id)).slice(0, 5);
+  // A video playing on /media: its controls, with the skin's own keys as hints (T62).
+  const playerEl = usePlayer((s) => s.el);
+  const playerTitle = usePlayer((s) => s.title);
+  const playerControls = usePlayer((s) => s.controls);
+  const playerTheatre = usePlayer((s) => s.theatre);
+  const player = playerEl ? { el: playerEl, title: playerTitle ?? "Video", controls: playerControls, theatre: playerTheatre } : null;
   const quick =
     moneyQuery !== null && money.data
       ? parseQuickAdd(moneyQuery, {
@@ -581,8 +597,111 @@ function PaletteBody({
           </Command.Group>
         ) : null}
 
-        {media.length > 0 ? (
+        {player ? (
+          <Command.Group heading="Player">
+            <Item
+              value="player-toggle"
+              keywords={["play", "pause", "video"]}
+              icon={player.el.paused ? Play : Pause}
+              title={`${player.el.paused ? "Play" : "Pause"} ${player.title}`}
+              hint="K"
+              onSelect={run(() => {
+                playerActions.toggle();
+              })}
+            />
+            <Item
+              value="player-back"
+              keywords={["rewind", "back", "seek"]}
+              icon={Rewind}
+              title="Back 10 seconds"
+              hint="J"
+              onSelect={run(() => {
+                playerActions.seek(-10);
+              })}
+            />
+            <Item
+              value="player-forward"
+              keywords={["forward", "skip", "seek"]}
+              icon={FastForward}
+              title="Forward 10 seconds"
+              hint="L"
+              onSelect={run(() => {
+                playerActions.seek(10);
+              })}
+            />
+            <Item
+              value="player-faster"
+              keywords={["speed", "faster", "rate"]}
+              icon={Gauge}
+              title={`Faster (now ${String(player.el.playbackRate)}×)`}
+              hint=">"
+              onSelect={run(() => {
+                playerActions.speed(1);
+              })}
+            />
+            <Item
+              value="player-slower"
+              keywords={["speed", "slower", "rate"]}
+              icon={Gauge}
+              title={`Slower (now ${String(player.el.playbackRate)}×)`}
+              hint="<"
+              onSelect={run(() => {
+                playerActions.speed(-1);
+              })}
+            />
+            {player.controls ? (
+              <>
+                <Item
+                  value="player-pip"
+                  keywords={["picture in picture", "pip", "float"]}
+                  icon={PictureInPicture2}
+                  title="Picture in picture"
+                  hint="I"
+                  onSelect={run(() => {
+                    player.controls?.togglePictureInPicture();
+                  })}
+                />
+                <Item
+                  value="player-fullscreen"
+                  keywords={["fullscreen", "full screen"]}
+                  icon={Maximize}
+                  title="Fullscreen"
+                  hint="F"
+                  onSelect={run(() => {
+                    player.controls?.toggleFullscreen();
+                  })}
+                />
+              </>
+            ) : null}
+            <Item
+              value="player-theatre"
+              keywords={["theatre", "theater", "wide", "cinema"]}
+              icon={RectangleHorizontal}
+              title={player.theatre ? "Leave theatre mode" : "Theatre mode"}
+              hint="T"
+              onSelect={run(() => {
+                usePlayer.getState().setTheatre(!player.theatre);
+              })}
+            />
+          </Command.Group>
+        ) : null}
+
+        {going.length + media.length > 0 ? (
           <Command.Group heading="Media">
+            {going.map((m) => (
+              <Item
+                key={m.id}
+                value={`media-continue-${m.id}`}
+                keywords={["continue", "resume", "watch", "video", "media", m.title]}
+                icon={m.kind === "audio" ? Music : Clapperboard}
+                title={`Continue ${m.title}`}
+                hint={formatMediaDuration(m.progress.positionS)}
+                onSelect={run(() => {
+                  if (pathname === "/media") pushUrl(mediaHref(m.id));
+                  else router.push(mediaHref(m.id));
+                })}
+              />
+            ))}
             {media.map((m) => (
               <Item
                 key={m.id}

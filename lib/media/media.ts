@@ -4,7 +4,7 @@
 // an allowlisted provider (V56).
 
 import { z } from "zod";
-import { MEDIA_KINDS, type MediaItem } from "./types";
+import { MEDIA_KINDS, type MediaItem, type MediaProgress } from "./types";
 import { parseMediaUrl } from "./url";
 
 export const MEDIA_KEY = ["media"] as const;
@@ -52,6 +52,24 @@ export const itemCreateSchema = z
 export type ItemCreate = z.infer<typeof itemCreateSchema>;
 
 export const idSchema = z.object({ id: z.uuid() }).strict();
+
+export const watchLaterSchema = z.object({ id: z.uuid(), on: z.boolean() }).strict();
+
+/** Where an item was left (V55). `at` is the client's clock in ms; newer wins on the server. */
+export const playbackWriteSchema = z
+  .object({
+    itemId: z.uuid(),
+    positionS: z.number().nonnegative().max(1e7),
+    watched: z.boolean(),
+    at: z.number().int().positive(),
+  })
+  .strict();
+
+export type PlaybackWrite = z.infer<typeof playbackWriteSchema>;
+
+export type PlaybackReply =
+  | { ok: true; kind: "saved" | "stale"; progress: MediaProgress }
+  | { ok: false; reason: "demo" | "invalid" | "failed" | "gone" };
 
 export type MediaFail = { ok: false; reason: "demo" | "invalid" | "off" | "failed" | "gone" | "not-yours" };
 export type ItemReply = { ok: true; item: MediaItem; existing: boolean } | MediaFail;

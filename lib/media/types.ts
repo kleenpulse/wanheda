@@ -27,8 +27,19 @@ export type MediaItem = {
   title: string;
   durationS: number | null;
   meta: MediaMeta;
+  /** On the watch-later queue since then, or null. */
+  watchLaterAt: string | null;
+  /** Where it was left, on any device (V55): the server's copy; this device's newer one is laid over it. */
+  progress: MediaProgress | null;
   createdAt: string;
   updatedAt: string;
+};
+
+export type MediaProgress = {
+  positionS: number;
+  watched: boolean;
+  /** ISO time it was last played. */
+  lastPlayedAt: string;
 };
 
 /** What the client sends to add an item; the server fills id and times. */
