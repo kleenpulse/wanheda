@@ -1,8 +1,155 @@
 # Changelog
 
-All notable user-visible changes. Shipped in-app as "What's New" (FR-SHELL-10).
+All notable user-visible changes to Wanheda are documented here. The format
+follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions
+follow [Semantic Versioning](https://semver.org/).
+
+Releases are cut with `bun run bump patch|minor|major`: on a `release/vX.Y.Z`
+branch it moves the Unreleased section under a new version heading, syncs
+package.json and commits. After that PR merges, `bun run bump --tag` on main
+tags it. Keep user-visible changes in the Unreleased section as you work:
+it ships inside the app as What's New.
+
+Each build phase ends in a minor version. Versions 0.1.0 to 0.5.0 were
+written after the fact, one per phase, and have no git tags.
 
 ## [Unreleased]
+
+### Added
+
+- The reader reads aloud. Press "Read aloud from here" in either reader, in book or scroll view, and it starts at the sentence you're looking at. The spoken sentence is highlighted and the page follows it.
+- Scroll or turn the page yourself while it reads and the page stops following; a "Back to the voice" arrow points to where the voice is, and one click brings you back. While the page follows the voice, your saved place moves with it.
+- The first time you play a document, a "Getting text" note shows the progress before the voice starts.
+- Notes have a Read aloud button too.
+- Natural voices that run on your device and work offline. In Settings › Voices, pick from 14 English Piper voices, filtered by language, quality and what's already downloaded. Each shows its size and licence, and voices not cleared for commercial use are marked. Downloads show progress, can be cancelled and are checked before they're kept; delete has Undo. Set your default voice and speed there. British voices speak with a British accent.
+- With no voice downloaded, your browser's built-in voice reads instead.
+- While a voice downloads, the island shows its progress.
+- While something is being read, the island shows its progress. Open it to see the sentence being spoken, "Sentence n of N", the controls, and a way back to the document or note.
+- A Read aloud mini window with the same controls: previous, play or pause, next, stop, and speed, voice and sleep. Open it from the reader bar while it reads, the dock or the palette. Changing the voice mid-read takes effect from the current sentence.
+- Sleep timer: 15, 30, 45 or 60 minutes, or the end of the chapter. When it runs out, the reading pauses.
+- Media keys and your system's media controls play, pause and skip a sentence, and show what's being read.
+- A downloaded voice reads with the internet off, even a whole chapter of a 14,000-page PDF, with no gaps in the audio and the highlight in step with the voice. After an update, open the reader once while online first; until then your browser's voice reads instead.
+
+### Changed
+
+- Your Settings › Reader choices now follow you to your other devices, and Settings shows when they're saved.
+
+## [0.5.0] - 2026-11-06
+
+### Added
+
+- Reader: a new app for your PDFs, Markdown and text files. Drop files in to add them. The files stay on your device and are never uploaded; your library, collections and reading place sync to your other devices.
+- The library shows a cover for each document, your progress and when you last opened it, and can be searched and filtered by collection or tag. Edit a document's details, delete with Undo, and pin one to lead the grid with its progress shown as a filling tank. Long titles slide by so you can read them.
+- On another device a document says "not on this device". Open the same file there and it links up and opens where you left off.
+- PDFs open as a book: the first page as a cover, then two-page spreads with a real page curl, arrows at the edges, find above the book, and a bottom bar with zoom, a grid of every page, a page field, first and last page, and full screen. On wide screens you can read one page at a time instead.
+- One tap switches a PDF to a scroll view with selectable text, find and the contents. Both views keep the same place.
+- Turn pages with the arrow keys, Page Up and Page Down, Space and Shift+Space, Home and End, or by swiping on a phone. Under reduced motion pages turn instantly, and the book is still there.
+- Markdown and text files open as a sheet of paper with the same bars, find and contents, plus previous and next section. Code is highlighted, links to other sites open in a new tab, and footnotes work. They can also be read as a book, and Book or Scroll is remembered for each document.
+- Your place is kept by section in Markdown and text, so it stays put when you change the window size or the text size.
+- Paper colours: six light and six dark tints for the page, previewed as you move through the menu.
+- Auto-scroll with a speed slider (scroll over the button to change the speed). The bars fade while it runs and come back when you move the pointer; the eye button hides them. Searching stops it.
+- Zoom keeps the middle of the page in the middle, and a zoomed book can be dragged around with the mouse or a finger without turning the page. A one-page document opens as a single centred page.
+- PDFs show their page count in the library and in the reader. A 300-page PDF shows its first page in under half a second.
+- Close a document on one device and open it on another: it opens on the same page. If it's already open there, it moves to the newer place when you come back to it.
+- Settings › Reader: library covers (the first page or a title card, filling the cover or shown whole), spread or one page, page curl or instant turn, text size, paper and auto-scroll speed, with a live preview of the covers.
+- Home "Continue reading" widget, and "Continue <title>" in the palette.
+
+### Changed
+
+- Lists and panels that scroll fade at the edges that have more to scroll.
+- The Bench dark skin is darker, and the page background is plain graphite without the measuring grid.
+
+### Fixed
+
+- Home's billing cycle card keeps the subscription you picked in a private window.
+
+## [0.4.0] - 2026-11-06
+
+### Added
+
+- Connect Polar in Settings › Connections to see income from your products. Paste a token (it's checked with Polar first) and the webhook secret, then press Sync now. Your Polar products can be mapped to products in Wanheda, and products can be added or archived (archive has Undo). Disconnect asks before it acts.
+- Polar sales arrive as they happen. The same event sent twice is only counted once.
+- Income: a new app on the rail. It shows monthly recurring revenue (MRR) and customers over time, how MRR moved each month (new, expansion, reactivation, contraction, churn), a month-by-month bridge, and revenue by product.
+- Income tiles for MRR and yearly run rate, net new MRR against last month, customers, average revenue per customer, customer churn, MRR churn, lifetime value and new sign-ups. A figure that can't be worked out yet shows a dash instead of a misleading number.
+- Look at one product or all of them, over 6 months, 12 months or all time, in one currency at a time. Your choice survives a reload. Products that only sell one-time purchases still show their revenue.
+- A Polar check card compares Wanheda's MRR with Polar's own figures, day by day, and marks any day that is off.
+- Income alerts in the notification centre: a new subscriber, a cancellation, a failed payment, and MRR passing a milestone. Alerts from the last 48 hours also show in the island, with Open and Dismiss.
+- Net, a second Income tab: income minus spending per month in your base currency, your savings rate, the cash in your open accounts, and your runway (how many months that cash lasts at your recent spending). Polar revenue is shown beside it, never added, so a payout isn't counted twice.
+- Goals, a third Income tab: reach an MRR by a date, or save an amount by a date. Each goal shows its progress, where you'll land at your pace of the last 90 days, and whether you're on track or behind. Delete has Undo.
+- New Home widgets for MRR and net new this month.
+- New palette commands: open a product's income, open net income and runway, open goals, open connections, and rebuild income figures.
+
+## [0.3.0] - 2026-11-05
+
+### Added
+
+- Money: a new app (the $ on the rail) for spending and income. It shows what you spent today and this month and what came in, and lists the newest entries by day, each with its category's emoji and colour. Amounts are stored as whole kobo or cents, never rounded.
+- Log spending from anywhere: type `4500 food jollof` into the palette and press Enter. `+50000 salary` logs income, `$12 netflix` uses your dollar account, `@bank` picks an account, `yesterday` backdates it and `#work` tags it.
+- Money totals and amounts roll when they change: the digits that changed roll up when the amount rises and down when it falls. Reduced motion shows the new figure at once.
+- An add form beside the list (Enter saves and it's ready for the next one), and on phones an Add button that opens a one-thumb sheet with your most-used categories as big buttons.
+- Dropdowns in the Money form are frosted glass in every skin, each category with its emoji and colour, with keyboard and type-to-find.
+- Edit any entry with the pencil on its row (the editor grows out of the pencil): amount, direction, category, payee, account and day.
+- Deleting an entry can be undone: it disappears at once and an Undo button stays up, with a bar in the accent colour counting down the seconds, before anything is deleted. Undo or closing the toast keeps the entry. Hovering a toast pauses it.
+- Picking a day opens a calendar (arrow keys move by day and week, Page Up and Page Down by month) with Today, Yesterday and 2 days ago one tap away.
+- The palette's highlight fades when the pointer leaves the list and comes back when you type or use the arrow keys, so Enter never runs a row you can't see.
+
+- Money works on a period: today, this week, this month or any range you pick. Spent, Received and Net are compared with the same days of the period before, so a running month is set against the same number of days last month.
+- Money Analytics, its own tab beside Entries: spending over time, a "spent so far" line against the last period, a calendar heatmap of daily spending, and totals ranked by category, account or payee. Tap a total to see just those entries. Every chart works with the keyboard and has a table version.
+- Accounts with balances: add, edit and archive them (archive has Undo). Entries can be searched, and the list stays fast with thousands of them.
+- Money works offline too. Entries, edits and deletes are kept on the device and sent in order when you're back online, so an entry made with no signal is never lost. The sync chip counts them.
+- Subscriptions, a third Money tab: what you pay per month and per year, the next renewal, everything you pay for ranked by monthly cost, and a timeline of the next 60 days. Add, edit, pause, resume, cancel or delete one; cancel and delete have Undo. A subscription that renews on the 31st keeps renewing at the end of each month, even after you change its cycle.
+- Renewal and trial-end reminders: a few days before (3 by default), a reminder lands in the notification centre and in the island. Reminders give the date, not the amount.
+- The billing cycle card: with one subscription it fills like a tank of liquid as the renewal gets closer; with several it shows rings.
+- Import a bank statement: drop a CSV or Excel file on Money › Import, pick the account, check the columns and the preview, and confirm. The file is read on your device and never uploaded. Twelve bank formats are known (among them GTBank, Kuda, OPay, Moniepoint, Chase and American Express), and the columns you set are remembered for that bank. PDF statements aren't supported yet.
+- Importing is safe to repeat: the preview marks each row as new or already here, the same file twice says "already imported on" its date, and an overlapping statement only adds the rows you don't have. You can undo a whole import.
+- Subscriptions suggests charges that look recurring (same payee, about the same amount, about the same gap, three times or more). One click adds it; Dismiss has Undo.
+- Budgets: one for the whole month and one per category, with an option to carry last month's leftover or overspend. At 80 % and 100 % you get an alert in the centre and the island, and the "spent so far" chart shows the budget line.
+- Rules: "payee contains X" sets a category and tags. The first matching rule wins, you can reorder them and switch them off, and the form shows how many recent entries a rule would match. Rules fill in new entries you leave uncategorised and every imported row.
+- More than one currency: rates are fetched daily, and the headline totals are shown in your base currency with the original amounts underneath. Analytics can show everything in your base currency or one currency at a time. Set the base currency in Settings › Money (it starts as naira).
+- Privacy mode hides every amount behind dots (₦••••). Turn it on with H, the eye in the top bar, the palette or Settings › Money. It's kept on this device and applies before the page shows, so no amount flashes on load.
+- Export your money data from Settings › Money as CSV (entries) or JSON (everything).
+- New Home widgets: spent today, budgets, and the billing cycle card. With several subscriptions, pick which one the card shows.
+- Choosing "Other" as a category lets you name a new one on the spot.
+- Delete a notification from the bell: press the bin, then confirm. A deleted alert stays gone even if the same thing happens again.
+
+### Changed
+
+- Amounts, percentages and the clock use JetBrains Mono, so the digits line up.
+- Digits next to a ₦ sign are drawn larger to match it.
+- On phones, the Money totals are one short row each, so your entries start on the first screen. Each day of entries is its own card.
+- Both dark skins are flat: no card borders and no glass edges. Only the dock keeps an edge and a shadow, and the dock's shadow in dark skins is stronger. Cards still lift on hover, without a shadow.
+- On phones, page tabs move under the title instead of squeezing it.
+
+### Fixed
+
+- Amounts with a ₦ sign line up with the rest of the text instead of sitting higher.
+## [0.2.0] - 2026-11-05
+
+### Added
+
+- Notes: a new app on the rail with your notes listed beside a Markdown editor. Checklists tick right on the note, and each note can have a colour, tags and a pin. Old notes go to the Archive.
+- Capture a note from anywhere: type `note buy SSD` into the palette and press Enter. The palette also searches the words inside your notes from any page, and has New note.
+- Notes work offline. What you write is kept on the device and sent when you're back online, even if you close the tab first. A chip by the page title shows "Offline · 1 waiting" or "Syncing" until everything is saved.
+- If the same note was changed on two devices, the later edit wins and a toast tells you. The other version is never lost: open History in the editor to see every earlier version, and restore any of them.
+- The notes board: switch Notes to Board to see your notes as sticky notes on a canvas you can pan and zoom (scroll to pan, Ctrl/⌘ + scroll or pinch to zoom). Drag a sticky to move it and pull its corner to resize it; both snap to a grid and are saved like any edit, so the board looks the same on every device.
+- On the board, a focused sticky moves with the arrow keys and resizes with Shift + arrows. Enter opens it and Escape steps back. Stickies show their checklist progress, and moving one never clashes with a text edit made on another device.
+- Open a note in its own mini window over any app, with a note picker inside, from the palette ("Open the note window"). The palette also has "Open notes board".
+- Home's quick note is now Pinned notes: it shows the notes you pin. If you had typed something in the old quick note, it offers to keep it as a real note, once.
+- Empty pages show the Wanheda mark, which leans gently toward your pointer. It holds still under reduced motion.
+
+### Changed
+
+- Moving between apps is instant: a page shows what's already on your device at once and refreshes in the background, instead of a loading skeleton on every hop.
+- Page titles use Figtree, in heavy uppercase.
+- Every button, link and control shows the hand cursor.
+
+### Fixed
+
+- The Settings section pill slides straight to the section you pick instead of jumping.
+- Moving a Home widget with the keyboard and leaving the page right away keeps the move.
+- The highlighted item in menus is visible in the Ember light theme.
+
+## [0.1.0] - 2026-11-05
 
 ### Added
 
@@ -26,15 +173,6 @@ All notable user-visible changes. Shipped in-app as "What's New" (FR-SHELL-10).
 - Notification centre: the bell on the rail (or "Open notifications" in the palette) lists past alerts with read and unread, a filter and Mark all read. Finished timers raise an alert, once even with two tabs open.
 - Settings in a new layout: sections on the left (Appearance, Timers, Keyboard, Account), cards on the right, and a list you tap into on phones. Appearance opens with a preview in your skin and accent, and the theme is now System, Ember or Nebula. Keyboard lists every shortcut.
 - The palette reaches every command: edit the board (from any page), skin, accent, wallpaper and repeat timers (type "skin", "accent" and so on), mark all notifications read, and sign out.
-- Money: a new app (the $ on the rail) for spending and income. It shows what you spent today and this month and what came in, and lists the newest entries by day, each with its category's emoji and colour. Amounts are stored as whole kobo or cents, never rounded.
-- Log spending from anywhere: type `4500 food jollof` into the palette and press Enter. `+50000 salary` logs income, `$12 netflix` uses your dollar account, `@bank` picks an account, `yesterday` backdates it and `#work` tags it.
-- Money totals and amounts roll when they change: the digits that changed roll up when the amount rises and down when it falls. Reduced motion shows the new figure at once.
-- An add form beside the list (Enter saves and it's ready for the next one), and on phones an Add button that opens a one-thumb sheet with your most-used categories as big buttons.
-- Dropdowns in the Money form are frosted glass in every skin, each category with its emoji and colour, with keyboard and type-to-find.
-- Edit any entry with the pencil on its row (the editor grows out of the pencil): amount, direction, category, payee, account and day.
-- Deleting an entry can be undone: it disappears at once and an Undo button stays up, with a bar in the accent colour counting down the seconds, before anything is deleted. Undo or closing the toast keeps the entry. Hovering a toast pauses it.
-- Picking a day opens a calendar (arrow keys move by day and week, Page Up and Page Down by month) with Today, Yesterday and 2 days ago one tap away.
-- The palette's highlight fades when the pointer leaves the list and comes back when you type or use the arrow keys, so Enter never runs a row you can't see.
 
 ### Fixed
 
