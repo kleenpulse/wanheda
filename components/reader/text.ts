@@ -39,6 +39,12 @@ export function textOutcome(sha256: string): "busy" | "failed" | null {
   return outcome.get(sha256) ?? null;
 }
 
+/**
+ * The last document's parsed sentences. A long book's text.json runs to MBs (14k pages ≈ 19 MB), and parsing it
+ * is a long task: done at idle after the open (primeText), never in a press on play (V50, T58).
+ */
+let parsed: { sha256: string; text: TextFile } | null = null;
+
 let worker: { w: Worker; next: number; waiting: Map<number, (r: TextResponse) => void> } | null = null;
 
 /** The worker lives only while it has work: done, it goes, and pdf.js and the text go with it. */
@@ -118,6 +124,8 @@ export function ensureText(doc: Pick<ReaderDoc, "sha256" | "kind">, file: File, 
       // Another tab is writing it, or it was deleted on the way: look again next open.
       if (res.ok && (res.status === "busy" || res.status === "cancelled")) settle = false;
       if (res.ok && res.status === "done" && res.json !== null && demo && !forgotten()) inTab.set(sha256, res.json);
+      // Written again: what was parsed before is stale.
+      if (res.ok && res.status === "done" && parsed?.sha256 === sha256) parsed = null;
     } finally {
       endProgress(sha256);
       pending.delete(sha256);
@@ -135,17 +143,46 @@ export function ensureText(doc: Pick<ReaderDoc, "sha256" | "kind">, file: File, 
 
 /** A document's sentences on this device, or null (not extracted yet, cut short, or an older extractor's). */
 export async function readText(sha256: string, demo: boolean): Promise<TextFile | null> {
+  if (parsed?.sha256 === sha256) return parsed.text;
+  const gen = generation.get(sha256) ?? 0;
+  let text: TextFile | null = null;
   if (demo) {
     const raw = inTab.get(sha256);
-    return raw ? parseTextFile(raw, sha256) : null;
+    text = raw ? parseTextFile(raw, sha256) : null;
+  } else {
+    const file = await readTextFile(sha256);
+    if (!file) return null;
+    try {
+      text = parseTextFile(await file.text(), sha256);
+    } catch {
+      return null;
+    }
   }
-  const file = await readTextFile(sha256);
-  if (!file) return null;
-  try {
-    return parseTextFile(await file.text(), sha256);
-  } catch {
-    return null;
+  // Forgotten while it was read: not kept.
+  if (text && (generation.get(sha256) ?? 0) === gen) parsed = { sha256, text };
+  return text;
+}
+
+/**
+ * Parses a document's sentences at idle, after its text has settled (beside the voice's pre-warm, V45): play
+ * then starts without the parse. The parse itself runs once the file is read, so the caller skips this while
+ * another document is being read aloud (V50: no long task while speaking). Returns the cancel.
+ */
+export function primeText(sha256: string, demo: boolean, skip: () => boolean = () => false): () => void {
+  if (typeof window === "undefined" || parsed?.sha256 === sha256) return () => undefined;
+  const run = () => {
+    if (!skip()) void readText(sha256, demo);
+  };
+  if (typeof window.requestIdleCallback === "function") {
+    const id = window.requestIdleCallback(run, { timeout: 5000 });
+    return () => {
+      window.cancelIdleCallback(id);
+    };
   }
+  const id = window.setTimeout(run, 0);
+  return () => {
+    window.clearTimeout(id);
+  };
 }
 
 // A deleted (or unreadable) document's job stops, and its text goes with it.
@@ -153,5 +190,6 @@ onForget((sha256) => {
   generation.set(sha256, (generation.get(sha256) ?? 0) + 1);
   inTab.delete(sha256);
   settled.delete(sha256);
+  if (parsed?.sha256 === sha256) parsed = null;
   worker?.w.postMessage({ type: "cancel", sha256 } satisfies TextRequest);
 });

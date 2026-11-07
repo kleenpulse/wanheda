@@ -8,6 +8,8 @@ import {
   directionOf,
   firstMdEstimate,
   firstPdfSentence,
+  FOLLOW_PAD,
+  followScrollTop,
   holdsPlace,
   mdAt,
   mdChapterStarts,
@@ -229,6 +231,26 @@ describe("markdown: the voice's place", () => {
     expect(mdAt(sentences[middle - 1]?.locator ?? "")?.heading).toBe("start");
     expect(firstMdEstimate(sentences, order, { heading: "middle", y: 1000 })).toBe(sentences.length - 1);
     expect(order({ heading: "gone", y: 3 })).toBeNull();
+  });
+});
+
+describe("followScrollTop (V48; T58: a book page taller than the stage)", () => {
+  // A view 600 px tall, scrolled 1000 px down, bars covering 56 px at the top and the foot; lines 20 px.
+  const at = (lineTop: number) => followScrollTop(lineTop, 20, 1000, 600, 56);
+
+  it("leaves a line that shows with room for two lines under it", () => {
+    expect(at(1056)).toBeNull();
+    expect(at(1500)).toBeNull();
+  });
+
+  it("brings a line below the view, or too near the foot bar, under the top bar", () => {
+    expect(at(1520)).toBe(1520 - 56 - FOLLOW_PAD);
+    expect(at(2400)).toBe(2400 - 56 - FOLLOW_PAD);
+  });
+
+  it("brings a line above the view back, never past the top", () => {
+    expect(at(1055)).toBe(1055 - 56 - FOLLOW_PAD);
+    expect(at(10)).toBe(0);
   });
 });
 

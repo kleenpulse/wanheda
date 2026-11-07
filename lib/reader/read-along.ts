@@ -272,6 +272,20 @@ export function directionOf(top: number, bottom: number, viewTop: number, viewBo
   return null;
 }
 
+/** A spoken line's height for "comfortably in view", as a share of the page. */
+export const FOLLOW_LINE_SHARE = 0.03;
+/** A followed line rests this far under the top bar. */
+export const FOLLOW_PAD = 24;
+
+/**
+ * Where a scrolled view goes so a followed line shows (V48): null when the line already shows with room
+ * for two lines under it. `inset` is what the bars cover at the top and the foot.
+ */
+export function followScrollTop(lineTop: number, lineHeight: number, scrollTop: number, clientHeight: number, inset: number): number | null {
+  if (lineTop >= scrollTop + inset && lineTop + 2 * lineHeight <= scrollTop + clientHeight - inset) return null;
+  return Math.max(0, lineTop - inset - FOLLOW_PAD);
+}
+
 /** A sentence's page against the open pages of a book. */
 export function pageDirection(page: number, open: readonly number[]): "left" | "right" | null {
   const first = open[0];

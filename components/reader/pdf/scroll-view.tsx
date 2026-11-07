@@ -5,7 +5,7 @@ import { Page } from "react-pdf";
 import "react-pdf/dist/Page/TextLayer.css";
 import type { PDFDocumentProxy } from "pdfjs-dist";
 import { clampPage, highlightRun, pdfPercent } from "@/lib/reader/book";
-import { directionOf } from "@/lib/reader/read-along";
+import { FOLLOW_LINE_SHARE, directionOf, followScrollTop } from "@/lib/reader/read-along";
 import type { SayBoxes } from "./engine";
 
 // The scroll view (V42's alternative to the book): every page in one column,
@@ -25,11 +25,6 @@ export interface ScrollHandle {
   /** Scrolls a line just under the top bar, unless it's already comfortably in view. */
   bring(page: number, y: number, smooth: boolean): void;
 }
-
-/** A spoken line's height for "comfortably in view", as a share of the page. */
-const LINE_SHARE = 0.03;
-/** A followed line rests this far under the top bar. */
-const FOLLOW_PAD = 24;
 
 const GAP = 16;
 const MAX_WIDTH = 880;
@@ -183,15 +178,13 @@ export const ScrollView = React.forwardRef<
         const el = scroller.current;
         if (!el) return null;
         const top = lineTop(page, y);
-        return directionOf(top, top + pageHeight * LINE_SHARE, el.scrollTop + inset, el.scrollTop + el.clientHeight - inset);
+        return directionOf(top, top + pageHeight * FOLLOW_LINE_SHARE, el.scrollTop + inset, el.scrollTop + el.clientHeight - inset);
       },
       bring: (page, y, smooth) => {
         const el = scroller.current;
         if (!el) return;
-        const top = lineTop(page, y);
-        const line = pageHeight * LINE_SHARE;
-        if (top >= el.scrollTop + inset && top + 2 * line <= el.scrollTop + el.clientHeight - inset) return;
-        el.scrollTo({ top: Math.max(0, top - inset - FOLLOW_PAD), behavior: smooth ? "smooth" : "instant" });
+        const to = followScrollTop(lineTop(page, y), pageHeight * FOLLOW_LINE_SHARE, el.scrollTop, el.clientHeight, inset);
+        if (to !== null) el.scrollTo({ top: to, behavior: smooth ? "smooth" : "instant" });
       },
     }),
     [goTo, lineTop, pageHeight, inset],

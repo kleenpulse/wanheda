@@ -9,13 +9,14 @@ import { EmptyState } from "@/components/shell/page-frame";
 import { buttonClass } from "@/components/ui/button";
 import { parseLocator, type ReaderDoc } from "@/lib/reader/reader";
 import { holdVoiceForReader, prewarmVoice } from "@/lib/speech/prewarm";
+import { useSpeech } from "@/lib/speech/store";
 import { cn } from "@/lib/utils";
 import { kindLabel, pagesLabel } from "./cover";
 import { onForget } from "./doc-cache";
 import { MdReader } from "./md/md-reader";
 import { closeDoc, useFilePicker } from "./open-file";
 import { STAGE_BOX } from "./stage";
-import { ensureText } from "./text";
+import { ensureText, primeText } from "./text";
 import { onDevice, readDocFile, useDeviceFiles, useReader, useReaderApi } from "./use-reader";
 
 // One document. PDFs open in the PDF reader (T47: pdf/pdf-reader.tsx), a book
@@ -121,14 +122,22 @@ function Reading({ doc }: { doc: ReaderDoc }) {
   React.useEffect(() => {
     if (!file) return;
     let live = true;
+    let unprime: () => void = () => undefined;
     const release = holdVoiceForReader(doc.kind);
     const t = window.setTimeout(() => {
       void ensureText(doc, file, demo).then(() => {
-        if (live) prewarmVoice(doc.kind);
+        if (!live) return;
+        prewarmVoice(doc.kind);
+        // Not while another document is read aloud: its parse would land mid-speech (V50).
+        unprime = primeText(doc.sha256, demo, () => {
+          const { status, source } = useSpeech.getState();
+          return status !== "idle" && source?.id !== doc.sha256;
+        });
       });
     }, TEXT_AFTER_MS);
     return () => {
       live = false;
+      unprime();
       window.clearTimeout(t);
       release();
     };

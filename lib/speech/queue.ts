@@ -38,7 +38,35 @@ export interface QueueDeps {
   onEnd(): void;
   /** Synthesis failed; the queue has stopped. */
   onError(error: unknown): void;
+  /** The exit log (SPEC V50, T58): one entry per unit scheduled and per sentence announced. */
+  log?: (entry: QueueLogEntry) => void;
 }
+
+/** A line of the exit log. Times `at` and `now` are on the sink's clock, in seconds. */
+export type QueueLogEntry =
+  | {
+      kind: "unit";
+      sentence: number;
+      from: number;
+      chars: number;
+      /** When the unit starts, and the clock when it was scheduled. */
+      at: number;
+      now: number;
+      /** Silence since the previous unit's end; null for the first unit after play or seek, and after a speed change when nothing was playing. */
+      gapMs: number | null;
+      underrun: boolean;
+      /** 0 when the unit came from the cache. */
+      synthMs: number;
+      rtf: number;
+      /** Units held in the cache after this one. */
+      cached: number;
+    }
+  | {
+      kind: "sentence";
+      sentence: number;
+      /** How long after its audio began the sentence was announced (the highlight switch). */
+      lateMs: number;
+    };
 
 export interface QueueStats {
   /** Largest silence between consecutive units since play or seek, in ms. */
@@ -67,6 +95,8 @@ interface Unit {
   to: number;
   pcm: Pcm;
   duration: number;
+  /** 0 for a unit replayed from the cache. */
+  synthMs: number;
   slot: Slot | null;
   announced: boolean;
 }
@@ -217,7 +247,7 @@ export class SpeechQueue {
       }
       const cached = this.cache.get(key(sentence, from));
       if (cached) {
-        const unit: Unit = { ...cached, slot: null, announced: false };
+        const unit: Unit = { ...cached, synthMs: 0, slot: null, announced: false };
         this.cache.set(key(sentence, from), unit);
         this.ahead.push(unit);
         this.schedule(unit, now);
@@ -247,7 +277,7 @@ export class SpeechQueue {
           this.rtf = ema(this.rtf, res.synthMs / 1000 / duration);
           this.secondsPerChar = ema(this.secondsPerChar, duration / piece.length);
         }
-        const unit: Unit = { sentence, from, to, pcm: { samples: res.samples, sampleRate: res.sampleRate }, duration, slot: null, announced: false };
+        const unit: Unit = { sentence, from, to, pcm: { samples: res.samples, sampleRate: res.sampleRate }, duration, synthMs: res.synthMs, slot: null, announced: false };
         this.cache.set(key(sentence, from), unit);
         this.ahead.push(unit);
         this.pump();
@@ -263,14 +293,29 @@ export class SpeechQueue {
 
   private schedule(u: Unit, now: number): void {
     let at = this.lastEnd ?? now + LEAD;
-    if (at < now) {
+    const underrun = at < now;
+    if (underrun) {
       // The audio ran dry before this unit was ready.
       this.underruns++;
       at = now + LEAD;
     }
-    if (this.lastEnd !== null) this.maxGap = Math.max(this.maxGap, at - this.lastEnd);
+    const gap = this.lastEnd === null ? null : at - this.lastEnd;
+    if (gap !== null) this.maxGap = Math.max(this.maxGap, gap);
     u.slot = this.deps.sink.play(u.pcm, at);
     this.lastEnd = u.slot.end;
+    this.deps.log?.({
+      kind: "unit",
+      sentence: u.sentence,
+      from: u.from,
+      chars: u.to - u.from,
+      at,
+      now,
+      gapMs: gap === null ? null : gap * 1000,
+      underrun,
+      synthMs: u.synthMs,
+      rtf: this.rtf,
+      cached: this.cache.size,
+    });
   }
 
   private evict(): void {
@@ -287,6 +332,7 @@ export class SpeechQueue {
       u.announced = true;
       if (u.from === 0 || u.sentence !== this.current) {
         this.current = u.sentence;
+        this.deps.log?.({ kind: "sentence", sentence: u.sentence, lateMs: (now - u.slot.start) * 1000 });
         this.deps.onSentence(u.sentence);
       }
     }
