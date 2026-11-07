@@ -7,12 +7,13 @@ import { GrowDialog } from "@/components/ui/grow-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { EmptyState } from "@/components/shell/page-frame";
 import { budgetName, budgetProgress, sortBudgets, type Budget, type BudgetProgress } from "@/lib/money/budgets";
-import { CURRENCY_CODES, exponentOf, formatMoney, parseAmount, toInputString, type Currency } from "@/lib/money/currency";
+import { CURRENCY_CODES, exponentOf, formatMoney, type Currency } from "@/lib/money/currency";
 import { daysBetween, endOfMonth, monthLabel, todayIn, type Day } from "@/lib/money/dates";
 import { byId, type Category, type MoneyPayload } from "@/lib/money/money";
 import { cn } from "@/lib/utils";
-import { FIELD, LABEL } from "./form-kit";
+import { LABEL } from "./form-kit";
 import { MoneyLoadFailed } from "./money-app";
+import { MoneyInput, MoneyNote, useMoneyField } from "./money-input";
 import { CategoryMark, MoneyText } from "./money-text";
 import { grouped } from "./txn-form";
 import { useBudgetApi, useFx, useMoney, useToday, windowFxFrom } from "./use-money";
@@ -240,13 +241,12 @@ function BudgetForm({
   const firstFree = free("") ? OVERALL : (options.find((o) => free(o.c.id))?.c.id ?? OVERALL);
   const [target, setTarget] = React.useState<string>(initial ? (initial.categoryId ?? OVERALL) : firstFree);
   const [currency, setCurrency] = React.useState<Currency>(initial?.currency ?? payload.baseCurrency);
-  const [amount, setAmount] = React.useState(initial ? toInputString(initial.amountMinor, initial.currency) : "");
+  const amount = useMoneyField({ initialMinor: initial?.amountMinor ?? null, currency, rule: "positive", emptyMessage: "Enter the monthly amount" });
   const [rollover, setRollover] = React.useState(initial?.rollover ?? false);
   const [tried, setTried] = React.useState(false);
 
-  const minor = parseAmount(amount, currency);
-  const amountError =
-    amount.trim() === "" ? "Enter the monthly amount" : minor === null || minor <= 0 ? `Not an amount${exponentOf(currency) === 0 ? " (no decimals in this currency)" : ""}` : null;
+  const minor = amount.minor;
+  const amountError = amount.error;
   const targetError = free(target === OVERALL ? "" : target) ? null : "That one already has a budget";
   const items = [{ value: OVERALL, label: "Overall (every category)" }, ...options.map((o) => ({ value: o.c.id, label: `${o.c.emoji} ${o.c.name}` }))];
 
@@ -299,18 +299,13 @@ function BudgetForm({
           <label htmlFor={`${id}-amount`} className={LABEL}>
             Per month
           </label>
-          <input
+          <MoneyInput
+            field={amount}
+            invalid={amount.shownError(tried) !== null}
             id={`${id}-amount`}
-            inputMode="decimal"
-            autoComplete="off"
-            value={amount}
-            onChange={(e) => {
-              setAmount(e.target.value);
-            }}
-            placeholder={exponentOf(currency) > 0 ? "150000" : "15000"}
-            aria-invalid={tried && amountError !== null}
+            placeholder={exponentOf(currency) > 0 ? "150,000 or 150k" : "15,000"}
             aria-describedby={`${id}-amount-note`}
-            className={cn(FIELD, "tabular h-12 text-[20px] font-semibold")}
+            className="h-12 text-[20px] font-semibold"
           />
         </div>
         <div>
@@ -336,13 +331,13 @@ function BudgetForm({
             </SelectContent>
           </Select>
         </div>
-        <p id={`${id}-amount-note`} className="tabular col-span-2 -mt-2 min-h-[18px] text-[12px] text-ink-2" aria-live="polite">
-          {tried && amountError ? (
-            <span className="text-destructive">{amountError}</span>
-          ) : minor ? (
-            `${formatMoney({ minor, currency })} a month. Spend in other currencies is converted at each day's rate.`
-          ) : null}
-        </p>
+        <MoneyNote
+          id={`${id}-amount-note`}
+          field={amount}
+          tried={tried}
+          className="col-span-2 -mt-2 min-h-[18px]"
+          note={minor ? `${formatMoney({ minor, currency })} a month. Spend in other currencies is converted at each day's rate.` : null}
+        />
       </div>
 
       <label className="flex cursor-pointer items-start gap-3 rounded-[12px] bg-card-nested p-3">

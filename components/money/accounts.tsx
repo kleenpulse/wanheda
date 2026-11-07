@@ -6,11 +6,12 @@ import { buttonClass } from "@/components/ui/button";
 import { GrowDialog } from "@/components/ui/grow-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tip } from "@/components/ui/tooltip";
-import { CURRENCY_CODES, exponentOf, formatMoney, parseAmount, sumByCurrency, toInputString, type Currency } from "@/lib/money/currency";
+import { CURRENCY_CODES, formatMoney, sumByCurrency, type Currency } from "@/lib/money/currency";
 import { ACCOUNT_KINDS, ACCOUNT_NAME_MAX, type Account, type AccountKind, type MoneyPayload } from "@/lib/money/money";
 import { accountBalance } from "@/lib/money/reports";
 import { cn } from "@/lib/utils";
 import { ACCOUNT_ICON } from "./breakdown";
+import { MoneyInput, MoneyNote, useMoneyField } from "./money-input";
 import { MoneyStack, MoneyText } from "./money-text";
 import { useAccountApi } from "./use-money";
 
@@ -161,26 +162,18 @@ export function AccountsCard({ payload }: { payload: MoneyPayload }) {
   );
 }
 
-/** Reads an opening balance: digits as anywhere else, a leading minus for money owed. */
-function parseOpening(text: string, currency: Currency): number | null {
-  const t = text.trim();
-  if (t === "") return 0;
-  const negative = t.startsWith("-") || t.startsWith("−");
-  const minor = parseAmount(negative ? t.slice(1) : t, currency);
-  return minor === null ? null : negative && minor !== 0 ? -minor : minor;
-}
-
 function AccountForm({ initial, baseCurrency, onDone }: { initial: Account | null; baseCurrency: Currency; onDone: (account: Account) => void }) {
   const id = React.useId();
   const [name, setName] = React.useState(initial?.name ?? "");
   const [kind, setKind] = React.useState<AccountKind>(initial?.kind ?? "bank");
   const [currency, setCurrency] = React.useState<Currency>(initial?.currency ?? baseCurrency);
-  const [opening, setOpening] = React.useState(initial && initial.openingMinor !== 0 ? `${initial.openingMinor < 0 ? "-" : ""}${toInputString(initial.openingMinor, initial.currency)}` : "");
+  // Empty is 0; a minus is a card that starts in debt.
+  const opening = useMoneyField({ initialMinor: initial && initial.openingMinor !== 0 ? initial.openingMinor : null, currency, rule: "any", allowNegative: true });
   const [tried, setTried] = React.useState(false);
 
-  const openingMinor = parseOpening(opening, currency);
+  const openingMinor = opening.minor;
   const nameError = name.trim() === "" ? "Give it a name" : null;
-  const openingError = openingMinor === null ? `Not an amount${exponentOf(currency) === 0 ? " (no decimals in this currency)" : ""}` : null;
+  const openingError = opening.error;
 
   const submit = (e: React.SyntheticEvent) => {
     e.preventDefault();
@@ -282,28 +275,26 @@ function AccountForm({ initial, baseCurrency, onDone }: { initial: Account | nul
         <label htmlFor={`${id}-opening`} className={LABEL}>
           Opening balance ({initial?.currency ?? currency})
         </label>
-        <input
+        <MoneyInput
+          field={opening}
+          invalid={opening.shownError(tried) !== null}
           id={`${id}-opening`}
-          inputMode="decimal"
-          autoComplete="off"
-          value={opening}
-          onChange={(e) => {
-            setOpening(e.target.value);
-          }}
           placeholder="0"
-          aria-invalid={tried && openingError !== null}
           aria-describedby={`${id}-opening-note`}
-          className={cn(FIELD, "tabular")}
         />
-        <p id={`${id}-opening-note`} className="mt-1 text-[12px] text-ink-2" aria-live="polite">
-          {tried && openingError ? (
-            <span className="text-destructive">{openingError}</span>
-          ) : openingMinor !== null && openingMinor !== 0 ? (
-            <MoneyText value={{ minor: openingMinor, currency: initial?.currency ?? currency }} />
-          ) : (
-            "What it held before your first entry here. A minus for a card that starts in debt."
-          )}
-        </p>
+        <MoneyNote
+          id={`${id}-opening-note`}
+          field={opening}
+          tried={tried}
+          className="mt-1"
+          note={
+            openingMinor !== null && openingMinor !== 0 ? (
+              <MoneyText value={{ minor: openingMinor, currency }} />
+            ) : (
+              "What it held before your first entry here. A minus (or ±) for a card that starts in debt."
+            )
+          }
+        />
       </div>
 
       <button type="submit" className={buttonClass("inverse", "pill", "self-start")}>

@@ -8,7 +8,7 @@ import { GrowDialog } from "@/components/ui/grow-dialog";
 import { Segmented } from "@/components/ui/segmented";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tip } from "@/components/ui/tooltip";
-import { CURRENCY_CODES, exponentOf, formatMoney, parseAmount, toInputString, type Currency } from "@/lib/money/currency";
+import { CURRENCY_CODES, exponentOf, formatMoney, type Currency } from "@/lib/money/currency";
 import { addDays, dayLabel, daysBetween, shortDayLabel, type Day } from "@/lib/money/dates";
 import { byId, type Account, type Category, type MoneyPayload } from "@/lib/money/money";
 import {
@@ -33,6 +33,7 @@ import {
 } from "@/lib/money/subscriptions";
 import { cn } from "@/lib/utils";
 import { MoneyLoadFailed } from "./money-app";
+import { MoneyInput, MoneyNote, useMoneyField } from "./money-input";
 import { CategoryMark, MoneyStack, MoneyText } from "./money-text";
 import { RenewalCycle } from "./renewal-cycle";
 import { Suggestions } from "./suggestions";
@@ -433,7 +434,7 @@ function SubscriptionForm({
   const start = initial ?? { ...blankSubscription(today, payload.baseCurrency), categoryId: payload.categories.find((c) => c.slug === "subscriptions" && !c.archived)?.id ?? null };
   const [name, setName] = React.useState(start.name);
   const [currency, setCurrency] = React.useState<Currency>(start.currency);
-  const [amount, setAmount] = React.useState(initial ? toInputString(initial.amountMinor, initial.currency) : "");
+  const amount = useMoneyField({ initialMinor: initial?.amountMinor ?? null, currency, rule: "positive", emptyMessage: "Enter what it charges" });
   const [every, setEvery] = React.useState(String(start.intervalCount));
   const [cycle, setCycle] = React.useState<SubCycle>(start.cycle);
   // An edit shows the next renewal; the stored anchor stays unless this is changed, so month ends never drift (V30).
@@ -450,12 +451,12 @@ function SubscriptionForm({
   const categories = React.useMemo(() => byId(payload.categories), [payload.categories]);
   const options = grouped(payload.categories, "expense");
   const openAccounts = payload.accounts.filter((a) => !a.archived || a.id === start.accountId);
-  const minor = parseAmount(amount, currency);
+  const minor = amount.minor;
   const interval = /^\d+$/.test(every.trim()) ? Number(every.trim()) : NaN;
   const url = cancelUrl.trim();
 
   const nameError = name.trim() === "" ? "Give it a name" : null;
-  const amountError = amount.trim() === "" ? "Enter what it charges" : minor === null || minor === 0 ? `Not an amount${exponentOf(currency) === 0 ? " (no decimals in this currency)" : ""}` : null;
+  const amountError = amount.error;
   const everyError = Number.isInteger(interval) && interval >= 1 && interval <= SUB_INTERVAL_MAX ? null : `A whole number from 1 to ${String(SUB_INTERVAL_MAX)}`;
   const urlError = url === "" || isWebUrl(url) ? null : "A web link starting with https://";
   const remindOptions = (REMIND_PRESETS as readonly number[]).includes(remind) ? REMIND_PRESETS : [...REMIND_PRESETS, remind].sort((a, b) => a - b);
@@ -513,18 +514,13 @@ function SubscriptionForm({
           <label htmlFor={`${id}-amount`} className={LABEL}>
             Charge
           </label>
-          <input
+          <MoneyInput
+            field={amount}
+            invalid={amount.shownError(tried) !== null}
             id={`${id}-amount`}
-            inputMode="decimal"
-            autoComplete="off"
-            value={amount}
-            onChange={(e) => {
-              setAmount(e.target.value);
-            }}
-            placeholder={exponentOf(currency) > 0 ? "15.49" : "1500"}
-            aria-invalid={tried && amountError !== null}
+            placeholder={exponentOf(currency) > 0 ? "15.49" : "1,500"}
             aria-describedby={`${id}-amount-note`}
-            className={cn(FIELD, "tabular h-12 text-[20px] font-semibold")}
+            className="h-12 text-[20px] font-semibold"
           />
         </div>
         <div>
@@ -550,9 +546,7 @@ function SubscriptionForm({
             </SelectContent>
           </Select>
         </div>
-        <p id={`${id}-amount-note`} className="tabular col-span-2 -mt-2 min-h-[18px] text-[12px] text-ink-2" aria-live="polite">
-          {tried && amountError ? <span className="text-destructive">{amountError}</span> : preview}
-        </p>
+        <MoneyNote id={`${id}-amount-note`} field={amount} tried={tried} className="col-span-2 -mt-2 min-h-[18px]" note={preview} />
       </div>
 
       <div className="grid grid-cols-2 gap-3">
@@ -679,7 +673,7 @@ function SubscriptionForm({
               setAccountId(v);
               const a = openAccounts.find((x) => x.id === v);
               // A new one on a dollar card is most likely charged in dollars.
-              if (a && !initial && amount.trim() === "") setCurrency(a.currency);
+              if (a && !initial && amount.text.trim() === "") setCurrency(a.currency);
             }}
           >
             <SelectTrigger id={`${id}-account`} className="pl-3">

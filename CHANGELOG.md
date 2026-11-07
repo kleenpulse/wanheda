@@ -44,6 +44,10 @@ written after the fact, one per phase, and have no git tags.
 - The Music tab now opens on Songs.
 - Password-protected PDFs now open in the Reader, like the bank statements many banks send. Enter the password once, and Wanheda remembers it on this device only (untick “Remember on this device” to be asked every time). The password is never synced or sent anywhere. Covers, page counts, find and read-aloud work once it’s unlocked.
 
+### Changed
+
+- Amount fields in Money and Income are smarter. They only take what can be part of an amount, so stray letters can't get in, and they add the thousands commas as you type. Short forms and sums work: type `20k`, `1.5m` or `2.5k + 800` and the line under the field shows what it comes to, then the field fills it in when you leave it. Pasting `₦20,000.00`, `US$ 1,000` or a statement's `(1,234.50)` just works. The arrow keys nudge the amount up or down (hold Shift for steps of 10), and an opening balance has a ± button to make it negative, handy on a phone keyboard with no minus key.
+
 ### Fixed
 
 - The music list now fills the space under its tabs and scrolls on its own, so the page no longer scrolls with it.
@@ -52,6 +56,7 @@ written after the fact, one per phase, and have no git tags.
 - The island opens and closes with a smoother, springier glide instead of a snap, and closes a little quicker than it opens.
 - On a narrow phone, apps that don't fit on the bottom bar open from a More button above it, with large rows for your thumb. The page you're on always stays on the bar.
 - Picking a page from a menu (More, or Settings in the account menu) now closes the menu.
+- On a wide screen, each app's title and the show-amounts button now sit on the same line as the island, like a title bar. In Money and Income the tabs sit just below the island instead of crowding it. On a narrower screen the tabs take their own line under the title.
 
 ## [0.6.0] - 2026-11-07
 
