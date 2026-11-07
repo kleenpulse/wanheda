@@ -52,6 +52,7 @@ written after the fact, one per phase, and have no git tags.
 
 - The music list now fills the space under its tabs and scrolls on its own, so the page no longer scrolls with it.
 - In dark mode the island now has a soft glow like the Wanheda logo's, so it no longer disappears against the page.
+- The mouse wheel turns the music volume up and down when the pointer is over the volume control, and the page behind no longer scrolls while you do it.
 - The island opens and closes with a smoother, springier glide instead of a snap, and closes a little quicker than it opens.
 - On a narrow phone, apps that don't fit on the bottom bar open from a More button above it, with large rows for your thumb. The page you're on always stays on the bar.
 - Picking a page from a menu (More, or Settings in the account menu) now closes the menu.
