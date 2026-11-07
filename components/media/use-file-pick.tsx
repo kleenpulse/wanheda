@@ -35,6 +35,7 @@ export function useFilePick(onFile: (file: File, handle: FileSystemFileHandle | 
     <input
       ref={ref}
       type="file"
+      name="media-file"
       accept={`${VIDEO_ACCEPT},${AUDIO_ACCEPT},video/*,audio/*`}
       hidden
       onChange={(e) => {

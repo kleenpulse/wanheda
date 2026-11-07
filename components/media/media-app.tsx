@@ -235,6 +235,7 @@ function NowPlayingBar({ item }: { item: MediaItem }) {
           <input
             ref={pickRef}
             type="file"
+            name="subtitles"
             accept={SUBTITLE_ACCEPT}
             hidden
             onChange={(e) => {
@@ -283,7 +284,7 @@ const TABS = [
 export function MediaApp() {
   const tab = useUrlParam("tab") === "music" ? "music" : "videos";
   return (
-    <div className="flex min-w-0 flex-col gap-5">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-5">
       <Segmented
         label="Media"
         value={tab}

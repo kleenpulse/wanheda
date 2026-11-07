@@ -35,6 +35,10 @@ written after the fact, one per phase, and have no git tags.
 - Files that can't be read are skipped and counted instead of stopping the scan, and the island shows progress while new music is being read.
 - Password-protected PDFs now open in the Reader, like the bank statements many banks send. Enter the password once, and Wanheda remembers it on this device only (untick “Remember on this device” to be asked every time). The password is never synced or sent anywhere. Covers, page counts, find and read-aloud work once it’s unlocked.
 
+### Fixed
+
+- The music list now fills the space under its tabs and scrolls on its own, so the page no longer scrolls with it.
+
 ## [0.6.0] - 2026-11-07
 
 ### Added
