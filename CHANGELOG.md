@@ -15,6 +15,15 @@ written after the fact, one per phase, and have no git tags.
 
 ## [Unreleased]
 
+### Added
+
+- A new Media app. Open a video or audio file from your computer, drop one onto the page, or paste a link, and it plays right there.
+- Links from YouTube, Vimeo, SoundCloud and Spotify play inside Wanheda. A link straight to a video or audio file plays too.
+- Files that browsers usually refuse, such as MPEG-TS recordings, are converted while they play, with nothing saved to disk. If converting takes more than a second, the island shows it, with a way to cancel.
+- When a file can't play, Media says which track and which format is the problem (for example Dolby Digital audio), instead of playing silent video.
+- Your media list follows you to every device. A file itself never leaves the computer it's on: open the same file on another device and it links back to the same entry.
+- Search (Ctrl+K) lists your recent media, so you can play one from anywhere.
+
 ## [0.6.0] - 2026-11-07
 
 ### Added

@@ -2,11 +2,13 @@
 
 import * as React from "react";
 import { LiveActivity } from "@/components/island/live-activity";
+import { remuxActivity } from "@/components/island/remux-activity";
 import { moneyAlertActivity, useMoneyAlerts } from "@/components/island/money-alert-activity";
 import { saasAlertActivity, useSaasAlerts } from "@/components/island/saas-alert-activity";
 import { SPEECH_ACTIVITY, speechActivity } from "@/components/island/speech-activity";
 import { orderTimers, timerActivity } from "@/components/island/timer-activity";
 import { transferActivity } from "@/components/island/transfer-activity";
+import { useRemuxStatus } from "@/components/media/remux-status";
 import { useVoiceManager } from "@/components/settings/voice-manager";
 import { ACTIVITY_STORAGE_KEY, useActivity } from "@/lib/activity/store";
 import { useSpeech } from "@/lib/speech/store";
@@ -48,6 +50,8 @@ export function Island() {
   // The set of downloads, not their progress (a string, so a progress tick doesn't re-render): the views read progress themselves.
   const transferKey = useVoiceManager((s) => Object.keys(s.downloads).join(" "));
   const transfers = React.useMemo(() => (transferKey ? transferKey.split(" ").map(transferActivity) : []), [transferKey]);
+  const remuxTitle = useRemuxStatus((s) => s.job?.title ?? null);
+  const remux = React.useMemo(() => (remuxTitle === null ? null : remuxActivity(remuxTitle)), [remuxTitle]);
   // Only the title and whether it's live: the views read the sentence themselves.
   const speechTitle = useSpeech((s) => (s.status === "idle" ? null : (s.source?.title ?? null)));
   const speechAt = useSpeech((s) => s.startedAt);
@@ -57,10 +61,11 @@ export function Island() {
       ...(speech ? [speech] : []),
       ...orderTimers(timers).map(timerActivity),
       ...transfers,
+      ...(remux ? [remux] : []),
       ...saas.map(saasAlertActivity),
       ...alerts.map((a) => moneyAlertActivity(a, today)),
     ],
-    [speech, timers, transfers, saas, alerts, today],
+    [speech, timers, transfers, remux, saas, alerts, today],
   );
   // Whichever started last comes forward: a timer, or speech.
   const speechNewer = speech !== null && speechAt > lastStartedAt;
