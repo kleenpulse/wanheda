@@ -8,15 +8,19 @@ import Dexie, { type EntityTable } from "dexie";
 
 type HandleRow = { fp: string; handle: FileSystemFileHandle; name: string; size: number };
 
-type MediaDb = Dexie & { handles: EntityTable<HandleRow, "fp"> };
+/** Where an item was left on this device (V55). `pending` = 1 until the server has it. */
+export type ProgressRow = { itemId: string; positionS: number; watched: boolean; at: number; pending: 0 | 1 };
+
+type MediaDb = Dexie & { handles: EntityTable<HandleRow, "fp">; progress: EntityTable<ProgressRow, "itemId"> };
 
 let dbPromise: Promise<MediaDb | null> | null = null;
 
-function db(): Promise<MediaDb | null> {
+export function db(): Promise<MediaDb | null> {
   dbPromise ??= (async () => {
     if (typeof indexedDB === "undefined") return null;
     const d = new Dexie("wanheda-media") as MediaDb;
     d.version(1).stores({ handles: "fp" });
+    d.version(2).stores({ handles: "fp", progress: "itemId, pending" });
     await d.open();
     return d;
   })().catch(() => null);

@@ -1,8 +1,8 @@
 "use server";
 
 import { requireOwner } from "@/lib/auth/owner";
-import { idSchema, itemCreateSchema, type DeleteReply, type ItemReply } from "@/lib/media/media";
-import { createItem as createStoredItem, deleteItem as deleteStoredItem } from "@/lib/media/store";
+import { idSchema, itemCreateSchema, watchLaterSchema, type DeleteReply, type ItemReply } from "@/lib/media/media";
+import { createItem as createStoredItem, deleteItem as deleteStoredItem, setWatchLater } from "@/lib/media/store";
 
 // Media writes (T61). requireOwner() first and the owner from the session
 // (SPEC V7); ids are the client's, so a replay is a no-op. Only metadata
@@ -20,6 +20,23 @@ export async function addMediaItem(input: unknown): Promise<ItemReply> {
     return { ok: true, item: r.item, existing: r.kind === "existing" };
   } catch (error) {
     console.error("addMediaItem failed", error);
+    return { ok: false, reason: "failed" };
+  }
+}
+
+/** Puts an item on the watch-later queue or takes it off (T62). */
+export async function watchLater(input: unknown): Promise<ItemReply> {
+  const owner = await requireOwner();
+  if (owner.kind === "demo") return { ok: false, reason: "demo" };
+  const parsed = watchLaterSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, reason: "invalid" };
+  try {
+    const r = await setWatchLater(owner.user.id, parsed.data.id, parsed.data.on);
+    if (!r) return { ok: false, reason: "off" };
+    if (r === "gone") return { ok: false, reason: "gone" };
+    return { ok: true, item: r, existing: true };
+  } catch (error) {
+    console.error("watchLater failed", error);
     return { ok: false, reason: "failed" };
   }
 }

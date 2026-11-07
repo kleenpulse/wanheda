@@ -14,6 +14,8 @@ import { cn } from "@/lib/utils";
 import { slowRemuxNotice } from "./remux-status";
 import { providerName, useMediaApi } from "./use-media";
 import { useFilePick } from "./use-file-pick";
+import { usePlayer } from "./player-store";
+import { usePlayerWiring } from "./use-player";
 
 // The player area (T61). Embeds get an allowlisted iframe rebuilt from the
 // item's URI (V56); links play in the browser; local files go up the ladder
@@ -79,10 +81,15 @@ function useVideoElement() {
 }
 
 /** Plays a local file: probe, plan, then native or remux. */
-function LocalPlayer({ item, file }: { item: MediaItem; file: File }) {
+function LocalPlayer({ item: live, file }: { item: MediaItem; file: File }) {
+  // Frozen at mount (the stage keys players by item): a saved position changes
+  // the cached item, and that must never re-run the source effects.
+  const [item] = React.useState(live);
   const video = useVideoElement();
   const [phase, setPhase] = React.useState<Phase>({ kind: "opening" });
   const { mounted } = video;
+  // Before the source effect: its cleanups (last position, session release) run first.
+  usePlayerWiring(video.ref, mounted, item);
 
   React.useEffect(() => {
     const el = video.ref.current;
@@ -234,7 +241,7 @@ function LocalPlayer({ item, file }: { item: MediaItem; file: File }) {
   return (
     <div className="flex flex-col gap-3">
       <div className={cn(STAGE, phase.kind === "cannot" && "hidden")}>
-        <MediaSurface title={item.title} onElement={video.onElement} />
+        <MediaSurface title={item.title} onElement={video.onElement} onControls={usePlayer.getState().setControls} />
       </div>
       {phase.kind === "cannot" ? (
         <Notice icon={TriangleAlert} title="Can't play this file">
@@ -246,10 +253,13 @@ function LocalPlayer({ item, file }: { item: MediaItem; file: File }) {
 }
 
 /** A direct http(s) media URL: the browser fetches it; the server never does (V56). */
-function LinkPlayer({ item }: { item: MediaItem }) {
+function LinkPlayer({ item: live }: { item: MediaItem }) {
+  // Frozen at mount, as in LocalPlayer.
+  const [item] = React.useState(live);
   const video = useVideoElement();
   const { mounted } = video;
   const [failed, setFailed] = React.useState(false);
+  usePlayerWiring(video.ref, mounted, item);
   React.useEffect(() => {
     const el = video.ref.current;
     if (!el) return;
@@ -278,7 +288,7 @@ function LinkPlayer({ item }: { item: MediaItem }) {
   }
   return (
     <div className={STAGE}>
-      <MediaSurface title={item.title} onElement={video.onElement} />
+      <MediaSurface title={item.title} onElement={video.onElement} onControls={usePlayer.getState().setControls} />
     </div>
   );
 }

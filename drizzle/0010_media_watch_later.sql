@@ -1,0 +1,1 @@
+ALTER TABLE "media_item" ADD COLUMN "watch_later_at" timestamp with time zone;

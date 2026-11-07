@@ -46,6 +46,8 @@ export function seedMedia(now: number): MediaItem[] {
         title: s.title,
         durationS: s.durationS,
         meta: p.kind === "embed" ? { provider: p.provider } : {},
+        watchLaterAt: null,
+        progress: null,
         createdAt: at,
         updatedAt: at,
       },

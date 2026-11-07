@@ -23,6 +23,12 @@ written after the fact, one per phase, and have no git tags.
 - When a file can't play, Media says which track and which format is the problem (for example Dolby Digital audio), instead of playing silent video.
 - Your media list follows you to every device. A file itself never leaves the computer it's on: open the same file on another device and it links back to the same entry.
 - Search (Ctrl+K) lists your recent media, so you can play one from anywhere.
+- Videos pick up where you left off, on any device. Anything you finish is marked as watched and starts from the beginning next time.
+- A Continue list shows what you're partway through, and Watch later keeps a queue of things to see. Add an item with the bookmark button.
+- Add subtitles to a video: drop an .srt or .vtt file on the player, or press Add subtitles.
+- Theatre mode makes the video fill the width of the page. Press T, or use the Theatre button.
+- While a video plays, Search (Ctrl+K) has player controls: play and pause, skip 10 seconds, speed, picture-in-picture, fullscreen and theatre. Each shows its keyboard shortcut.
+- Your keyboard's media keys control whichever of video and read-aloud you started last, and starting one pauses the other.
 
 ## [0.6.0] - 2026-11-07
 

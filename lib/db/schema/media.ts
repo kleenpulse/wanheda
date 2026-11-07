@@ -41,6 +41,8 @@ export const mediaItem = pgTable(
     title: text("title").notNull(),
     durationS: doublePrecision("duration_s"),
     meta: jsonb("meta").$type<unknown>().notNull().default(sql`'{}'::jsonb`),
+    /** On the watch-later queue since then (T62); null when not queued. */
+    watchLaterAt: at("watch_later_at"),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },

@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { create } from "zustand";
-import { addMediaItem, deleteMediaItem } from "@/actions/media";
+import { addMediaItem, deleteMediaItem, watchLater } from "@/actions/media";
 import { useAccount } from "@/components/shell/account";
 import { toast } from "@/components/ui/toaster";
 import { useHydrated } from "@/hooks/use-hydrated";
@@ -11,7 +11,9 @@ import { fetchJson } from "@/lib/fetch-json";
 import { forgetFile, keepHandle, rememberFile } from "@/lib/media/local";
 import { MEDIA_KEY, TITLE_MAX, upsertItem, type MediaPayload } from "@/lib/media/media";
 import type { MediaItem, MediaItemInput } from "@/lib/media/types";
+import { layProgress } from "@/lib/media/playback";
 import { parseMediaUrl } from "@/lib/media/url";
+import { usePlayback } from "./playback-store";
 
 // The media cache (V24): /media reads one TanStack Query entry, filled by the
 // page's Prefetch or /api/media. Writes show at once and are sent after; a
@@ -36,13 +38,18 @@ export function useMedia(options: { enabled?: boolean } = {}) {
     enabled: options.enabled ?? true,
   });
   const hidden = useHidden((s) => s.ids);
+  const local = usePlayback((s) => s.byItem);
   // A sibling Prefetch may fill the cache before this view's hydration pass (B15).
   const hydrated = useHydrated();
+  React.useEffect(() => {
+    if (hydrated) usePlayback.getState().load(demo);
+  }, [hydrated, demo]);
   const raw = hydrated ? (query.data ?? null) : null;
   const data = React.useMemo(() => {
-    if (!raw || hidden.size === 0) return raw;
-    return { ...raw, items: raw.items.filter((i) => !hidden.has(i.id)) };
-  }, [raw, hidden]);
+    if (!raw) return raw;
+    const items = layProgress(hidden.size === 0 ? raw.items : raw.items.filter((i) => !hidden.has(i.id)), local);
+    return { ...raw, items };
+  }, [raw, hidden, local]);
   return { data, failed: hydrated && query.isError && !query.data, refetch: query.refetch };
 }
 
@@ -80,7 +87,7 @@ export function useMediaApi() {
       const known = qc.getQueryData<MediaPayload>(MEDIA_KEY)?.items.find((i) => i.fp === input.fp);
       if (known) return known;
       const now = new Date().toISOString();
-      const item: MediaItem = { id: crypto.randomUUID(), ...input, createdAt: now, updatedAt: now };
+      const item: MediaItem = { id: crypto.randomUUID(), ...input, watchLaterAt: null, progress: null, createdAt: now, updatedAt: now };
       void qc.cancelQueries({ queryKey: MEDIA_KEY });
       patchCache((p) => ({ ...p, items: upsertItem(p.items, item) }));
       if (demo) return item;
@@ -190,7 +197,33 @@ export function useMediaApi() {
     [demo, patchCache],
   );
 
-  return { addFile, addLink, remove };
+  /** Watch later on or off (T62): at once in the cache, then saved; a failure puts it back. */
+  const setWatchLater = React.useCallback(
+    (item: MediaItem, on: boolean) => {
+      const before = item.watchLaterAt;
+      const put = (watchLaterAt: string | null) => {
+        patchCache((p) => ({ ...p, items: p.items.map((i) => (i.id === item.id ? { ...i, watchLaterAt } : i)) }));
+      };
+      put(on ? (before ?? new Date().toISOString()) : null);
+      if (demo) return;
+      void watchLater({ id: item.id, on }).then(
+        (r) => {
+          if (r.ok) put(r.item.watchLaterAt);
+          else {
+            put(before);
+            toast({ title: `Couldn't update ${item.title}`, body: "Try again." });
+          }
+        },
+        () => {
+          put(before);
+          toast({ title: `Couldn't update ${item.title}`, body: "You may be offline." });
+        },
+      );
+    },
+    [demo, patchCache],
+  );
+
+  return { addFile, addLink, remove, setWatchLater };
 }
 
 export function providerName(p: string): string {
