@@ -288,6 +288,7 @@ export function useReadAlong({
   );
 
   const play = () => {
+    const pressAt = performance.now();
     // In the press's own turn: the audio may start only after the text is ready.
     primeSpeech();
     const speech = useSpeech.getState();
@@ -337,6 +338,7 @@ export function useReadAlong({
         { kind: "doc", id: sha256, title: doc.title, href: `/reader?d=${encodeURIComponent(doc.id)}` },
         list.map((s) => s.text),
         from,
+        { pressAt },
       );
       // Found after the voice starts: only the sleep timer's "end of chapter" needs them.
       void Promise.resolve(live.current.target.chapters(list))

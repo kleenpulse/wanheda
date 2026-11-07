@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { clampRate, isAbort, type EngineId } from "./engine";
+import { startExitLog, type ExitLog } from "./exit-log";
 import { piper } from "./piper";
 import { SpeechPlayer } from "./player";
 import { SpeechQueue, type QueueStats } from "./queue";
@@ -51,8 +52,11 @@ interface SpeechState {
   /** The sleep timer, or null. It pauses the speech. */
   sleep: Sleep | null;
 
-  /** `voice` overrides the voice pref for this play only (a sample in Settings). */
-  play: (source: SpeechSource, sentences: readonly string[], from?: number, opts?: { voice?: string }) => void;
+  /**
+   * `voice` overrides the voice pref for this play only (a sample in Settings). `pressAt` is the press's
+   * performance.now() when it came before this call (read-along awaits the text first): the exit log's clock.
+   */
+  play: (source: SpeechSource, sentences: readonly string[], from?: number, opts?: { voice?: string; pressAt?: number }) => void;
   pause: () => void;
   resume: () => void;
   toggle: () => void;
@@ -94,11 +98,18 @@ class PiperDriver implements Driver {
     private readonly player: SpeechPlayer,
     voice: string,
     events: DriverEvents,
+    private readonly log: ExitLog | null = null,
   ) {
     this.queue = new SpeechQueue({
       sink: player,
-      synth: (text, rate, signal) => piper.synth(text, voice, { rate, signal }),
+      synth: (text, rate, signal) => {
+        log?.mark("synth-sent");
+        const out = piper.synth(text, voice, { rate, signal });
+        if (log) void out.then(() => log.mark("synth-back"), () => undefined);
+        return out;
+      },
       ...events,
+      ...(log ? { log: log.entry } : {}),
     });
   }
 
@@ -126,6 +137,7 @@ class PiperDriver implements Driver {
   stop(): void {
     this.queue.stop();
     this.unhold();
+    this.log?.end();
   }
 }
 
@@ -327,6 +339,8 @@ export const useSpeech = create<SpeechState>()((set, get) => {
     sleep: null,
 
     play: (source, list, from = 0, opts) => {
+      const playAt = performance.now();
+      const pressAt = opts?.pressAt ?? playAt;
       generation++;
       const gen = generation;
       finish();
@@ -369,7 +383,7 @@ export const useSpeech = create<SpeechState>()((set, get) => {
             set({ status: "idle", waiting: false, engine: null, error: "No voice: download one in Settings, or use a browser with speech." });
             return;
           }
-          driver = hasPiper ? new PiperDriver(player, voice, events(gen)) : new WebSpeechDriver(events(gen));
+          driver = hasPiper ? new PiperDriver(player, voice, events(gen), startExitLog(voice, pressAt, playAt)) : new WebSpeechDriver(events(gen));
           set({ engine: driver.engine });
           const { sentence, status } = get();
           driver.start(sentences, sentence, rate, status === "paused");

@@ -35,7 +35,7 @@ import {
   turnFor,
   type BookLayout,
 } from "@/lib/reader/book";
-import { firstPdfSentence, pageDirection, pdfAt, pdfChapterStarts } from "@/lib/reader/read-along";
+import { FOLLOW_LINE_SHARE, directionOf, firstPdfSentence, followScrollTop, pageDirection, pdfAt, pdfChapterStarts } from "@/lib/reader/read-along";
 import { formatLocator, parseLocator, type Progress, type ReaderDoc, type ReadingMode } from "@/lib/reader/reader";
 import { cn } from "@/lib/utils";
 import { hasCover, keepCover } from "../covers";
@@ -207,6 +207,8 @@ function Reader({ doc, file, loaded }: { doc: ReaderDoc; file: File; loaded: Loa
   // Not while read aloud holds the place (V48).
   const [resumed, setResumed] = React.useState(0);
   const voiceHolds = React.useRef(false);
+  /** The voice's own turn is in flight (bring): what lands isn't the owner's turn. */
+  const voiceTurn = React.useRef(false);
   /** Read-along's follow off, for turns made with the reader's own controls (set below). */
   const turned = React.useRef<() => void>(() => undefined);
   /** The page and line of the sentence read aloud, while there is one. */
@@ -232,7 +234,8 @@ function Reader({ doc, file, loaded }: { doc: ReaderDoc; file: File; loaded: Loa
       // Following the voice, the voice saves the place. A book turned away from its page is the owner's turn: follow off.
       if (voiceHolds.current) {
         const page = spoken.current?.page;
-        if (mode !== "flip" || page === undefined || spreadPages(spreadOf(p.page, layoutRef.current), layoutRef.current).includes(page)) return;
+        // A turn the voice asked for is never the owner's, even when it lands short (turnToVoice turns again).
+        if (mode !== "flip" || page === undefined || voiceTurn.current || spreadPages(spreadOf(p.page, layoutRef.current), layoutRef.current).includes(page)) return;
         turned.current();
       }
       resume.save(formatLocator({ kind: "pdf", page: p.page, y: p.y }), percent);
@@ -279,6 +282,67 @@ function Reader({ doc, file, loaded }: { doc: ReaderDoc; file: File; loaded: Loa
   const sayGen = React.useRef(0);
   /** The pages the book has open now. */
   const openNow = () => spreadPages(spreadOf(placeRef.current.page, layoutRef.current), layoutRef.current);
+  /** In a book whose page scrolls (fitted to the width, or zoomed): the spoken line's top in the scroller, and its height. */
+  const bookLine = (at: { page: number; y: number }) => {
+    const el = book.current?.scroller();
+    const sheet = el?.querySelector<HTMLElement>(`.book-page[data-page="${String(at.page)}"]`);
+    if (!el || !sheet) return null;
+    const r = sheet.getBoundingClientRect();
+    if (r.height === 0) return null;
+    return { el, top: r.top - el.getBoundingClientRect().top + el.scrollTop + (at.y / 1000) * r.height, line: r.height * FOLLOW_LINE_SHARE };
+  };
+  /** Scrolls a book's page so the spoken line shows (T58: a page taller than the stage). */
+  const bringInBook = (smooth: boolean) => {
+    const b = spoken.current && bookLine(spoken.current);
+    if (!b) return;
+    const to = followScrollTop(b.top, b.line, b.el.scrollTop, b.el.clientHeight, BAR_H);
+    if (to !== null) b.el.scrollTo({ top: to, behavior: smooth ? "smooth" : "instant" });
+  };
+  const settle = React.useRef(0);
+  const followingRef = React.useRef(true);
+  React.useEffect(
+    () => () => {
+      cancelAnimationFrame(settle.current);
+    },
+    [],
+  );
+  /**
+   * Turns to the voice's page, then brings its line. A goTo made while a turn is in flight is dropped
+   * (flip-book.tsx), so a turn that lands short turns again, a few times at most.
+   */
+  const turnToVoice = (page: number, smooth: boolean, tries: number) => {
+    voiceTurn.current = true;
+    book.current?.goTo(page);
+    afterTurn(() => {
+      const now = spoken.current;
+      // Stopped, or follow went off during the turn: the view is the owner's now.
+      if (!followingRef.current || !now) {
+        voiceTurn.current = false;
+        return;
+      }
+      if (!openNow().includes(now.page) && tries > 1) {
+        turnToVoice(now.page, smooth, tries - 1);
+        return;
+      }
+      voiceTurn.current = false;
+      bringInBook(smooth);
+    });
+  };
+  /** After a turn lands (and its reset to the top of the page), then. */
+  const afterTurn = (then: () => void) => {
+    cancelAnimationFrame(settle.current);
+    const from = performance.now();
+    const wait = () => {
+      settle.current = requestAnimationFrame(() => {
+        if (book.current?.turning() && performance.now() - from < 2000) {
+          wait();
+          return;
+        }
+        settle.current = requestAnimationFrame(then);
+      });
+    };
+    wait();
+  };
   const target: ReadAlongTarget = {
     startAt: (list) => firstPdfSentence(list, placeRef.current),
     mark: (s) => {
@@ -296,13 +360,19 @@ function Reader({ doc, file, loaded }: { doc: ReaderDoc; file: File; loaded: Loa
       const at = spoken.current;
       if (!at) return;
       if (mode === "flip") {
-        if (!openNow().includes(at.page)) book.current?.goTo(at.page);
+        if (openNow().includes(at.page)) bringInBook(smooth);
+        else turnToVoice(at.page, smooth, 3);
       } else scroll.current?.bring(at.page, at.y, smooth);
     },
     where: () => {
       const at = spoken.current;
       if (!at) return null;
-      return mode === "flip" ? pageDirection(at.page, openNow()) : (scroll.current?.where(at.page, at.y) ?? null);
+      if (mode !== "flip") return scroll.current?.where(at.page, at.y) ?? null;
+      const side = pageDirection(at.page, openNow());
+      if (side) return side;
+      // Its page is open but scrolled: above or below the view.
+      const b = bookLine(at);
+      return b ? directionOf(b.top, b.top + b.line, b.el.scrollTop + BAR_H, b.el.scrollTop + b.el.clientHeight - BAR_H) : null;
     },
     save: (s) => {
       const at = spoken.current;
@@ -316,6 +386,7 @@ function Reader({ doc, file, loaded }: { doc: ReaderDoc; file: File; loaded: Loa
 
   React.useLayoutEffect(() => {
     turned.current = ra.turned;
+    followingRef.current = ra.following;
     raUpdateRef.current = ra.update;
     voiceHolds.current = ra.holding;
   });
