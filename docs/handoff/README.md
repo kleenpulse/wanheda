@@ -178,7 +178,7 @@ Wanheda is built by **two Claude Code sessions at the same time**. Each has a fi
 2. **Builder → Reviewer: review request** (format below). The work is not committed yet, or is committed locally but not pushed.
 3. **Reviewer: Checkpoint 1 (the diff).** Finds the real diff (including untracked files), checks scope, verifies every claim in the request **and every claim in the hand-off's Verification section** against the tree, hunts for regressions against `SPEC.md` §V, and judges the tests. Sends one verdict.
 4. **Builder** fixes every FIX (each one comes with a failing scenario, a suggested change and a test), takes or leaves the nits, and asks for a re-review of the delta only.
-5. **User** gives the go-ahead → **Builder** stages files explicitly (never `git add -A`), commits, pushes and opens the PR, then tells the reviewer the PR number.
+5. **User** gives the go-ahead → **Builder** stages files explicitly (never `git add -A`), commits (with an `## [Unreleased]` line in `CHANGELOG.md` for every user-visible change), pushes and opens the PR, then tells the reviewer the PR number.
 6. **Reviewer: Checkpoint 2 (the push).** Runs `references/verify.sh push`: same SHA everywhere, based on real `main`, no forged commits (author TZ = committer TZ, no -0800/-0700), same files and same lines as reviewed, whole-tree IOC + secrets scan clean.
 7. **User** merges.
 8. **Reviewer: Checkpoint 3 (the merge).** Runs `references/verify.sh merge`: merge tree equals the reviewed tip, new `main` scans clean, branch and worktree cleaned up. Reports to the builder and gives the user a short summary.

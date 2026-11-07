@@ -44,6 +44,12 @@ A personal super-dashboard and mini OS for one owner: money, media, reading, voi
 | Forged-commit check | `sh scripts/forged-commits.sh <range>` |
 | DB migration SQL | `bun run db:generate` (writes reviewed SQL to `drizzle/`) |
 | Apply migrations | `bun run db:migrate` (only with the user's go-ahead; never `drizzle-kit push`) |
+| Cut a release | `bun run bump patch\|minor\|major`, then `bun run bump --tag` on `main` after the merge (only on the user's word) |
+
+## Changelog and releases
+
+- Every user-visible change gets a plain-English entry under `## [Unreleased]` in `CHANGELOG.md`, in the same commit as the change. It ships inside the app as What's New, so write it for the owner as a user: what they can now do or see, with no task IDs, V-numbers or file paths. Refactors, tests, CI and docs get no entry.
+- Never edit `version` in `package.json` by hand. Versions are SemVer: each phase exit is a minor, fixes in between are patches. Releases are cut only with `bun run bump`, only on the user's word. On an up-to-date `main` it creates `release/vX.Y.Z` with a `chore(release): vX.Y.Z` commit, which goes through a PR like everything else; after the user merges it, `bun run bump --tag` on `main` adds the annotated tag. The script never pushes.
 
 ## Security: the 2026-10 worm
 
