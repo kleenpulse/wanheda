@@ -13,7 +13,20 @@ import { cn } from "@/lib/utils";
   The sheet's body is an @container stack. Pages that want columns use
   container variants, never viewport breakpoints: the rail is 84px or 232px,
   so the viewport lies about the room a page has.
+
+  A page whose content scrolls on its own (Music's long list) marks an
+  element `data-page-fill`: the frame then fills the screen exactly, the
+  sheet's column takes the height left under the header, and the page itself
+  never scrolls. CSS has(), so a client-side tab can opt in without the
+  server page knowing; the dock clearance moves into that scroller.
 */
+
+const FILL = {
+  // A floor: on a very short screen (a phone on its side) the frame stops shrinking and the page scrolls, sheet and all.
+  frame: "has-[[data-page-fill]]:h-svh has-[[data-page-fill]]:min-h-[34rem]",
+  sheet: "has-[[data-page-fill]]:flex has-[[data-page-fill]]:min-h-0 has-[[data-page-fill]]:flex-col",
+  column: "has-[[data-page-fill]]:min-h-0 has-[[data-page-fill]]:flex-1 has-[[data-page-fill]]:pb-0",
+};
 
 /** Page width cap, net of the rail: Raven's calc(1900px - rail). Skeletons share it. */
 export const PAGE_COLUMN = "mx-auto w-full max-w-[calc(1900px-var(--rail-w))] px-5 md:px-8";
@@ -44,7 +57,7 @@ export function PageFrame({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex min-h-svh flex-col">
+    <div className={cn("flex min-h-svh flex-col", FILL.frame)}>
       <div className={cn(PAGE_COLUMN, "@container/frame pt-6 pb-6")}>
         {/* Wraps: on a phone, a page's actions (the money tabs) drop under the title instead of squeezing it. */}
         <header className="entrance flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
@@ -64,13 +77,13 @@ export function PageFrame({
         </header>
       </div>
 
-      <div className="relative isolate flex-1 rounded-t-frame bg-sheet dark:border-t dark:border-glass-border">
+      <div className={cn("relative isolate flex-1 rounded-t-frame bg-sheet dark:border-t dark:border-glass-border", FILL.sheet)}>
         {backdrop ? (
           <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 overflow-hidden rounded-t-frame">
             {backdrop}
           </div>
         ) : null}
-        <div className={cn(PAGE_COLUMN, "@container flex flex-col gap-4 pt-6 md:pt-8", FLOATING_BAR_CLEARANCE, sheetClassName)}>{children}</div>
+        <div className={cn(PAGE_COLUMN, "@container flex flex-col gap-4 pt-6 md:pt-8", FLOATING_BAR_CLEARANCE, FILL.column, sheetClassName)}>{children}</div>
       </div>
     </div>
   );

@@ -13,6 +13,13 @@ import { Cover } from "./cover";
 import { hasFolderPicker, useMusicLibrary } from "./music-library";
 import { VirtualList } from "./virtual-list";
 
+/**
+ * The list takes the height left in the page and runs to the sheet's bottom edge, under the dock;
+ * its last row clears the dock by the page's FLOATING_BAR_CLEARANCE (page-frame.tsx). A floor of a
+ * few rows, so a very short window scrolls the page rather than hide the list.
+ */
+const LIST_FILL = "min-h-40 flex-1 pb-[calc(76px+2rem)]";
+
 // The music library (T63, V58): pick a folder once, browse by artist, album,
 // genre or folder, or search. Playback arrives with T64; this view lists.
 
@@ -79,6 +86,7 @@ function FolderBar() {
       <input
         ref={inputRef}
         type="file"
+        name="music-folder"
         hidden
         multiple
         {...({ webkitdirectory: "" } as Record<string, string>)}
@@ -160,7 +168,8 @@ export function MusicView() {
   }, [all, query, open, browse]);
 
   return (
-    <div className="flex min-w-0 flex-col gap-4">
+    // Fills the page (page-frame.tsx): the list scrolls, the page doesn't.
+    <div data-page-fill className="flex min-h-0 min-w-0 flex-1 flex-col gap-4">
       <FolderBar />
       <div className="flex flex-wrap items-center gap-3">
         <Segmented
@@ -219,7 +228,7 @@ export function MusicView() {
             rowHeight={ROW}
             getKey={(t) => t.path}
             render={(t) => <TrackRow t={t} />}
-            className="max-h-[min(70vh,48rem)]"
+            className={LIST_FILL}
           />
         )
       ) : (
@@ -236,7 +245,7 @@ export function MusicView() {
               }}
             />
           )}
-          className="max-h-[min(70vh,48rem)]"
+          className={LIST_FILL}
         />
       )}
     </div>
