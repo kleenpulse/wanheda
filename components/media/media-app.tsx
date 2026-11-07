@@ -16,12 +16,14 @@ import {
   TriangleAlert,
 } from "lucide-react";
 import { buttonClass } from "@/components/ui/button";
+import { Segmented } from "@/components/ui/segmented";
 import { toast } from "@/components/ui/toaster";
 import { pushUrl, replaceUrlParams, useUrlParam } from "@/hooks/use-url-param";
 import { formatDuration, mediaHref } from "@/lib/media/media";
 import { continueList, watchLaterList } from "@/lib/media/playback";
 import type { MediaItem } from "@/lib/media/types";
 import { cn } from "@/lib/utils";
+import { MusicView } from "./music-view";
 import { SUBTITLE_ACCEPT, usePlayer } from "./player-store";
 import { Stage, preloadSurface } from "./stage";
 import { useFilePick } from "./use-file-pick";
@@ -272,7 +274,30 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
+const TABS = [
+  { value: "videos", label: "Videos" },
+  { value: "music", label: "Music" },
+] as const;
+
+/** Videos (the library and player) or Music (this device's folder, T63). `?tab=music` keeps the choice on reload. */
 export function MediaApp() {
+  const tab = useUrlParam("tab") === "music" ? "music" : "videos";
+  return (
+    <div className="flex min-w-0 flex-col gap-5">
+      <Segmented
+        label="Media"
+        value={tab}
+        options={TABS}
+        onChange={(v) => {
+          replaceUrlParams({ tab: v === "music" ? "music" : null, b: null, g: null });
+        }}
+      />
+      {tab === "music" ? <MusicView /> : <VideosView />}
+    </div>
+  );
+}
+
+function VideosView() {
   const { data, failed, refetch } = useMedia();
   const api = useMediaApi();
   const selected = useUrlParam("m");

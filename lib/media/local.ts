@@ -5,13 +5,26 @@
 // <input> is only known to this tab.
 
 import Dexie, { type EntityTable } from "dexie";
+import type { Track } from "./library";
 
 type HandleRow = { fp: string; handle: FileSystemFileHandle; name: string; size: number };
 
 /** Where an item was left on this device (V55). `pending` = 1 until the server has it. */
 export type ProgressRow = { itemId: string; positionS: number; watched: boolean; at: number; pending: 0 | 1 };
 
-type MediaDb = Dexie & { handles: EntityTable<HandleRow, "fp">; progress: EntityTable<ProgressRow, "itemId"> };
+/** The picked music folder (V58): its handle survives reloads; permission may need a click. */
+export type FolderRow = { key: "music"; handle: FileSystemDirectoryHandle; name: string };
+
+/** A file in the music folder that wouldn't parse: not read again until its size or mtime changes. */
+export type SkippedRow = { path: string; size: number; lastModified: number };
+
+type MediaDb = Dexie & {
+  handles: EntityTable<HandleRow, "fp">;
+  progress: EntityTable<ProgressRow, "itemId">;
+  tracks: EntityTable<Track, "path">;
+  folders: EntityTable<FolderRow, "key">;
+  skipped: EntityTable<SkippedRow, "path">;
+};
 
 let dbPromise: Promise<MediaDb | null> | null = null;
 
@@ -21,6 +34,9 @@ export function db(): Promise<MediaDb | null> {
     const d = new Dexie("wanheda-media") as MediaDb;
     d.version(1).stores({ handles: "fp" });
     d.version(2).stores({ handles: "fp", progress: "itemId, pending" });
+    // The music index is per device (FRD §8): never on the server.
+    d.version(3).stores({ handles: "fp", progress: "itemId, pending", tracks: "path", folders: "key" });
+    d.version(4).stores({ handles: "fp", progress: "itemId, pending", tracks: "path", folders: "key", skipped: "path" });
     await d.open();
     return d;
   })().catch(() => null);
