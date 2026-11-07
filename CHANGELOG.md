@@ -15,6 +15,8 @@ written after the fact, one per phase, and have no git tags.
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-11-07
+
 ### Added
 
 - The reader reads aloud. Press "Read aloud from here" in either reader, in book or scroll view, and it starts at the sentence you're looking at. The spoken sentence is highlighted and the page follows it.
