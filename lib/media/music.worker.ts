@@ -5,7 +5,7 @@
 // goes on. Nothing here touches the main thread's time.
 
 import { parseBlob } from "music-metadata";
-import { diffScan, isAudioPath, trackFrom, type SeenFile, type Track } from "./library";
+import { diffScan, isAudioPath, relativeMusicPath, trackFrom, type SeenFile, type Track } from "./library";
 import { COVERS_DIR, type MusicRequest, type MusicResponse, type ScanSource, type Stamped } from "./music-protocol";
 
 const scope = self as unknown as {
@@ -42,8 +42,7 @@ async function list(source: ScanSource, id: number) {
   if (source.kind === "dir") await walk(source.handle, "", out, id);
   else {
     for (const file of source.files) {
-      // webkitRelativePath starts with the picked folder's own name: drop it, as the FSA walk does.
-      const rel = file.webkitRelativePath.split("/").slice(1).join("/") || file.name;
+      const rel = relativeMusicPath(file);
       if (isAudioPath(rel)) out.push({ seen: { path: rel, size: file.size, lastModified: file.lastModified }, get: () => Promise.resolve(file) });
     }
   }

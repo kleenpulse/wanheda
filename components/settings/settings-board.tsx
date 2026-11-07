@@ -3,13 +3,14 @@
 import * as React from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { motion } from "motion/react";
-import { AudioLines, BookOpen, ChevronLeft, ChevronRight, Keyboard, Palette, PlugZap, Timer, UserRound, Wallet, type LucideIcon } from "lucide-react";
+import { AudioLines, BookOpen, ChevronLeft, ChevronRight, Keyboard, Palette, PlugZap, Timer, UserRound, Volume2, Wallet, type LucideIcon } from "lucide-react";
 import { AddPasskeyButton, SignOutButton } from "@/components/auth/account-actions";
 import { AppearanceSection, PrefsNote, TimersSection } from "@/components/settings/appearance-prefs";
 import { ConnectionsSection } from "@/components/settings/connections-section";
 import { MoneySection } from "@/components/settings/money-prefs";
 import { ReaderPrefsNote, ReaderSection } from "@/components/settings/reader-prefs";
 import { SettingRow, SettingsCard } from "@/components/settings/setting-row";
+import { SoundSection } from "@/components/settings/sound-section";
 import { VoicesSection } from "@/components/settings/voices-section";
 import { useAccount } from "@/components/shell/account";
 import { Kbd } from "@/components/ui/kbd";
@@ -71,6 +72,13 @@ const SECTIONS = {
     blurb: "Read-aloud voices, the default voice and the speed.",
     group: "Preferences",
     icon: AudioLines,
+    note: "Kept on this device",
+  },
+  sound: {
+    label: "Sound",
+    blurb: "How read-aloud shares the speakers with music and video.",
+    group: "Preferences",
+    icon: Volume2,
     note: "Kept on this device",
   },
   keyboard: { label: "Keyboard", blurb: "The shortcuts that work anywhere in Wanheda.", group: "Preferences", icon: Keyboard },
@@ -323,6 +331,7 @@ const BODIES: Record<SectionId, () => React.ReactNode> = {
   money: MoneySection,
   reader: ReaderSection,
   voices: VoicesSection,
+  sound: SoundSection,
   keyboard: KeyboardSection,
   connections: ConnectionsSection,
   account: AccountSection,

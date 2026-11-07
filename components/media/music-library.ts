@@ -1,7 +1,7 @@
 "use client";
 
 import { create } from "zustand";
-import type { Track } from "@/lib/media/library";
+import { relativeMusicPath, type Track } from "@/lib/media/library";
 import { db } from "@/lib/media/local";
 import { seedTracks } from "@/lib/media/music-seed";
 import type { MusicRequest, MusicResponse, ScanSource, Stamped } from "@/lib/media/music-protocol";
@@ -49,6 +49,10 @@ let demoMode = false;
 let persist = false;
 /** Files that wouldn't parse, sent with each scan so they aren't read again until they change. */
 let skipped: Stamped[] = [];
+/** The folder the index came from, in this tab: a kept folder or a demo pick (FSA). */
+let liveDir: FileSystemDirectoryHandle | null = null;
+/** A plain folder input's files, by library path: this tab only. */
+let sessionFiles = new Map<string, File>();
 
 function ensureWorker(onMessage: (m: MusicResponse) => void): Worker {
   if (!worker) {
@@ -112,6 +116,13 @@ export const useMusicLibrary = create<State>((set, get) => {
     if (prev?.phase === "scanning") worker?.postMessage({ type: "cancel", id: prev.id } satisfies MusicRequest);
     const id = nextId++;
     persist = source.kind === "dir" && !demoMode;
+    if (source.kind === "dir") {
+      liveDir = source.handle;
+      sessionFiles = new Map();
+    } else {
+      liveDir = null;
+      sessionFiles = new Map(source.files.map((f) => [relativeMusicPath(f), f]));
+    }
     set({ scan: { id, seen: 0, toParse: 0, parsed: 0, bad: 0, phase: "scanning" } });
     const known = (get().tracks ?? []).filter((t) => !t.path.startsWith("tone:")).map((t): Stamped => [t.path, t.size, t.lastModified]);
     ensureWorker(handle).postMessage({ type: "scan", id, source, known, skipped } satisfies MusicRequest);
@@ -214,3 +225,34 @@ export const useMusicLibrary = create<State>((set, get) => {
     },
   };
 });
+
+/** The folder can't be read (gone, or permission refused): no track in it will play. */
+export class FolderAccessError extends Error {}
+
+/**
+ * The file behind a library path, for the player (T64). A kept folder that
+ * needs permission again asks for it here: the caller is a click to play.
+ */
+export async function musicFile(path: string): Promise<File> {
+  const inTab = sessionFiles.get(path);
+  if (inTab) return inTab;
+  let dir = liveDir;
+  if (!dir) {
+    const row = await (await db())?.folders.get("music").catch(() => undefined);
+    if (!row) throw new FolderAccessError("Pick your music folder again to play this.");
+    const h = row.handle as PermissionDir;
+    let state = (await h.queryPermission?.({ mode: "read" }).catch(() => "denied" as const)) ?? "granted";
+    if (state !== "granted") state = (await h.requestPermission?.({ mode: "read" }).catch(() => "denied" as const)) ?? "denied";
+    if (state !== "granted") throw new FolderAccessError(`Reconnect ${row.name} to play from it.`);
+    useMusicLibrary.setState({ folder: { kind: "ready", name: row.name } });
+    dir = liveDir = row.handle;
+  }
+  try {
+    const parts = path.split("/");
+    const name = parts.pop() ?? path;
+    for (const part of parts) dir = await dir.getDirectoryHandle(part);
+    return await (await dir.getFileHandle(name)).getFile();
+  } catch {
+    throw new Error("It isn't in the music folder any more. Rescan to tidy the list.");
+  }
+}

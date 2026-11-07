@@ -24,3 +24,22 @@ export const DOCK_SPRING = { stiffness: 320, damping: 24, mass: 0.1 } as const;
 
 /** Parallax layers easing toward the pointer (the empty-state mark; from ellum-harness AvatarStage). */
 export const FOLLOW_SPRING = { stiffness: 140, damping: 18, mass: 0.6 } as const;
+
+/** Sound ducking under speech (V60): seconds to drop to the duck level, and to come back. Audio, so reduced motion doesn't apply. */
+export const DUCK_RAMP = { down: 0.25, up: 0.6 } as const;
+
+/**
+ * The island's morph between pill and card (user 2026-11-07: smooth, springy, closing a bit quicker
+ * than opening). `visualDuration` is when it looks landed; `bounce` keeps the overshoot. `close`
+ * also carries the pill's own moves (a swap between activities).
+ */
+export const ISLAND_SPRING = {
+  open: { type: "spring", visualDuration: 0.55, bounce: 0.32 },
+  close: { type: "spring", visualDuration: 0.42, bounce: 0.25 },
+} as const;
+
+/** The island's incoming content: waits for the shape to all but land, then fades in. */
+export const ISLAND_CONTENT_IN = {
+  open: { delay: 0.2, duration: 0.36 },
+  close: { delay: 0.14, duration: 0.28 },
+} as const;

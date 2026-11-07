@@ -1,4 +1,4 @@
-import { AudioLines, BookOpen, BookOpenText, CalendarClock, ChartColumnStacked, Clapperboard, CloudSun, Clock, DollarSign, House, NotebookPen, Pin, Settings, Sunrise, Target, Timer, TrendingUp, Wallet, type LucideIcon } from "lucide-react";
+import { AudioLines, BookOpen, BookOpenText, CalendarClock, ChartColumnStacked, Clapperboard, CloudSun, Clock, DollarSign, House, Music, NotebookPen, Pin, Settings, Sunrise, Target, Timer, TrendingUp, Wallet, type LucideIcon } from "lucide-react";
 import type { Route } from "next";
 
 // The module registry (FRD 4.2). The shell builds the rail, the tab bar, the
@@ -202,10 +202,18 @@ const MEDIA = {
   title: "Media",
   icon: Clapperboard,
   route: "/media",
-  blurb: "Videos, links and embeds, played on this device",
-  widgets: [],
-  windows: [],
-  activities: ["transfer"],
+  blurb: "Videos, music, links and embeds, played on this device",
+  widgets: [
+    {
+      id: "media.now-playing",
+      title: "Now playing",
+      blurb: "The song playing, with play, pause and skip",
+      icon: Music,
+      size: { w: 4, h: 3, minW: 3, minH: 3, maxH: 4 },
+    },
+  ],
+  windows: [{ id: "media.player", title: "Music player", icon: Music, size: { w: 340, h: 460, minW: 280, minH: 300 } }],
+  activities: ["transfer", "media"],
 } as const satisfies ModuleManifest;
 
 /** The apps, in rail order. */

@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ChevronLeft, FolderOpen, FolderSync, RefreshCw, Search, TriangleAlert } from "lucide-react";
+import { AudioLines, ChevronLeft, FolderOpen, FolderSync, Pause, RefreshCw, Search, TriangleAlert } from "lucide-react";
 import { useAccount } from "@/components/shell/account";
 import { buttonClass } from "@/components/ui/button";
 import { Segmented } from "@/components/ui/segmented";
@@ -11,6 +11,7 @@ import { formatDuration } from "@/lib/media/media";
 import { cn } from "@/lib/utils";
 import { Cover } from "./cover";
 import { hasFolderPicker, useMusicLibrary } from "./music-library";
+import { preloadMusicEngine, useMusicPlayer } from "./music-player";
 import { VirtualList } from "./virtual-list";
 
 /**
@@ -21,7 +22,8 @@ import { VirtualList } from "./virtual-list";
 const LIST_FILL = "min-h-40 flex-1 pb-[calc(76px+2rem)]";
 
 // The music library (T63, V58): pick a folder once, browse by artist, album,
-// genre or folder, or search. Playback arrives with T64; this view lists.
+// genre or folder, or search. A song plays on a click, with the rest of the
+// list it was picked from queued after it (T64).
 
 const ROW = 56;
 const BROWSE_OPTIONS = [
@@ -34,19 +36,38 @@ const BROWSE_OPTIONS = [
 
 const isBrowse = (v: string | null): v is Browse => v !== null && (BROWSE as readonly string[]).includes(v);
 
-function TrackRow({ t }: { t: Track }) {
+function TrackRow({ t, onPlay }: { t: Track; onPlay: () => void }) {
   const duration = formatDuration(t.durationS);
+  // Only this row re-renders when the playing track changes.
+  const state = useMusicPlayer((s) => (s.track?.path === t.path ? s.status : null));
+  const current = state !== null && state !== "idle";
   return (
-    <div className="flex h-full items-center gap-3 rounded-[12px] px-3 hover:bg-foreground/5 dark:hover:bg-card-nested">
-      <Cover coverKey={t.coverKey} className="size-9 rounded-[8px]" />
+    <button
+      type="button"
+      onClick={onPlay}
+      aria-current={current ? "true" : undefined}
+      aria-label={`${current ? (state === "playing" ? "Playing" : "Paused") : "Play"} ${t.title} by ${t.artist}`}
+      className={cn(
+        "flex h-full w-full items-center gap-3 rounded-[12px] px-3 text-left outline-none hover:bg-foreground/5 focus-visible:ring-2 focus-visible:ring-ring dark:hover:bg-card-nested",
+        current && "bg-signal-soft hover:bg-signal-soft dark:hover:bg-signal-soft",
+      )}
+    >
+      <span className="relative shrink-0">
+        <Cover coverKey={t.coverKey} className="size-9 rounded-[8px]" />
+        {current ? (
+          <span aria-hidden className="absolute inset-0 grid place-items-center rounded-[8px] bg-island/55 text-signal">
+            {state === "playing" ? <AudioLines className="size-4" /> : <Pause className="size-4 fill-current" />}
+          </span>
+        ) : null}
+      </span>
       <span className="flex min-w-0 flex-1 flex-col">
-        <span className="truncate text-sm font-medium text-foreground">{t.title}</span>
+        <span className={cn("truncate text-sm font-medium", current ? "text-signal-ink dark:text-signal" : "text-foreground")}>{t.title}</span>
         <span className="truncate text-xs text-ink-2">
           {t.artist} · {t.album}
         </span>
       </span>
       {duration ? <span className="tabular shrink-0 text-xs text-ink-2">{duration}</span> : null}
-    </div>
+    </button>
   );
 }
 
@@ -151,11 +172,13 @@ export function MusicView() {
   const tracks = useMusicLibrary((s) => s.tracks);
   const browseParam = useUrlParam("b");
   const groupKey = useUrlParam("g");
-  const browse: Browse = isBrowse(browseParam) ? browseParam : "albums";
+  // Songs first: the music this device holds, one click from playing (user 2026-11-07).
+  const browse: Browse = isBrowse(browseParam) ? browseParam : "songs";
   const [query, setQuery] = React.useState("");
 
   React.useEffect(() => {
     useMusicLibrary.getState().load(demo);
+    preloadMusicEngine();
   }, [demo]);
 
   const all = React.useMemo(() => tracks ?? [], [tracks]);
@@ -227,7 +250,17 @@ export function MusicView() {
             items={songs}
             rowHeight={ROW}
             getKey={(t) => t.path}
-            render={(t) => <TrackRow t={t} />}
+            render={(t, i) => (
+              <TrackRow
+                t={t}
+                onPlay={() => {
+                  const player = useMusicPlayer.getState();
+                  // The playing track again: pause or carry on, don't start over.
+                  if (player.track?.path === t.path && player.status !== "idle") player.toggle();
+                  else player.playList(songs, i);
+                }}
+              />
+            )}
             className={LIST_FILL}
           />
         )

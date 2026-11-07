@@ -3,6 +3,7 @@
 import * as React from "react";
 import { AnimatePresence } from "motion/react";
 import { MiniWindow } from "@/components/windows/mini-window";
+import { MusicWindow } from "@/components/windows/music-window";
 import { NoteWindow } from "@/components/windows/note-window";
 import { SpeechWindow } from "@/components/windows/speech-window";
 import { TimerWindow } from "@/components/windows/timer-window";
@@ -15,6 +16,7 @@ const BODIES: Record<WindowId, React.ComponentType> = {
   "timer.window": TimerWindow,
   "notes.note": NoteWindow,
   "reader.speech": SpeechWindow,
+  "media.player": MusicWindow,
 };
 
 function useLayerBounds(ref: React.RefObject<HTMLElement | null>): Bounds | null {

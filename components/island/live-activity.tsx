@@ -12,7 +12,7 @@ import {
   type ReactNode,
 } from "react";
 import { AnimatePresence, MotionConfig, motion, useReducedMotion } from "motion/react";
-import { EASE_OUT } from "@/lib/motion";
+import { EASE_OUT, ISLAND_CONTENT_IN, ISLAND_SPRING } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
 // The dynamic island, ported from Shadow Garden's LiveActivity
@@ -85,8 +85,6 @@ export function LiveActivity({
   show,
   showKey,
   cycleInterval = 6,
-  stiffness = 420,
-  damping = 25,
   contentBlur = 6,
   className,
 }: {
@@ -97,8 +95,6 @@ export function LiveActivity({
   showKey?: number | undefined;
   /** Seconds each activity holds the island before the next takes over. */
   cycleInterval?: number;
-  stiffness?: number;
-  damping?: number;
   /** Blur, in px, that content dissolves through on its way in and out. */
   contentBlur?: number;
   className?: string;
@@ -217,14 +213,16 @@ export function LiveActivity({
 
   if (!current) return null;
 
-  const spring = reduce ? { duration: 0 } : { type: "spring" as const, stiffness, damping };
+  // The render that flips `expanded` starts the morph, so the spring follows the direction.
+  const way = expanded ? "open" : "close";
+  const spring = reduce ? { duration: 0 } : ISLAND_SPRING[way];
   const blur = reduce ? 0 : contentBlur;
   const gone = { opacity: 0, scale: reduce ? 1 : 0.92, ...(blur > 0 ? { filter: `blur(${blur}px)` } : {}) };
   const shown = {
     opacity: 1,
     scale: 1,
     ...(blur > 0 ? { filter: "blur(0px)" } : {}),
-    transition: reduce ? { duration: 0 } : { duration: 0.3, delay: 0.12, ease: EASE_OUT },
+    transition: reduce ? { duration: 0 } : { ...ISLAND_CONTENT_IN[way], ease: EASE_OUT },
   };
   const leaving = { ...gone, transition: reduce ? { duration: 0 } : { duration: 0.12 } };
 
@@ -260,6 +258,9 @@ export function LiveActivity({
               "pointer-events-auto relative overflow-hidden bg-island text-island-foreground outline-offset-2",
               "has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-signal",
               expanded ? "shadow-lift" : "shadow-card",
+              // Black on a near-black page all but vanishes: the logo's soft glow sets it apart. Only the blur:
+              // the shadow-glow token also draws a 1px outline, and the island gets no border (user 2026-11-07).
+              "dark:shadow-[0_0_34px_-6px_var(--glow)]",
             )}
             style={{ borderRadius: expanded ? 32 : 20 }}
           >

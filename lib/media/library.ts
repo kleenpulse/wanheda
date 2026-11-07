@@ -44,6 +44,11 @@ export function isAudioPath(path: string): boolean {
   return (AUDIO_EXTENSIONS as readonly string[]).includes(ext);
 }
 
+/** A plain folder input's file, as a library path: webkitRelativePath starts with the picked folder's own name, dropped as the FSA walk does. */
+export function relativeMusicPath(file: { name: string; webkitRelativePath: string }): string {
+  return file.webkitRelativePath.split("/").slice(1).join("/") || file.name;
+}
+
 export function folderOf(path: string): string {
   const at = path.lastIndexOf("/");
   return at < 0 ? "" : path.slice(0, at);

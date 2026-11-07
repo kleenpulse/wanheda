@@ -33,11 +33,22 @@ written after the fact, one per phase, and have no git tags.
 - Search your music by song, artist or album, in the Music tab or from Search (Ctrl+K).
 - The music folder is remembered. If the browser asks again after a restart, one Reconnect click brings it back, and new or changed files are picked up automatically.
 - Files that can't be read are skipped and counted instead of stopping the scan, and the island shows progress while new music is being read.
+- Music plays. Click a song and it starts, with the rest of the list queued after it. Albums play without a gap between tracks.
+- Shuffle and repeat (the whole queue, or one song). Previous restarts a song you're a few seconds into.
+- While music plays, the island shows the album art and an equalizer that moves with the music. Open it for a player card with a wave progress bar you can drag to seek, play, pause and skip, and a volume slider with mute.
+- A Music player window has the same card, shuffle and repeat, and an Up next list you can jump around in. Open it from the dock or Search (Ctrl+K).
+- A Now playing widget for Home. With nothing playing, it can shuffle your whole library in one press.
+- The keyboard's media keys and headset buttons control music: play, pause, next and previous.
+- Settings has a new Sound section: choose what happens when read-aloud starts over music or a video. It can pause the other, lower it while speech plays, or play both. Music and a video always pause each other.
+- Search (Ctrl+K) controls music while it plays: play and pause, next, previous, shuffle, repeat, volume, mute and stop. Picking a song from Search plays it, with its album queued after it.
+- The Music tab now opens on Songs.
 - Password-protected PDFs now open in the Reader, like the bank statements many banks send. Enter the password once, and Wanheda remembers it on this device only (untick “Remember on this device” to be asked every time). The password is never synced or sent anywhere. Covers, page counts, find and read-aloud work once it’s unlocked.
 
 ### Fixed
 
 - The music list now fills the space under its tabs and scrolls on its own, so the page no longer scrolls with it.
+- In dark mode the island now has a soft glow like the Wanheda logo's, so it no longer disappears against the page.
+- The island opens and closes with a smoother, springier glide instead of a snap, and closes a little quicker than it opens.
 - On a narrow phone, apps that don't fit on the bottom bar open from a More button above it, with large rows for your thumb. The page you're on always stays on the bar.
 - Picking a page from a menu (More, or Settings in the account menu) now closes the menu.
 

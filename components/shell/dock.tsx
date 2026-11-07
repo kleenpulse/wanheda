@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, useMotionValue, useSpring, useTransform, type MotionValue } from "motion/react";
 import { Search } from "lucide-react";
+import { useMusicPlayer } from "@/components/media/music-player";
 import { usePalette } from "@/components/shell/palette-store";
 import { Kbd } from "@/components/ui/kbd";
 import { useReducedMotion } from "@/hooks/use-reduced-motion";
@@ -45,6 +46,7 @@ export function Dock() {
   const pathname = usePathname();
   const hasTimers = useActivity((s) => s.timers.length > 0);
   const speaking = useSpeech((s) => s.status !== "idle");
+  const music = useMusicPlayer((s) => s.status !== "idle");
   const open = useWindows((s) => s.open);
   const openWindow = useWindows((s) => s.openWindow);
   const setPalette = usePalette((s) => s.setOpen);
@@ -52,11 +54,11 @@ export function Dock() {
   const mod = useMod();
   const cursor = useMotionValue(AWAY);
 
-  // Timers from the bus, speech from the speech store; media joins with its module.
+  // Timers from the bus, speech from the speech store, music from the player.
   const { apps, tools } = React.useMemo(() => {
-    const live = new Set<ActivityKind>([...(hasTimers ? (["timer"] as const) : []), ...(speaking ? (["speech"] as const) : [])]);
+    const live = new Set<ActivityKind>([...(hasTimers ? (["timer"] as const) : []), ...(speaking ? (["speech"] as const) : []), ...(music ? (["media"] as const) : [])]);
     return dockEntries(MODULES, TOOLS, { live, open: new Set(open) });
-  }, [hasTimers, speaking, open]);
+  }, [hasTimers, speaking, music, open]);
 
   return (
     <nav
