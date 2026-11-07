@@ -45,5 +45,5 @@ T68 is built and waiting for the Reviewer (`wanheda-5f`). The user asked to "giv
   2. JPY takes up to 3 decimals while typing, so `2.5k` works; a bare `2.5` is an error on blur.
   3. A junk paste (`1e5`) is kept as pasted and reads "Not an amount" (`hasJunk`).
   4. A leading `.` (`.5`) works.
-- The user then asked for space between the island and the tabs row: the PageFrame header went from `pt-6` to `pt-14` (every app). The island pill is `h-9` at `top-2`, so there's 12 px of clear space. Checked at 1024 px and 390 px. A CHANGELOG Fixed entry is added.
+- The user asked for space between the island and the tabs row. A first pass (`pt-14` on the whole header) moved the title and the eye too, which the user rejected. Now only the tabs move: the PageFrame `actions` wrapper is `@4xl/frame:translate-y-5.5` (tabs 52–92, 8 px under the island), and below @4xl the title goes full width so the tabs and eye take their own line, with no shift. Pages without actions are unchanged. Checked at 1440, 1200, 1050, 1024, 900 and 390 on Money, Income and Notes.
 - Gates after both: 1364/1364 tests, typecheck 0, lint clean, tripwire clean, build OK, browser 24/24 (the one script miss expected `0.5`; the field rightly shows `0.50`).
