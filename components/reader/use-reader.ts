@@ -23,6 +23,7 @@ import {
 } from "@/lib/reader/reader";
 import { forgetCover, hasCover, keepCover } from "./covers";
 import { forgetDoc } from "./doc-cache";
+import { forgetPdfPassword } from "./pdf-passwords";
 import { usePendingProgress, withPending } from "./reader-runtime";
 
 // The reader cache (V24): /reader and Home's "Continue reading" read one
@@ -365,6 +366,7 @@ export function useReaderApi() {
             show(doc.id);
             // Another entry may share the bytes only if it's the same doc: the hash is unique per user.
             forgetCover(doc.sha256);
+            forgetPdfPassword(doc.sha256);
             forgetDoc(doc.sha256);
             if (demo) demoFiles.delete(doc.sha256);
             else void removeDeviceFile(doc.sha256).then(() => { refreshDevice(qc); });

@@ -21,8 +21,8 @@ import { pdfParams } from "./source";
 pdfjs.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString();
 
 /** Starts loading a file. The task is what tears the document (and its worker) down again. `onFail`: a later read of the file failed. */
-function load(file: File, onFail: () => void = () => undefined): { task: Promise<PDFDocumentLoadingTask>; doc: Promise<PDFDocumentProxy> } {
-  const task = (async () => pdfjs.getDocument(await pdfParams(file, onFail)))();
+function load(file: File, onFail: () => void = () => undefined, password?: string): { task: Promise<PDFDocumentLoadingTask>; doc: Promise<PDFDocumentProxy> } {
+  const task = (async () => pdfjs.getDocument(await pdfParams(file, onFail, password)))();
   return { task, doc: task.then((t) => t.promise) };
 }
 
@@ -39,15 +39,23 @@ let held: { sha: string; task: Promise<PDFDocumentLoadingTask>; doc: Promise<PDF
 /** Told when the held document turns out unreadable after it opened (see FileRange). */
 const brokenListeners = new Set<(sha256: string) => void>();
 
-export function openPdf(sha256: string, file: File): Promise<PDFDocumentProxy> {
+/**
+ * Opens a document and holds it. `password`: for a locked PDF. A failed open (a missing or wrong password
+ * included) lets go of it, so a retry with the password loads afresh.
+ */
+export function openPdf(sha256: string, file: File, password?: string): Promise<PDFDocumentProxy> {
   if (held?.sha === sha256) return held.doc;
   closeHeld();
   const ref: { doc: Promise<PDFDocumentProxy> | null } = { doc: null };
-  const { task, doc } = load(file, () => {
-    if (!ref.doc || held?.doc !== ref.doc) return;
-    closeHeld();
-    for (const fn of brokenListeners) fn(sha256);
-  });
+  const { task, doc } = load(
+    file,
+    () => {
+      if (!ref.doc || held?.doc !== ref.doc) return;
+      closeHeld();
+      for (const fn of brokenListeners) fn(sha256);
+    },
+    password,
+  );
   ref.doc = doc;
   held = { sha: sha256, task, doc };
   doc.catch(() => {

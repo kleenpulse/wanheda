@@ -6,9 +6,11 @@ import {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
+  Eye,
   EyeOff,
   LayoutGrid,
   ListTree,
+  LockKeyhole,
   Maximize,
   Minimize,
   Minus,
@@ -18,6 +20,7 @@ import {
 import { Outline } from "react-pdf";
 import type { PDFDocumentProxy } from "pdfjs-dist";
 import { useAccount } from "@/components/shell/account";
+import { buttonClass } from "@/components/ui/button";
 import { Tip, TooltipGroup } from "@/components/ui/tooltip";
 import { useElementWidth } from "@/hooks/use-element-width";
 import { useReducedMotion } from "@/hooks/use-reduced-motion";
@@ -36,6 +39,7 @@ import {
   type BookLayout,
 } from "@/lib/reader/book";
 import { FOLLOW_LINE_SHARE, directionOf, firstPdfSentence, followScrollTop, pageDirection, pdfAt, pdfChapterStarts } from "@/lib/reader/read-along";
+import { openFailure } from "@/lib/reader/pdf-password";
 import { formatLocator, parseLocator, type Progress, type ReaderDoc, type ReadingMode } from "@/lib/reader/reader";
 import { cn } from "@/lib/utils";
 import { hasCover, keepCover } from "../covers";
@@ -59,9 +63,11 @@ import {
   type BookPages,
 } from "../chrome";
 import { type Paper, PaperMenu, paperPref, paperProps } from "../paper";
+import { pdfPasswords } from "../pdf-passwords";
 import { pageTurnPref } from "../prefs";
 import { FollowPill, ReadAloudControls, useReadAlong, type ReadAlongTarget } from "../read-along";
 import { useResume } from "../resume";
+import { ensureText } from "../text";
 import { useReaderApi } from "../use-reader";
 import { BookView, type BookHandle } from "./book-view";
 import { chapterPages, coverOf, findPage, firstPageAspect, heldSha, onBroken, openPdf, sentenceBoxes, type SayBoxes } from "./engine";
@@ -99,6 +105,17 @@ onForget((sha256) => {
   if (lastLoaded?.sha256 === sha256) lastLoaded = null;
 });
 
+/** An opened document, ready for the reader and kept for an instant reopen. */
+async function opened(sha256: string, pdf: PDFDocumentProxy): Promise<Loaded> {
+  const aspect = await firstPageAspect(pdf);
+  const next = { sha256, pdf, pages: pdf.numPages, aspect };
+  lastLoaded = next;
+  return next;
+}
+
+/** Why the reader can't show the document: it's unreadable, or it's locked and wants its password. */
+type Failed = "broken" | "locked";
+
 type Place = { page: number; y: number };
 
 function startPlace(doc: ReaderDoc): Place {
@@ -109,7 +126,7 @@ function startPlace(doc: ReaderDoc): Place {
 export default function PdfReader({ doc, file }: { doc: ReaderDoc; file: File }) {
   const demo = useAccount().kind !== "owner";
   const [loaded, setLoaded] = React.useState<Loaded | null>(() => reusable(doc.sha256));
-  const [failed, setFailed] = React.useState(false);
+  const [failed, setFailed] = React.useState<Failed | null>(null);
 
   // A read that fails after the open (the device copy went away underneath) closes the document: say so instead of blank pages.
   React.useEffect(
@@ -118,7 +135,7 @@ export default function PdfReader({ doc, file }: { doc: ReaderDoc; file: File })
         if (sha256 !== doc.sha256) return;
         // Every cached copy goes, the bytes read included: the next open reads the device afresh.
         forgetDoc(sha256);
-        setFailed(true);
+        setFailed("broken");
       }),
     [doc.sha256],
   );
@@ -127,21 +144,42 @@ export default function PdfReader({ doc, file }: { doc: ReaderDoc; file: File })
     if (loaded?.sha256 === doc.sha256) return;
     const run = { live: true };
     void (async () => {
+      // A locked PDF opens straight away with the password this device kept: no flash of the form.
+      const passwords = pdfPasswords(demo);
+      const kept = await passwords.get(doc.sha256);
       try {
-        const pdf = await openPdf(doc.sha256, file);
-        const aspect = await firstPageAspect(pdf);
-        const next = { sha256: doc.sha256, pdf, pages: pdf.numPages, aspect };
-        lastLoaded = next;
+        const next = await opened(doc.sha256, await openPdf(doc.sha256, file, kept));
         if (run.live) setLoaded(next);
-      } catch {
+      } catch (error) {
         if (lastLoaded?.sha256 === doc.sha256) lastLoaded = null;
-        if (run.live) setFailed(true);
+        const why = openFailure(error);
+        // A kept password that no longer opens it is dropped, and the form asks (never a loop).
+        if (why === "wrong-password" && kept !== undefined) void passwords.forget(doc.sha256);
+        if (run.live) setFailed(why === "broken" ? "broken" : "locked");
       }
     })();
     return () => {
       run.live = false;
     };
-  }, [doc.sha256, file, loaded?.sha256]);
+  }, [doc.sha256, file, loaded?.sha256, demo]);
+
+  /** Tries a typed password. On success the reader opens and the password is kept as asked. */
+  const unlock = async (password: string, remember: boolean): Promise<"ok" | "wrong"> => {
+    try {
+      const pdf = await openPdf(doc.sha256, file, password);
+      await pdfPasswords(demo).keep(doc.sha256, password, remember);
+      const next = await opened(doc.sha256, pdf);
+      setFailed(null);
+      setLoaded(next);
+      // Its sentences for voice couldn't be read while it was locked: now they can.
+      void ensureText(doc, file, demo);
+      return "ok";
+    } catch (error) {
+      if (openFailure(error) !== "broken") return "wrong";
+      setFailed("broken");
+      return "ok";
+    }
+  };
 
   // Page one as the library cover, the first time this device opens it.
   React.useEffect(() => {
@@ -153,18 +191,116 @@ export default function PdfReader({ doc, file }: { doc: ReaderDoc; file: File })
     })().catch(() => undefined);
   }, [loaded, doc.sha256, demo]);
 
-  if (failed) {
+  if (failed === "locked") return <LockedPdf key={doc.sha256} unlock={unlock} />;
+  if (failed === "broken") {
     return (
       <Stage>
         <div className="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
           <p className="font-display text-lg text-stage-ink">This PDF can&apos;t be opened</p>
-          <p className="max-w-sm text-[13px] text-stage-ink/65">It may be damaged or protected by a password. Password-protected PDFs aren&apos;t supported yet.</p>
+          <p className="max-w-sm text-[13px] text-stage-ink/65">It may be damaged.</p>
         </div>
       </Stage>
     );
   }
   if (!loaded) return <Stage busy />;
   return <Reader key={loaded.sha256} doc={doc} file={file} loaded={loaded} />;
+}
+
+/**
+ * A locked PDF's password form (V40). The password stays on this device: kept
+ * in IndexedDB when "Remember on this device" is ticked, otherwise only in
+ * this tab. A wrong one keeps the field focused and selected, and says so.
+ */
+function LockedPdf({ unlock }: { unlock: (password: string, remember: boolean) => Promise<"ok" | "wrong"> }) {
+  const [password, setPassword] = React.useState("");
+  const [show, setShow] = React.useState(false);
+  const [remember, setRemember] = React.useState(true);
+  const [busy, setBusy] = React.useState(false);
+  const [wrong, setWrong] = React.useState(false);
+  const field = React.useRef<HTMLInputElement>(null);
+  const id = React.useId();
+
+  const submit = (e: React.SyntheticEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!password || busy) return;
+    setBusy(true);
+    void unlock(password, remember).then((r) => {
+      if (r !== "wrong") return;
+      setBusy(false);
+      setWrong(true);
+      // Read-only while it tried, so the field kept its focus: select it for another go.
+      field.current?.select();
+    });
+  };
+
+  return (
+    <Stage>
+      <form onSubmit={submit} className="flex flex-1 flex-col items-center justify-center gap-5 px-6 text-center">
+        <span className="flex size-11 items-center justify-center rounded-full bg-signal-soft text-signal-ink">
+          <LockKeyhole aria-hidden className="size-5" />
+        </span>
+        <div className="flex max-w-sm flex-col gap-1.5">
+          <p className="font-display text-lg text-stage-ink">This PDF is locked</p>
+          <p className="text-[13px] text-stage-ink/65">Enter its password to open it.</p>
+        </div>
+        <div className="flex w-full max-w-xs flex-col gap-3">
+          <div className="relative">
+            <label htmlFor={id} className="sr-only">
+              Password
+            </label>
+            <input
+              id={id}
+              ref={field}
+              type={show ? "text" : "password"}
+              autoComplete="off"
+              autoCapitalize="off"
+              spellCheck={false}
+              autoFocus
+              placeholder="Password"
+              value={password}
+              readOnly={busy}
+              aria-invalid={wrong || undefined}
+              aria-describedby={`${id}-said`}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                setWrong(false);
+              }}
+              className="h-10 w-full rounded-pill bg-stage-ink/8 pr-11 pl-4 text-[14px] text-stage-ink outline-none placeholder:text-stage-ink/45 focus-visible:ring-2 focus-visible:ring-ring"
+            />
+            <button
+              type="button"
+              aria-label={show ? "Hide password" : "Show password"}
+              aria-pressed={show}
+              onClick={() => {
+                setShow((s) => !s);
+              }}
+              className="absolute top-1/2 right-1 flex size-8 -translate-y-1/2 items-center justify-center rounded-full text-stage-ink/65 outline-none hover:bg-stage-ink/8 hover:text-stage-ink focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              {show ? <EyeOff aria-hidden className="size-4" /> : <Eye aria-hidden className="size-4" />}
+            </button>
+          </div>
+          <p id={`${id}-said`} aria-live="polite" className="min-h-5 text-[13px] text-signal">
+            {wrong ? "That password didn’t work." : ""}
+          </p>
+          <label className="flex cursor-pointer items-center justify-center gap-2 text-[13px] text-stage-ink/80">
+            <input
+              type="checkbox"
+              name="remember-pdf-password"
+              checked={remember}
+              onChange={(e) => {
+                setRemember(e.target.checked);
+              }}
+              className="size-4 accent-signal"
+            />
+            Remember on this device
+          </label>
+          <button type="submit" disabled={!password} aria-busy={busy || undefined} className={buttonClass("inverse", "pill-sm")}>
+            {busy ? "Unlocking…" : "Unlock"}
+          </button>
+        </div>
+      </form>
+    </Stage>
+  );
 }
 
 function Reader({ doc, file, loaded }: { doc: ReaderDoc; file: File; loaded: Loaded }) {
