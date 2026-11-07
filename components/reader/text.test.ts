@@ -52,3 +52,48 @@ describe("readText keeps the last document parsed", () => {
     expect(reads).toHaveBeenCalledTimes(2);
   });
 });
+
+// V40: a locked PDF whose text job ran without its password isn't settled, so the job runs again once it's unlocked.
+describe("ensureText and locked PDFs", () => {
+  const posted: { sha256: string; password?: string }[] = [];
+  const answers: Record<string, unknown>[] = [];
+  class ScriptedWorker {
+    onmessage: ((e: { data: unknown }) => void) | null = null;
+    onerror: (() => void) | null = null;
+    postMessage(req: { id: number; sha256: string; password?: string; type: string }) {
+      if (req.type !== "extract") return;
+      posted.push({ sha256: req.sha256, ...(req.password !== undefined ? { password: req.password } : {}) });
+      const answer = answers.shift() ?? { ok: false };
+      queueMicrotask(() => this.onmessage?.({ data: { id: req.id, ...answer } }));
+    }
+    terminate() {}
+  }
+
+  it("retries after a locked failure, with the password once it's kept; a plain failure settles", async () => {
+    vi.stubGlobal("Worker", ScriptedWorker);
+    const { ensureText } = await import("./text");
+    const { pdfPasswords } = await import("./pdf-passwords");
+    const doc = { sha256: "locked-1", kind: "pdf" as const };
+    const file = new File(["x"], "s.pdf");
+
+    answers.push({ ok: false, locked: true });
+    await ensureText(doc, file, true);
+    expect(posted).toEqual([{ sha256: "locked-1" }]);
+
+    await pdfPasswords(true).keep("locked-1", "test", false);
+    answers.push({ ok: true, status: "done", sentences: 1, json: "{}" });
+    await ensureText(doc, file, true);
+    expect(posted.at(-1)).toEqual({ sha256: "locked-1", password: "test" });
+
+    // Done: settled for the session.
+    await ensureText(doc, file, true);
+    expect(posted).toHaveLength(2);
+
+    // A file that breaks the extractor is settled at once (not retried until reload).
+    answers.push({ ok: false });
+    await ensureText({ sha256: "broken-1", kind: "pdf" }, file, true);
+    await ensureText({ sha256: "broken-1", kind: "pdf" }, file, true);
+    expect(posted.filter((p) => p.sha256 === "broken-1")).toHaveLength(1);
+    vi.unstubAllGlobals();
+  });
+});

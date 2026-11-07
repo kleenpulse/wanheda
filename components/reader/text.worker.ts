@@ -1,4 +1,5 @@
 import { OPFS_DIR, textName, type TextMessage, type TextRequest, type TextResponse } from "@/lib/reader/device-protocol";
+import { openFailure } from "@/lib/reader/pdf-password";
 import { COMPLETE_TAIL, extractMarkdown, extractPdf, extractText, isCurrent, textFileHead, type Sentence } from "@/lib/reader/extract";
 
 // The reader's text worker (T50, V44): a document's sentences with their
@@ -134,7 +135,13 @@ function progressTo(sha256: string): (done: number, total: number) => void {
   };
 }
 
-async function extractPdfFile(file: File, emit: (s: Sentence) => void, signal: AbortSignal, onPage: (done: number, total: number) => void): Promise<void> {
+async function extractPdfFile(
+  file: File,
+  password: string | undefined,
+  emit: (s: Sentence) => void,
+  signal: AbortSignal,
+  onPage: (done: number, total: number) => void,
+): Promise<void> {
   const [pdfjs, { pdfParams }] = await Promise.all([import("pdfjs-dist"), import("./pdf/source")]);
   // The reader's own pdf.js worker asset (engine.ts), started from here.
   const src = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url);
@@ -142,11 +149,15 @@ async function extractPdfFile(file: File, emit: (s: Sentence) => void, signal: A
   const worker = pdfjs.PDFWorker.create({ port });
   const read = { failed: false };
   const task = pdfjs.getDocument({
-    ...(await pdfParams(file, () => {
-      // The file went away under the job (deleted, replaced): pdf.js would wait for that range forever.
-      read.failed = true;
-      void task.destroy();
-    })),
+    ...(await pdfParams(
+      file,
+      () => {
+        // The file went away under the job (deleted, replaced): pdf.js would wait for that range forever.
+        read.failed = true;
+        void task.destroy();
+      },
+      password,
+    )),
     worker,
     disableFontFace: true,
   });
@@ -168,7 +179,7 @@ async function extractPdfFile(file: File, emit: (s: Sentence) => void, signal: A
 
 async function extract(req: TextRequest & { type: "extract" }, emit: (s: Sentence) => void, signal: AbortSignal): Promise<void> {
   if (req.kind === "pdf") {
-    await extractPdfFile(req.file, emit, signal, progressTo(req.sha256));
+    await extractPdfFile(req.file, req.password, emit, signal, progressTo(req.sha256));
     return;
   }
   // The reader reads Markdown and text the same way (md-reader.tsx: File.text, UTF-8).
@@ -264,8 +275,8 @@ scope.onmessage = (event) => {
     let res: TextResponse;
     try {
       res = await locked(req, ac.signal);
-    } catch {
-      res = { id: req.id, ok: false };
+    } catch (error) {
+      res = openFailure(error) === "broken" ? { id: req.id, ok: false } : { id: req.id, ok: false, locked: true };
     }
     if (jobs.get(req.sha256) === ac) jobs.delete(req.sha256);
     scope.postMessage(res);

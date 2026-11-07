@@ -68,11 +68,15 @@ class FileRange extends PDFDataRangeTransport {
 
 export type PdfParams = NonNullable<Exclude<Parameters<typeof getDocument>[0], string | URL | ArrayBuffer | Uint8Array>>;
 
-/** getDocument's options for a File: its bytes (in ranges when big) and the same-origin data, nothing fetched by URL. `onFail`: a later range read failed. */
-export async function pdfParams(file: File, onFail: () => void): Promise<PdfParams> {
+/**
+ * getDocument's options for a File: its bytes (in ranges when big) and the same-origin data, nothing fetched by URL.
+ * `onFail`: a later range read failed. `password`: for a locked PDF (device-only, V40); left out when there's none.
+ */
+export async function pdfParams(file: File, onFail: () => void, password?: string): Promise<PdfParams> {
   const big = file.size > RANGE_FROM_BYTES;
   return {
     ...(big ? { range: new FileRange(file, onFail), length: file.size, disableAutoFetch: true, disableStream: true } : { data: new Uint8Array(await file.arrayBuffer()) }),
+    ...(password !== undefined ? { password } : {}),
     BinaryDataFactory: SameOriginData,
     useWorkerFetch: false,
     enableXfa: false,

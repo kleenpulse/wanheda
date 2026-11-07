@@ -4,6 +4,7 @@ import type { TextMessage, TextRequest, TextResponse } from "@/lib/reader/device
 import { COMPLETE_TAIL, isCurrent, parseTextFile, type TextFile } from "@/lib/reader/extract";
 import type { ReaderDoc } from "@/lib/reader/reader";
 import { onForget } from "./doc-cache";
+import { pdfPasswords } from "./pdf-passwords";
 
 // A document's sentences for voice (T50, V44), from the page's side: after a
 // document is first opened on this device, the text worker extracts them and
@@ -13,7 +14,11 @@ import { onForget } from "./doc-cache";
 
 /** Demo documents live in this tab (use-reader.ts), so their text does too. */
 const inTab = new Map<string, string>();
-/** Looked at this session and nothing left to do (current, done, or failed: a file that breaks the extractor isn't retried until reload). */
+/**
+ * Looked at this session and nothing left to do (current, done, or failed: a file that breaks the extractor isn't
+ * retried until reload). A locked PDF that failed for want of its password isn't settled: once it's unlocked, the
+ * next call extracts it.
+ */
 const settled = new Set<string>();
 const pending = new Set<string>();
 /** Bumped when a document is forgotten (deleted, unreadable): a job that started before it is dropped, not kept. */
@@ -118,9 +123,12 @@ export function ensureText(doc: Pick<ReaderDoc, "sha256" | "kind">, file: File, 
     try {
       outcome.delete(sha256);
       if (demo ? inTab.has(sha256) : await storedIsCurrent(sha256)) return;
-      const res = await post({ type: "extract", sha256, kind, file, keep: !demo });
+      // A locked PDF's password, if this device has it (V40): it goes to the worker and nowhere else.
+      const password = kind === "pdf" ? await pdfPasswords(demo).get(sha256) : undefined;
+      const res = await post({ type: "extract", sha256, kind, file, keep: !demo, ...(password !== undefined ? { password } : {}) });
       if (!res.ok) outcome.set(sha256, "failed");
       else if (res.status === "busy") outcome.set(sha256, "busy");
+      if (!res.ok && res.locked) settle = false;
       // Another tab is writing it, or it was deleted on the way: look again next open.
       if (res.ok && (res.status === "busy" || res.status === "cancelled")) settle = false;
       if (res.ok && res.status === "done" && res.json !== null && demo && !forgotten()) inTab.set(sha256, res.json);

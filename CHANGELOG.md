@@ -33,6 +33,7 @@ written after the fact, one per phase, and have no git tags.
 - Search your music by song, artist or album, in the Music tab or from Search (Ctrl+K).
 - The music folder is remembered. If the browser asks again after a restart, one Reconnect click brings it back, and new or changed files are picked up automatically.
 - Files that can't be read are skipped and counted instead of stopping the scan, and the island shows progress while new music is being read.
+- Password-protected PDFs now open in the Reader, like the bank statements many banks send. Enter the password once, and Wanheda remembers it on this device only (untick “Remember on this device” to be asked every time). The password is never synced or sent anywhere. Covers, page counts, find and read-aloud work once it’s unlocked.
 
 ## [0.6.0] - 2026-11-07
 

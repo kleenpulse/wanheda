@@ -43,6 +43,8 @@ export type TextRequest =
       file: File;
       /** Write `<sha256>.text.json` into OPFS (owner). False: send the JSON back instead (demo keeps it in the tab). */
       keep: boolean;
+      /** A locked PDF's password, from this device (V40). Never written anywhere by the worker. */
+      password?: string;
     }
   | { type: "cancel"; sha256: string };
 
@@ -50,7 +52,8 @@ export type TextResponse =
   | { id: number; ok: true; status: "done"; sentences: number; json: string | null }
   /** Already there and current, or another tab is writing it, or cancelled (deleted) on the way. */
   | { id: number; ok: true; status: "current" | "busy" | "cancelled" }
-  | { id: number; ok: false };
+  /** `locked`: a PDF that needs a password this job didn't have (or had wrong); worth trying again once it's unlocked. */
+  | { id: number; ok: false; locked?: true };
 
 /** How far a running extraction is (PDF pages read of all), sent now and then while it runs (V48: play before text.json shows it). */
 export interface TextProgress {
