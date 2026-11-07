@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, AudioLines, LoaderCircle, Pause, Play, Square } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, AudioLines, LoaderCircle, Pause, Play, SlidersHorizontal, Square } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useAccount } from "@/components/shell/account";
 import { toast } from "@/components/ui/toaster";
@@ -13,6 +13,7 @@ import { holdsPlace, type Direction } from "@/lib/reader/read-along";
 import type { ReaderDoc } from "@/lib/reader/reader";
 import { BANNER_SPRING } from "@/lib/motion";
 import { primeSpeech, useSpeech } from "@/lib/speech/store";
+import { useWindows } from "@/lib/windows/store";
 import { cn } from "@/lib/utils";
 import { useSpeechError } from "@/components/speech/use-speech-error";
 import { BAR_H, ICON_BUTTON } from "./chrome";
@@ -39,9 +40,10 @@ export interface ReadAlongTarget {
   bring(s: Sentence, smooth: boolean): void;
   /** Where the sentence is from the view, null when it shows. */
   where(s: Sentence): Direction | null;
-  /** Saves the sentence's place as the reader's own (it shows, follow is on). */
-  /** Saves the sentence's place; false when it has none yet (not found on the page). */
+  /** Saves the sentence's place as the reader's own (it shows, follow is on); false when it has none yet (not found on the page). */
   save(s: Sentence): boolean;
+  /** The first sentence of each chapter after the first (the sleep timer's "end of chapter", V49); empty when there are none. */
+  chapters(sentences: readonly Sentence[]): readonly number[] | Promise<readonly number[]>;
 }
 
 export interface ReadAlong {
@@ -332,10 +334,16 @@ export function useReadAlong({
       savedFor.current = -1;
       const from = live.current.target.startAt(list);
       useSpeech.getState().play(
-        { kind: "doc", id: sha256, title: doc.title },
+        { kind: "doc", id: sha256, title: doc.title, href: `/reader?d=${encodeURIComponent(doc.id)}` },
         list.map((s) => s.text),
         from,
       );
+      // Found after the voice starts: only the sleep timer's "end of chapter" needs them.
+      void Promise.resolve(live.current.target.chapters(list))
+        .then((starts) => {
+          useSpeech.getState().setChapters(sha256, starts);
+        })
+        .catch(() => undefined);
     })();
   };
 
@@ -394,6 +402,16 @@ export function ReadAloudControls({ ra }: { ra: ReadAlong }) {
       </Tip>
       <Tip label="Stop reading" aria-label="Stop reading" onClick={ra.stop} className={cn(ICON_BUTTON, "text-current hover:text-current")}>
         <Square aria-hidden />
+      </Tip>
+      <Tip
+        label="Speed, voice and sleep timer"
+        aria-label="Read-aloud controls: speed, voice and sleep timer"
+        onClick={() => {
+          useWindows.getState().openWindow("reader.speech");
+        }}
+        className={cn(ICON_BUTTON, "text-current hover:text-current")}
+      >
+        <SlidersHorizontal aria-hidden />
       </Tip>
     </span>
   );

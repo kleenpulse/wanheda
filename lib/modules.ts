@@ -1,4 +1,4 @@
-import { BookOpen, BookOpenText, CalendarClock, ChartColumnStacked, CloudSun, Clock, DollarSign, House, NotebookPen, Pin, Settings, Sunrise, Target, Timer, TrendingUp, Wallet, type LucideIcon } from "lucide-react";
+import { AudioLines, BookOpen, BookOpenText, CalendarClock, ChartColumnStacked, CloudSun, Clock, DollarSign, House, NotebookPen, Pin, Settings, Sunrise, Target, Timer, TrendingUp, Wallet, type LucideIcon } from "lucide-react";
 import type { Route } from "next";
 
 // The module registry (FRD 4.2). The shell builds the rail, the tab bar, the
@@ -193,7 +193,8 @@ const READER = {
       size: { w: 4, h: 3, minW: 3, minH: 2, maxH: 5 },
     },
   ],
-  windows: [],
+  windows: [{ id: "reader.speech", title: "Read aloud", icon: AudioLines, size: { w: 340, h: 360, minW: 280, minH: 280 } }],
+  activities: ["speech"],
 } as const satisfies ModuleManifest;
 
 /** The apps, in rail order. */
@@ -233,7 +234,10 @@ export function isWidgetId(id: string): id is WidgetId {
 export type WindowId = (typeof TOOLS)[number]["windows"][number]["id"] | (typeof MODULES)[number]["windows"][number]["id"];
 
 /** Every mini window on offer: tools first, then apps. */
-export const WINDOWS: readonly (WindowDef & { id: WindowId })[] = [...TOOLS.flatMap((t) => t.windows), ...MODULES.flatMap((m) => m.windows)];
+export const WINDOWS: readonly (WindowDef & { id: WindowId })[] = [
+  ...TOOLS.flatMap((t): readonly (WindowDef & { id: WindowId })[] => t.windows),
+  ...MODULES.flatMap((m): readonly (WindowDef & { id: WindowId })[] => m.windows),
+];
 
 const WINDOW_DEFS: ReadonlyMap<string, WindowDef & { id: WindowId }> = new Map(WINDOWS.map((w) => [w.id, w]));
 

@@ -258,7 +258,7 @@ function ReadNote({ note }: { note: Note }) {
           toast({ id: `speech:note:${note.id}`, title: "Read aloud", body: "Nothing to read in this note yet." });
           return;
         }
-        useSpeech.getState().play({ kind: "note", id: note.id, title: displayTitle(note) }, sentences);
+        useSpeech.getState().play({ kind: "note", id: note.id, title: displayTitle(note), href: `/notes?n=${note.id}` }, sentences);
       }}
       className={buttonClass("ghost", "circle-sm")}
       title="Read aloud"

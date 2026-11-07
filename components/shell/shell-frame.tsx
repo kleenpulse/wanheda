@@ -3,6 +3,7 @@
 import * as React from "react";
 import { AccountProvider } from "@/components/shell/account";
 import { Island } from "@/components/island/island";
+import { SpeechMediaSession } from "@/components/speech/media-session";
 import { MoneyProvider } from "@/components/money/money-provider";
 import { NotesProvider } from "@/components/notes/notes-provider";
 import { ReaderProvider } from "@/components/reader/reader-provider";
@@ -111,6 +112,7 @@ export function ShellFrame({
         <WindowLayer />
         <Dock />
         <Island />
+        <SpeechMediaSession />
         <CommandPalette railExpanded={expanded} onToggleRail={toggle} />
         <NotificationCentre />
         <Toaster />

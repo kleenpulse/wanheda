@@ -281,3 +281,54 @@ export function pageDirection(page: number, open: readonly number[]): "left" | "
   if (page > last) return "right";
   return null;
 }
+
+// ── Chapters: where "end of chapter" pauses (V49) ──
+
+/**
+ * The first sentence of each Markdown chapter after the first. A chapter is
+ * the shallowest heading level used at least twice (one `#` title over many
+ * `##` makes the `##`s chapters); deeper headings belong to the chapter above.
+ * Text before the first chapter is front matter, not a chapter of its own.
+ */
+export function mdChapterStarts(sentences: readonly Pick<Sentence, "locator">[], headings: readonly { anchor: string; level: number }[]): number[] {
+  const counts = new Map<number, number>();
+  for (const h of headings) counts.set(h.level, (counts.get(h.level) ?? 0) + 1);
+  const levels = [...counts.keys()].sort((a, b) => a - b);
+  const level = levels.find((l) => (counts.get(l) ?? 0) >= 2);
+  if (level === undefined) return [];
+  const chapterOf = new Map<string, number>();
+  // A shallower heading before the first chapter (the title) is front matter; after it, it opens a chapter too.
+  let chapter = -1;
+  for (const h of headings) {
+    if (h.level === level || (h.level < level && chapter >= 0)) chapter++;
+    chapterOf.set(h.anchor, chapter);
+  }
+  const starts: number[] = [];
+  let last = -1;
+  sentences.forEach((s, i) => {
+    const place = mdAt(s.locator);
+    const c = place === null || place.heading === "" ? -1 : chapterOf.get(place.heading);
+    if (c === undefined) return;
+    if (c > last && i > 0) starts.push(i);
+    last = Math.max(last, c);
+  });
+  return starts;
+}
+
+/** The first sentence on or after each chapter's page (the PDF's top-level contents), after the first sentence. */
+export function pdfChapterStarts(sentences: readonly Pick<Sentence, "locator">[], pages: readonly number[]): number[] {
+  const want = [...new Set(pages)].sort((a, b) => a - b);
+  const starts: number[] = [];
+  let k = 0;
+  sentences.forEach((s, i) => {
+    const at = pdfAt(s.locator);
+    if (!at) return;
+    let hit = false;
+    while (k < want.length && (want[k] ?? 0) <= at.page) {
+      k++;
+      hit = true;
+    }
+    if (hit && i > 0) starts.push(i);
+  });
+  return starts;
+}

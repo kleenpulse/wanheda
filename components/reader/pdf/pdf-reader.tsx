@@ -35,7 +35,7 @@ import {
   turnFor,
   type BookLayout,
 } from "@/lib/reader/book";
-import { firstPdfSentence, pageDirection, pdfAt } from "@/lib/reader/read-along";
+import { firstPdfSentence, pageDirection, pdfAt, pdfChapterStarts } from "@/lib/reader/read-along";
 import { formatLocator, parseLocator, type Progress, type ReaderDoc, type ReadingMode } from "@/lib/reader/reader";
 import { cn } from "@/lib/utils";
 import { hasCover, keepCover } from "../covers";
@@ -64,7 +64,7 @@ import { FollowPill, ReadAloudControls, useReadAlong, type ReadAlongTarget } fro
 import { useResume } from "../resume";
 import { useReaderApi } from "../use-reader";
 import { BookView, type BookHandle } from "./book-view";
-import { coverOf, findPage, firstPageAspect, heldSha, onBroken, openPdf, sentenceBoxes, type SayBoxes } from "./engine";
+import { chapterPages, coverOf, findPage, firstPageAspect, heldSha, onBroken, openPdf, sentenceBoxes, type SayBoxes } from "./engine";
 import { ScrollView, type ScrollHandle } from "./scroll-view";
 import { Thumbnails } from "./thumbnails";
 
@@ -310,6 +310,7 @@ function Reader({ doc, file, loaded }: { doc: ReaderDoc; file: File; loaded: Loa
       if (at) resume.follow(s.locator, pdfPercent(at.page, at.y, pages));
       return at !== null;
     },
+    chapters: async (list) => pdfChapterStarts(list, await chapterPages(pdf)),
   };
   const ra = useReadAlong({ doc, file, stage: stageEl, book: mode === "flip", viewKey: `${mode}:${String(resumed)}:${String(single)}`, target });
 

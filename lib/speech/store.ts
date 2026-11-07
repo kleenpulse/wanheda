@@ -4,6 +4,7 @@ import { piper } from "./piper";
 import { SpeechPlayer } from "./player";
 import { SpeechQueue, type QueueStats } from "./queue";
 import { ratePref, voicePref } from "./prefs";
+import { chapterEnd, startSleep, type Sleep, type SleepChoice } from "./sleep";
 import { DEFAULT_VOICE, isInstalled } from "./voices";
 import { webSpeech, webSpeechAvailable } from "./web-speech";
 
@@ -23,6 +24,8 @@ export interface SpeechSource {
   /** The document's sha256, or the note's id. */
   id: string;
   title: string;
+  /** Where the speech's source opens (the island card's "Open"). */
+  href?: string;
 }
 
 export type SpeechStatus = "idle" | "playing" | "paused";
@@ -41,6 +44,12 @@ interface SpeechState {
   voice: string;
   engine: EngineId | null;
   error: string | null;
+  /** When the current speech started (Date.now()): the island brings it forward. */
+  startedAt: number;
+  /** The first sentence of each chapter after the first, ascending; empty when the source has none (yet). */
+  chapters: readonly number[];
+  /** The sleep timer, or null. It pauses the speech. */
+  sleep: Sleep | null;
 
   /** `voice` overrides the voice pref for this play only (a sample in Settings). */
   play: (source: SpeechSource, sentences: readonly string[], from?: number, opts?: { voice?: string }) => void;
@@ -52,8 +61,11 @@ interface SpeechState {
   prev: () => void;
   seek: (sentence: number) => void;
   setRate: (rate: number) => void;
-  /** The default voice (pref). Used from the next play. */
+  /** The default voice (pref). Speaking, the voice changes from the current sentence. */
   setVoice: (voice: string) => void;
+  setSleep: (choice: SleepChoice | null) => void;
+  /** The source's chapters, found after its play started. */
+  setChapters: (id: string, starts: readonly number[]) => void;
 }
 
 interface Driver {
@@ -234,13 +246,21 @@ let driver: Driver | null = null;
 let sentences: readonly string[] = [];
 /** Bumped by every play and stop: an engine choice that resolves late for an older play is dropped. */
 let generation = 0;
+let sleepTimer: ReturnType<typeof setTimeout> | undefined;
 
 const message = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
 export const useSpeech = create<SpeechState>()((set, get) => {
   const events = (gen: number): DriverEvents => ({
     onSentence: (i) => {
-      if (gen === generation) set({ sentence: i, waiting: false });
+      if (gen !== generation) return;
+      set({ sentence: i, waiting: false });
+      const { sleep } = get();
+      // End of chapter: the next chapter's first sentence is where the voice stops, ready to go on.
+      if (sleep?.kind === "chapter" && i >= sleep.end) {
+        set({ sleep: null });
+        get().pause();
+      }
     },
     onEnd: () => {
       if (gen !== generation) return;
@@ -268,6 +288,22 @@ export const useSpeech = create<SpeechState>()((set, get) => {
     driver?.stop();
     driver = null;
     releaseLock();
+    clearTimeout(sleepTimer);
+    if (get().sleep) set({ sleep: null });
+  };
+
+  const armSleep = (sleep: Sleep | null) => {
+    clearTimeout(sleepTimer);
+    set({ sleep });
+    if (sleep?.kind !== "minutes") return;
+    sleepTimer = setTimeout(
+      () => {
+        if (get().sleep !== sleep) return;
+        set({ sleep: null });
+        get().pause();
+      },
+      Math.max(0, sleep.at - Date.now()),
+    );
   };
 
   const stop = () => {
@@ -286,6 +322,9 @@ export const useSpeech = create<SpeechState>()((set, get) => {
     voice: DEFAULT_VOICE,
     engine: null,
     error: null,
+    startedAt: 0,
+    chapters: [],
+    sleep: null,
 
     play: (source, list, from = 0, opts) => {
       generation++;
@@ -306,6 +345,8 @@ export const useSpeech = create<SpeechState>()((set, get) => {
         sentence: start,
         total: list.length,
         error: null,
+        startedAt: Date.now(),
+        chapters: [],
         voice: opts?.voice ?? voicePref.get(),
         rate: ratePref.get(),
       });
@@ -314,7 +355,8 @@ export const useSpeech = create<SpeechState>()((set, get) => {
         generation++;
         driver?.stop();
         driver = null;
-        set({ status: "idle", waiting: false, error: null });
+        clearTimeout(sleepTimer);
+        set({ status: "idle", waiting: false, error: null, sleep: null });
       });
       void isInstalled(get().voice)
         .catch(() => false)
@@ -374,6 +416,9 @@ export const useSpeech = create<SpeechState>()((set, get) => {
       }
       const target = Math.max(0, Math.floor(i));
       set({ sentence: target, waiting: true });
+      // The owner moved on by hand: "end of chapter" is the end of the chapter they're in now.
+      const { sleep, chapters } = get();
+      if (sleep?.kind === "chapter") set({ sleep: { kind: "chapter", end: chapterEnd(chapters, target, total) } });
       driver?.seek(target);
     },
 
@@ -386,8 +431,33 @@ export const useSpeech = create<SpeechState>()((set, get) => {
 
     setVoice: (voice) => {
       voicePref.set(voice);
-      // While speaking, the playing voice stays until the next play.
-      if (get().status === "idle") set({ voice });
+      const { status, source, sentence, sleep, chapters, startedAt, voice: playing } = get();
+      if (status === "idle" || !source) {
+        set({ voice });
+        return;
+      }
+      if (voice === playing) return;
+      // Speaking: the new voice reads from the current sentence, with the same sleep timer and state.
+      get().play(source, sentences, sentence);
+      set({ chapters, startedAt });
+      armSleep(sleep);
+      if (status === "paused") get().pause();
+    },
+
+    setSleep: (choice) => {
+      const { status, chapters, sentence, total } = get();
+      if (status === "idle" || choice === null) {
+        armSleep(null);
+        return;
+      }
+      armSleep(startSleep(choice, Date.now(), chapters, sentence, total));
+    },
+
+    setChapters: (id, starts) => {
+      const { source, sleep, sentence, total } = get();
+      if (source?.id !== id) return;
+      set({ chapters: starts });
+      if (sleep?.kind === "chapter") set({ sleep: { kind: "chapter", end: chapterEnd(starts, sentence, total) } });
     },
   };
 });
@@ -399,6 +469,11 @@ export const useSpeech = create<SpeechState>()((set, get) => {
  */
 export function primeSpeech(): void {
   player.unlock();
+}
+
+/** The text of sentence `i` of the current speech ("" when there is none). */
+export function spokenText(i: number): string {
+  return sentences[i] ?? "";
 }
 
 /** The Piper queue's numbers for the current speech (exit log, V50), or null on Web Speech or idle. */
