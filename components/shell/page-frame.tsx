@@ -59,22 +59,25 @@ export function PageFrame({
   return (
     <div className={cn("flex min-h-svh flex-col", FILL.frame)}>
       <div className={cn(PAGE_COLUMN, "@container/frame pt-6 pb-6")}>
-        {/* Wraps: on a phone, a page's actions (the money tabs) drop under the title instead of squeezing it. */}
-        <header className="entrance flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
-          {/* Full width below @4xl so the actions always take their own line there, and the island shift below only runs on one row. */}
+        {/* Wraps: on a phone, a page's actions (the money tabs) drop under the title instead of squeezing it.
+            From @4xl the title and the eye share the island's line (h-9 at top-2: the header starts 8 px down),
+            and the tabs sit under it, 8 px clear of the island (user 2026-11-07). */}
+        <header className="entrance flex flex-wrap items-center justify-between gap-x-4 gap-y-3 @4xl/frame:-mt-4 @4xl/frame:items-start">
+          {/* Full width below @4xl so the actions always take their own line there; the island layout above only runs on one row. */}
           <div className={cn("min-w-0", actions ? "w-full @4xl/frame:w-auto" : null)}>
             <h1 className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 font-display text-[26px] leading-tight font-black tracking-[0.02em] text-foreground uppercase">
               {title}
             </h1>
             {subtitle ? <p className="truncate text-[13px] text-ink-2">{subtitle}</p> : null}
           </div>
-          <div className="flex shrink-0 items-center gap-3">
-            {/* On one row the tabs drop 22 px clear of the island (h-9 at top-2); the title and the eye stay put (user 2026-11-07). */}
-            {actions ? <div className="@4xl/frame:translate-y-5.5">{actions}</div> : null}
-            {/* Show / hide amounts, on every page (user 2026-11-05: app-wide, in the top bar). */}
-            <PrivacyButton className="size-9 shrink-0" />
-            <SyncChip />
-            <ModeChip />
+          <div className="flex shrink-0 items-center gap-3 @4xl/frame:items-start">
+            {actions ? <div className="@4xl/frame:mt-11">{actions}</div> : null}
+            <div className="flex items-center gap-3">
+              {/* Show / hide amounts, on every page (user 2026-11-05: app-wide, in the top bar). */}
+              <PrivacyButton className="size-9 shrink-0" />
+              <SyncChip />
+              <ModeChip />
+            </div>
           </div>
         </header>
       </div>

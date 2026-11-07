@@ -55,7 +55,7 @@ written after the fact, one per phase, and have no git tags.
 - The island opens and closes with a smoother, springier glide instead of a snap, and closes a little quicker than it opens.
 - On a narrow phone, apps that don't fit on the bottom bar open from a More button above it, with large rows for your thumb. The page you're on always stays on the bar.
 - Picking a page from a menu (More, or Settings in the account menu) now closes the menu.
-- The island no longer crowds the tabs in Money and Income: on a wide screen the tabs sit a little lower, with clear space under the island, while the title and the show-amounts button stay where they were. On a narrower screen the tabs take their own line under the title.
+- On a wide screen, each app's title and the show-amounts button now sit on the same line as the island, like a title bar. In Money and Income the tabs sit just below the island instead of crowding it. On a narrower screen the tabs take their own line under the title.
 
 ## [0.6.0] - 2026-11-07
 
