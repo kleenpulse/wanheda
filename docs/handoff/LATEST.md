@@ -1,13 +1,10 @@
 # Latest hand-off
 
-**Newest:** [2026-11-07-phase-7-video.md](2026-11-07-phase-7-video.md). **T61 merged (#47, `5014b01`, post-merge VERIFIED). T62 video on `phase-7/video`: LGTM with nits (all taken); PR next.**
+**Newest:** [2026-11-07-phase-7-music-library.md](2026-11-07-phase-7-music-library.md). **T62 merged (#48, `17e6016`, post-merge VERIFIED). T63 music library on `phase-7/music-library`: Reviewer LGTM (2 FIXes applied), PR next.**
 
-- Resume and watched (device first, server by fetch and beacon, newest wins); Continue and Watch later lists.
-- Theatre (`t`), SRT/VTT sidecar subtitles, palette player commands with the skin's keys.
-- One Media Session arbiter for speech and video: the last started owns the keys, and starting one pauses the other.
-- Migrations 0009 and 0010 are written but **not applied**: the owner runs `bun run db:migrate`.
-- The merged remote branch `phase-7/media-core` is still there (deletion denied in auto mode): the owner's to delete.
-
-Next: commit, push, PR, Reviewer tip check, merge (the owner's word for this session), then T63.
+- Music tab: folder pick + reconnect, incremental scan worker (`music-metadata` 12.3.3), OPFS covers, Dexie index, browse + search, virtual list, island scan activity.
+- Queued after T63 (user, via `wanheda-c2`): password-protected PDFs in the Reader, on its own branch.
+- Migrations 0009 and 0010 are **not applied**. A peer relayed a go-ahead; the Builder waits for the user's own word.
+- The merged remote branches `phase-7/media-core` and `phase-7/video` are the owner's to delete.
 
 Read the hand-off first, then verify it against the repo before trusting it (git, tripwire, typecheck, tests).

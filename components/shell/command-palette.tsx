@@ -54,10 +54,12 @@ import { useIncome } from "@/components/income/use-income";
 import { togglePrivacy, usePrivacy } from "@/components/money/privacy";
 import { pushUrl, replaceUrlParams } from "@/hooks/use-url-param";
 import { formatDuration as formatMediaDuration, mediaHref } from "@/lib/media/media";
+import { searchTracks } from "@/lib/media/library";
 import { continueList } from "@/lib/media/playback";
 import { lastAccountId, newTxn, useMoney, useMoneyApi, useNewSubscription } from "@/components/money/use-money";
 import { useNoteSearch, useNotesApi } from "@/components/notes/notes-provider";
 import { playerActions, usePlayer } from "@/components/media/player-store";
+import { useMusicLibrary } from "@/components/media/music-library";
 import { useMedia } from "@/components/media/use-media";
 import { useReader } from "@/components/reader/use-reader";
 import { useNotifications } from "@/components/notifications/notifications-provider";
@@ -204,6 +206,12 @@ function PaletteBody({
   // Cache only: what /media last loaded.
   const mediaItems = useMedia({ enabled: false }).data?.items ?? [];
   const going = continueList(mediaItems, 3);
+  // Music (T63): the index this device already holds; matches only once something is typed.
+  const musicTracks = useMusicLibrary((s) => s.tracks);
+  const musicHits = React.useMemo(
+    () => (query.trim().length >= 2 && musicTracks ? searchTracks(musicTracks, query).slice(0, 6) : []),
+    [musicTracks, query],
+  );
   const media = mediaItems.filter((m) => !going.some((g) => g.id === m.id)).slice(0, 5);
   // A video playing on /media: its controls, with the skin's own keys as hints (T62).
   const playerEl = usePlayer((s) => s.el);
@@ -596,6 +604,34 @@ function PaletteBody({
             ))}
           </Command.Group>
         ) : null}
+
+        <Command.Group heading="Music">
+          {musicHits.map((t) => (
+            <Item
+              key={t.path}
+              value={`music-track-${t.path}`}
+              keywords={[t.title, t.artist, t.album, "music", "song"]}
+              icon={Music}
+              title={`${t.title} · ${t.artist}`}
+              hint={t.album}
+              onSelect={run(() => {
+                const href = `/media?tab=music&b=albums&g=${encodeURIComponent(`${t.albumArtist}\u0000${t.album}`)}` as const;
+                if (pathname === "/media") pushUrl(href);
+                else router.push(href);
+              })}
+            />
+          ))}
+          <Item
+            value="music-open"
+            keywords={["music", "library", "songs", "albums", "artists", "browse"]}
+            icon={Music}
+            title="Music library"
+            onSelect={run(() => {
+              if (pathname === "/media") pushUrl("/media?tab=music");
+              else router.push("/media?tab=music");
+            })}
+          />
+        </Command.Group>
 
         {player ? (
           <Command.Group heading="Player">

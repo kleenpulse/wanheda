@@ -29,6 +29,10 @@ written after the fact, one per phase, and have no git tags.
 - Theatre mode makes the video fill the width of the page. Press T, or use the Theatre button.
 - While a video plays, Search (Ctrl+K) has player controls: play and pause, skip 10 seconds, speed, picture-in-picture, fullscreen and theatre. Each shows its keyboard shortcut.
 - Your keyboard's media keys control whichever of video and read-aloud you started last, and starting one pauses the other.
+- Media now has a Music tab. Pick the folder your music lives in and Wanheda lists it by artist, album, genre or folder, with album covers. Nothing is uploaded.
+- Search your music by song, artist or album, in the Music tab or from Search (Ctrl+K).
+- The music folder is remembered. If the browser asks again after a restart, one Reconnect click brings it back, and new or changed files are picked up automatically.
+- Files that can't be read are skipped and counted instead of stopping the scan, and the island shows progress while new music is being read.
 
 ## [0.6.0] - 2026-11-07
 
