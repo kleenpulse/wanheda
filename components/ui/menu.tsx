@@ -52,8 +52,12 @@ export function MenuItem({ className, ...props }: MenuPrimitive.Item.Props) {
   return <MenuPrimitive.Item className={cn(itemClass, className)} {...props} />;
 }
 
-export function MenuLinkItem({ className, ...props }: MenuPrimitive.LinkItem.Props) {
-  return <MenuPrimitive.LinkItem className={cn(itemClass, className)} {...props} />;
+/**
+ * A menu row that navigates. Base UI leaves a link's menu open (it expects the page to unmount it), but the
+ * shell's menus (tab bar, account) outlive the navigation, so a tap closes the menu by default.
+ */
+export function MenuLinkItem({ className, closeOnClick = true, ...props }: MenuPrimitive.LinkItem.Props) {
+  return <MenuPrimitive.LinkItem className={cn(itemClass, className)} closeOnClick={closeOnClick} {...props} />;
 }
 
 export function MenuSeparator({ className }: { className?: string }) {
