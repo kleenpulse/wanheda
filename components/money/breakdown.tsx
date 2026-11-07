@@ -1,8 +1,10 @@
 "use client";
 
 import * as React from "react";
+import Image from "next/image";
 import { Banknote, Bitcoin, CreditCard, Landmark, Wallet, type LucideIcon } from "lucide-react";
 import { Segmented } from "@/components/ui/segmented";
+import { accountLogo } from "@/lib/money/account-logo";
 import type { Currency } from "@/lib/money/currency";
 import type { Account, AccountKind, Category } from "@/lib/money/money";
 import { NONE, type BreakdownRow, type GroupBy, type Side } from "@/lib/money/reports";
@@ -33,11 +35,13 @@ export const ACCOUNT_ICON: Record<AccountKind, LucideIcon> = {
   crypto: Bitcoin,
 };
 
-function AccountMark({ kind }: { kind: AccountKind | undefined }) {
+/** An account's brand logo when it has one (by name), else the icon for its kind. */
+export function AccountMark({ kind, name }: { kind: AccountKind | undefined; name: string | undefined }) {
+  const logo = name ? accountLogo(name) : null;
   const Icon = kind ? ACCOUNT_ICON[kind] : Wallet;
   return (
-    <span aria-hidden className="grid size-9 shrink-0 place-items-center rounded-full bg-card-nested text-ink-2 ring-1 ring-border dark:ring-glass-border">
-      <Icon className="size-4" strokeWidth={1.75} />
+    <span aria-hidden className="grid size-9 shrink-0 place-items-center overflow-hidden rounded-full bg-card-nested text-ink-2 ring-1 ring-border dark:ring-glass-border">
+      {logo ? <Image src={logo} alt="" width={36} height={36} draggable={false} className="size-full object-cover" /> : <Icon className="size-4" strokeWidth={1.75} />}
     </span>
   );
 }
@@ -88,7 +92,7 @@ export function Breakdown({
     return categories.get(r.key)?.name ?? "Unknown category";
   };
   const markOf = (r: BreakdownRow) => {
-    if (by === "account") return <AccountMark kind={accounts.get(r.key)?.kind} />;
+    if (by === "account") return <AccountMark kind={accounts.get(r.key)?.kind} name={accounts.get(r.key)?.name} />;
     if (by === "payee") return <PayeeMark name={nameOf(r)} />;
     return <CategoryMark category={categories.get(r.key) ?? null} />;
   };

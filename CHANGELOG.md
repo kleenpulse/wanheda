@@ -17,6 +17,7 @@ written after the fact, one per phase, and have no git tags.
 
 ### Added
 
+- An OPay account shows the OPay logo in your accounts list and in Money's breakdown by account, instead of the plain bank icon.
 - A new Media app. Open a video or audio file from your computer, drop one onto the page, or paste a link, and it plays right there.
 - Links from YouTube, Vimeo, SoundCloud and Spotify play inside Wanheda. A link straight to a video or audio file plays too.
 - Files that browsers usually refuse, such as MPEG-TS recordings, are converted while they play, with nothing saved to disk. If converting takes more than a second, the island shows it, with a way to cancel.
