@@ -14,6 +14,7 @@ import { useSpeech } from "@/lib/speech/store";
 import { MODULES, TOOLS, isActive, type ActivityKind } from "@/lib/modules";
 import { DOCK_SPRING } from "@/lib/motion";
 import { dockEntries, type DockEntry } from "@/lib/shell/dock";
+import { AppIcon } from "@/components/shell/app-icon";
 import { cn } from "@/lib/utils";
 import { useWindows } from "@/lib/windows/store";
 
@@ -132,7 +133,6 @@ function DockItem({
   onSelect?: () => void;
 }) {
   const ref = React.useRef<HTMLElement>(null);
-  const Icon = entry.icon;
 
   // Read the rect live: the items are resizing, so a cached centre is stale
   // the moment the swell starts. Before layout there is no rect: rest.
@@ -179,7 +179,7 @@ function DockItem({
           style={style}
           className={className}
         >
-          <Icon strokeWidth={1.75} aria-hidden />
+          <AppIcon id={entry.id} icon={entry.icon} strokeWidth={1.75} aria-hidden />
         </MotionLink>
       ) : (
         <motion.button
@@ -192,7 +192,7 @@ function DockItem({
           style={style}
           className={className}
         >
-          <Icon strokeWidth={1.75} aria-hidden />
+          <AppIcon id={entry.id} icon={entry.icon} strokeWidth={1.75} aria-hidden />
         </motion.button>
       )}
       <span

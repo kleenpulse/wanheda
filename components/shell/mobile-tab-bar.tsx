@@ -10,6 +10,7 @@ import { activeInk, idleInk } from "@/components/shell/styles";
 import { Menu, MenuContent, MenuLinkItem, MenuTrigger } from "@/components/ui/menu";
 import { MODULES, SYSTEM_PAGES, isActive } from "@/lib/modules";
 import { splitTabs, tabCapacity } from "@/lib/shell/tab-overflow";
+import { AppIcon } from "@/components/shell/app-icon";
 import { cn } from "@/lib/utils";
 
 const item =
@@ -59,7 +60,7 @@ export function MobileTabBar() {
       aria-label="Primary"
       className="glass fixed inset-x-3 bottom-3 z-30 flex h-16 items-center justify-around overflow-hidden rounded-full px-2 shadow-lift md:hidden"
     >
-      {shown.map(({ route, title, icon: Icon }) => {
+      {shown.map(({ id, route, title, icon }) => {
         const on = isActive(pathname, route);
         return (
           <Link
@@ -68,7 +69,7 @@ export function MobileTabBar() {
             aria-current={on ? "page" : undefined}
             className={cn(item, on ? cn("bg-inverse dark:bg-signal-soft", activeInk) : idleInk)}
           >
-            <Icon strokeWidth={1.75} aria-hidden />
+            <AppIcon id={id} icon={icon} strokeWidth={1.75} aria-hidden />
             <span className="sr-only">{title}</span>
           </Link>
         );
@@ -79,9 +80,9 @@ export function MobileTabBar() {
             <Ellipsis strokeWidth={1.75} aria-hidden />
           </MenuTrigger>
           <MenuContent side="top" align="center" sideOffset={14} className="w-60 p-2">
-            {more.map(({ route, title, icon: Icon }) => (
+            {more.map(({ id, route, title, icon }) => (
               <MenuLinkItem key={route} render={<Link href={route} />} className={TOUCH_ROW}>
-                <Icon strokeWidth={1.75} />
+                <AppIcon id={id} icon={icon} strokeWidth={1.75} />
                 {title}
               </MenuLinkItem>
             ))}

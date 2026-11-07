@@ -154,6 +154,13 @@ export function musicLevels(out: Uint8Array<ArrayBuffer>): boolean {
   return engine?.levels(out) ?? false;
 }
 
+/** Seconds into the current track by the audio clock, between ticks (the scrub glides on it); null when unknown. */
+export function musicPosition(): number | null {
+  const p = engine?.position();
+  const q = useMusicPlayer.getState().queue;
+  return p && q?.order[q.at] === p.key ? p.seconds : null;
+}
+
 function startTicker(): void {
   if (ticker) return;
   ticker = setInterval(() => {

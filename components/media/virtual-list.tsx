@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { settleScrollFade } from "@/lib/scroll-fade";
 import { cn } from "@/lib/utils";
 
 // A fixed-row-height virtual list (V58, V62): only the rows in view, plus a
@@ -39,7 +40,10 @@ export function VirtualList<T>({
       if (!frame) frame = requestAnimationFrame(read);
     };
     read();
-    const ro = new ResizeObserver(onScroll);
+    const ro = new ResizeObserver(() => {
+      settleScrollFade(el);
+      onScroll();
+    });
     ro.observe(el);
     el.addEventListener("scroll", onScroll, { passive: true });
     return () => {
@@ -48,6 +52,12 @@ export function VirtualList<T>({
       cancelAnimationFrame(frame);
     };
   }, []);
+
+  // A shorter list (search, a smaller album) can drop the overflow while
+  // scrolled; un-stick the fade before paint.
+  React.useLayoutEffect(() => {
+    if (ref.current) settleScrollFade(ref.current);
+  }, [items.length]);
 
   const first = Math.max(0, Math.floor(view.top / rowHeight) - OVERSCAN);
   const last = Math.min(items.length, Math.ceil((view.top + view.height) / rowHeight) + OVERSCAN);

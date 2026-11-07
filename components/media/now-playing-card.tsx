@@ -8,7 +8,7 @@ import { volumePref, WHEEL_STEP, wheelSteps } from "@/lib/media/volume";
 import { cn } from "@/lib/utils";
 import { useCoverUrl } from "./cover";
 import { useMusicLibrary } from "./music-library";
-import { musicLevels, useMusicPlayer } from "./music-player";
+import { musicLevels, musicPosition, useMusicPlayer } from "./music-player";
 
 // The now-playing card, ported from Motion Garden's LiveActivity media card
 // (shadow-garden components/registry/live-activity/activities.tsx: MediaCard,
@@ -200,20 +200,65 @@ function WaveScrub() {
   const idle = useMusicPlayer((s) => s.status === "idle");
   const reduced = Boolean(useReducedMotion());
   const [drag, setDrag] = React.useState<number | null>(null);
+  // Where the pointer is over the bar, 0..1, for the seek tooltip.
+  const [hover, setHover] = React.useState<number | null>(null);
   const shown = drag ?? position;
   const total = duration ?? 0;
   const value = total > 0 ? Math.min(1, Math.max(0, shown / total)) : 0;
   const pct = `${String(value * 100)}%`;
   const moving = playing && !reduced && drag === null;
+  const max = Math.max(1, Math.floor(total));
+  // The tooltip names the second a click would land on (the range rounds to its
+  // step): the pointer's spot, or the dragged one (keys included) when no
+  // pointer is over the bar.
+  const tip = total <= 0 || idle ? null : hover !== null ? { at: hover, time: Math.round(hover * max) } : drag !== null ? { at: value, time: drag } : null;
+
+  // The store ticks 4 times a second; between ticks the head glides on the
+  // audio clock, written straight to the bar (no render a frame).
+  const rest = React.useRef<HTMLDivElement>(null);
+  const fill = React.useRef<HTMLDivElement>(null);
+  const head = React.useRef<HTMLDivElement>(null);
+  React.useEffect(() => {
+    if (!moving || total <= 0) return;
+    let raf = 0;
+    const loop = () => {
+      const s = musicPosition();
+      if (s !== null) {
+        const at = `${String(Math.min(1, Math.max(0, s / total)) * 100)}%`;
+        if (rest.current) rest.current.style.left = at;
+        if (fill.current) fill.current.style.width = at;
+        if (head.current) head.current.style.left = at;
+      }
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => {
+      cancelAnimationFrame(raf);
+    };
+  }, [moving, total]);
   const commit = () => {
     if (drag !== null) useMusicPlayer.getState().seek(drag);
     setDrag(null);
   };
+  const pointAt = (e: React.PointerEvent<HTMLInputElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    setHover(r.width > 0 ? Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)) : null);
+  };
   return (
     <div>
-      <div className="relative h-3.5 rounded-full has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-island-foreground/70">
-        <div className="absolute top-1/2 right-0 h-[3px] -translate-y-1/2 rounded-full bg-island-foreground/25" style={{ left: pct }} />
+      <div className="group/scrub relative h-3.5 rounded-full has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-island-foreground/70">
+        {tip ? (
+          <span
+            aria-hidden
+            className="tabular pointer-events-none absolute bottom-full mb-1.5 -translate-x-1/2 rounded-full bg-island-foreground px-1.5 py-0.5 text-[11px] leading-none font-medium text-island"
+            style={{ left: `clamp(1.25rem, ${String(tip.at * 100)}%, calc(100% - 1.25rem))` }}
+          >
+            {clock(tip.time)}
+          </span>
+        ) : null}
+        <div ref={rest} className="absolute top-1/2 right-0 h-[3px] -translate-y-1/2 rounded-full bg-island-foreground/25" style={{ left: pct }} />
         <motion.div
+          ref={fill}
           aria-hidden
           className="absolute inset-y-0 left-0 bg-island-foreground"
           style={{ width: pct, maskImage: WAVE, maskRepeat: "repeat-x", maskSize: "80px 14px" }}
@@ -221,8 +266,13 @@ function WaveScrub() {
           transition={moving ? { duration: 2.4, ease: "linear", repeat: Infinity } : { duration: 0.3 }}
         />
         <div
+          ref={head}
           aria-hidden
-          className="absolute top-1/2 size-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-island-foreground shadow-[0_0_0_3px_color-mix(in_oklab,var(--color-island)_25%,transparent)]"
+          // The round head shows only while the bar is in hand: hover, keyboard focus, a drag (touch has no hover).
+          className={cn(
+            "absolute top-1/2 size-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-island-foreground shadow-[0_0_0_3px_color-mix(in_oklab,var(--color-island)_25%,transparent)] transition-[opacity,scale] duration-150",
+            drag !== null ? "scale-100 opacity-100" : "scale-50 opacity-0 group-hover/scrub:scale-100 group-hover/scrub:opacity-100 group-has-focus-visible/scrub:scale-100 group-has-focus-visible/scrub:opacity-100",
+          )}
           style={{ left: pct }}
         />
         <input
@@ -230,18 +280,28 @@ function WaveScrub() {
           aria-label="Seek"
           aria-valuetext={`${clock(shown)} of ${clock(total)}`}
           min={0}
-          max={Math.max(1, Math.floor(total))}
+          max={max}
           step={1}
           value={Math.floor(shown)}
           disabled={idle || total <= 0}
           onChange={(e) => {
             setDrag(Number(e.currentTarget.value));
           }}
+          onPointerMove={pointAt}
+          onPointerLeave={() => {
+            setHover(null);
+          }}
           onPointerUp={commit}
           onPointerCancel={commit}
+          // Keys move the seek: the tip follows them, not a resting pointer.
+          onKeyDown={() => {
+            setHover(null);
+          }}
           onKeyUp={commit}
           onBlur={commit}
-          className="absolute inset-0 w-full cursor-pointer opacity-0 disabled:cursor-default"
+          // A 0-wide native thumb maps a click straight to its x, so the seek
+          // lands where the tooltip and the drawn dot say.
+          className="absolute inset-0 w-full cursor-pointer appearance-none opacity-0 disabled:cursor-default [&::-moz-range-thumb]:size-0 [&::-moz-range-thumb]:border-0 [&::-webkit-slider-thumb]:size-0 [&::-webkit-slider-thumb]:appearance-none"
         />
       </div>
       <div className="tabular mt-1.5 flex justify-between text-[11px] text-island-foreground/50">

@@ -246,6 +246,9 @@ export function MusicView() {
           <p className="px-1 text-[13px] text-ink-2">Nothing matches.</p>
         ) : (
           <VirtualList
+            // Own scroller per list: an album opens at its top, not at the
+            // browse list's scroll offset.
+            key={open ? `group:${open.key}` : "songs"}
             label={query.trim() ? "Search results" : (open?.label ?? "Songs")}
             items={songs}
             rowHeight={ROW}
@@ -266,6 +269,7 @@ export function MusicView() {
         )
       ) : (
         <VirtualList
+          key={`browse:${browse}`}
           label={BROWSE_OPTIONS.find((o) => o.value === browse)?.label ?? "Library"}
           items={groups}
           rowHeight={ROW}

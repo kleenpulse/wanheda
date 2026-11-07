@@ -38,6 +38,9 @@ export const ISLAND_SPRING = {
   close: { type: "spring", visualDuration: 0.42, bounce: 0.25 },
 } as const;
 
+/** One glyph morphing into another in place (Media's clapperboard ↔ note): a quick spring with a little give. */
+export const ICON_MORPH = { type: "spring", visualDuration: 0.45, bounce: 0.3 } as const;
+
 /** The island's incoming content: waits for the shape to all but land, then fades in. */
 export const ISLAND_CONTENT_IN = {
   open: { delay: 0.2, duration: 0.36 },
