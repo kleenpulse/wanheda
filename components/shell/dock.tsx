@@ -9,6 +9,7 @@ import { usePalette } from "@/components/shell/palette-store";
 import { Kbd } from "@/components/ui/kbd";
 import { useReducedMotion } from "@/hooks/use-reduced-motion";
 import { useActivity } from "@/lib/activity/store";
+import { useSpeech } from "@/lib/speech/store";
 import { MODULES, TOOLS, isActive, type ActivityKind } from "@/lib/modules";
 import { DOCK_SPRING } from "@/lib/motion";
 import { dockEntries, type DockEntry } from "@/lib/shell/dock";
@@ -43,6 +44,7 @@ function useMod() {
 export function Dock() {
   const pathname = usePathname();
   const hasTimers = useActivity((s) => s.timers.length > 0);
+  const speaking = useSpeech((s) => s.status !== "idle");
   const open = useWindows((s) => s.open);
   const openWindow = useWindows((s) => s.openWindow);
   const setPalette = usePalette((s) => s.setOpen);
@@ -50,11 +52,11 @@ export function Dock() {
   const mod = useMod();
   const cursor = useMotionValue(AWAY);
 
-  // The bus carries timers only in Phase 1; media and speech join with their modules.
+  // Timers from the bus, speech from the speech store; media joins with its module.
   const { apps, tools } = React.useMemo(() => {
-    const live = new Set<ActivityKind>(hasTimers ? ["timer"] : []);
+    const live = new Set<ActivityKind>([...(hasTimers ? (["timer"] as const) : []), ...(speaking ? (["speech"] as const) : [])]);
     return dockEntries(MODULES, TOOLS, { live, open: new Set(open) });
-  }, [hasTimers, open]);
+  }, [hasTimers, speaking, open]);
 
   return (
     <nav

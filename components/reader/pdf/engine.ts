@@ -440,3 +440,31 @@ export async function findPage(
   }
   return null;
 }
+
+/**
+ * The pages the PDF's chapters start on: its contents list's top level, or,
+ * when that's one entry (the book's own title), the level under it. Empty
+ * without a contents list. Entries that don't resolve are left out.
+ */
+export async function chapterPages(pdf: PDFDocumentProxy): Promise<number[]> {
+  interface Entry {
+    dest: string | unknown[] | null;
+    items: Entry[];
+  }
+  const outline = (await pdf.getOutline()) as Entry[] | null;
+  if (!outline) return [];
+  const first = outline[0];
+  const items = outline.length === 1 && first ? first.items : outline;
+  const pages: number[] = [];
+  for (const { dest: to } of items) {
+    try {
+      const dest: unknown = typeof to === "string" ? await pdf.getDestination(to) : to;
+      const ref: unknown = Array.isArray(dest) ? dest[0] : null;
+      if (typeof ref === "number") pages.push(ref + 1);
+      else if (ref && typeof ref === "object") pages.push((await pdf.getPageIndex(ref as Parameters<PDFDocumentProxy["getPageIndex"]>[0])) + 1);
+    } catch {
+      // A broken entry: not a chapter.
+    }
+  }
+  return pages;
+}

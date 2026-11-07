@@ -7,7 +7,7 @@ import { useReducedMotion } from "@/hooks/use-reduced-motion";
 import { normalizeQuery, turnFor } from "@/lib/reader/book";
 import { ID_PREFIX, MAX_MATCHES, anchorOf, findRanges, idOf, type MdPlace } from "@/lib/reader/md";
 import type { Sentence } from "@/lib/reader/extract";
-import { NormBuilder, firstMdEstimate, mdAt, mdOrder, nearest, sentenceHits, type Hit, type NormText } from "@/lib/reader/read-along";
+import { NormBuilder, firstMdEstimate, mdAt, mdChapterStarts, mdOrder, nearest, sentenceHits, type Hit, type NormText } from "@/lib/reader/read-along";
 import { formatLocator, parseLocator, type Progress, type ReaderDoc, type ReadingMode } from "@/lib/reader/reader";
 import { cn } from "@/lib/utils";
 import {
@@ -544,6 +544,7 @@ function Reader({ doc, file, text }: { doc: ReaderDoc; file: File; text: string 
       if (p) resume.follow(p.locator, p.percent);
       return p != null;
     },
+    chapters: (list) => mdChapterStarts(list, headingsRef.current),
   };
   const ra = useReadAlong({ doc, file, stage: stageEl, book, viewKey: `${mode}:${String(resumed)}:${String(articleGen)}`, target });
   React.useLayoutEffect(() => {

@@ -10,12 +10,14 @@ import {
   firstPdfSentence,
   holdsPlace,
   mdAt,
+  mdChapterStarts,
   mdOrder,
   mdVoiceLocator,
   nearest,
   pageDirection,
   pageText,
   pdfAt,
+  pdfChapterStarts,
   sentenceHits,
   spanPieces,
 } from "./read-along";
@@ -247,5 +249,26 @@ describe("direction", () => {
     expect(pageDirection(3, [4, 5])).toBe("left");
     expect(pageDirection(5, [4, 5])).toBeNull();
     expect(pageDirection(9, [4, 5])).toBe("right");
+  });
+});
+
+describe("chapters", () => {
+  const md = (heading: string, y = 0) => ({ locator: formatLocator({ kind: "md", heading, y }) });
+  it("takes the shallowest level used twice in Markdown", () => {
+    const headings = [
+      { anchor: "title", level: 1 },
+      { anchor: "one", level: 2 },
+      { anchor: "one-a", level: 3 },
+      { anchor: "two", level: 2 },
+    ];
+    const list = [md(""), md("title"), md("one"), md("one-a"), md("one-a", 500), md("two"), md("two", 900)];
+    expect(mdChapterStarts(list, headings)).toEqual([2, 5]);
+    expect(mdChapterStarts(list, [{ anchor: "title", level: 1 }])).toEqual([]);
+  });
+  it("starts a PDF chapter on its page's first sentence", () => {
+    const pdf = (page: number) => ({ locator: formatLocator({ kind: "pdf", page, y: 100 }) });
+    const list = [pdf(1), pdf(1), pdf(2), pdf(4), pdf(4), pdf(7)];
+    expect(pdfChapterStarts(list, [1, 3, 5, 3])).toEqual([3, 5]);
+    expect(pdfChapterStarts(list, [])).toEqual([]);
   });
 });

@@ -4,10 +4,12 @@ import * as React from "react";
 import { LiveActivity } from "@/components/island/live-activity";
 import { moneyAlertActivity, useMoneyAlerts } from "@/components/island/money-alert-activity";
 import { saasAlertActivity, useSaasAlerts } from "@/components/island/saas-alert-activity";
+import { SPEECH_ACTIVITY, speechActivity } from "@/components/island/speech-activity";
 import { orderTimers, timerActivity } from "@/components/island/timer-activity";
 import { transferActivity } from "@/components/island/transfer-activity";
 import { useVoiceManager } from "@/components/settings/voice-manager";
 import { ACTIVITY_STORAGE_KEY, useActivity } from "@/lib/activity/store";
+import { useSpeech } from "@/lib/speech/store";
 
 /**
  * Loads the activity bus from localStorage after mount (the server renders no
@@ -46,20 +48,29 @@ export function Island() {
   // The set of downloads, not their progress (a string, so a progress tick doesn't re-render): the views read progress themselves.
   const transferKey = useVoiceManager((s) => Object.keys(s.downloads).join(" "));
   const transfers = React.useMemo(() => (transferKey ? transferKey.split(" ").map(transferActivity) : []), [transferKey]);
+  // Only the title and whether it's live: the views read the sentence themselves.
+  const speechTitle = useSpeech((s) => (s.status === "idle" ? null : (s.source?.title ?? null)));
+  const speechAt = useSpeech((s) => s.startedAt);
+  const speech = React.useMemo(() => (speechTitle === null ? null : speechActivity(speechTitle)), [speechTitle]);
   const activities = React.useMemo(
     () => [
+      ...(speech ? [speech] : []),
       ...orderTimers(timers).map(timerActivity),
       ...transfers,
       ...saas.map(saasAlertActivity),
       ...alerts.map((a) => moneyAlertActivity(a, today)),
     ],
-    [timers, transfers, saas, alerts, today],
+    [speech, timers, transfers, saas, alerts, today],
   );
+  // Whichever started last comes forward: a timer, or speech.
+  const speechNewer = speech !== null && speechAt > lastStartedAt;
+  const show = speechNewer ? SPEECH_ACTIVITY : (lastStarted ?? undefined);
+  const showKey = speechNewer ? speechAt : lastStartedAt;
 
   if (!ready || activities.length === 0) return null;
   return (
     <div className="pointer-events-none fixed inset-x-0 top-2 z-40 md:left-(--rail-w)">
-      <LiveActivity activities={activities} show={lastStarted ?? undefined} showKey={lastStartedAt} />
+      <LiveActivity activities={activities} show={show} showKey={showKey} />
     </div>
   );
 }
