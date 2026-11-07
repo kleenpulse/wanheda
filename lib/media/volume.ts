@@ -37,4 +37,20 @@ export function nudgeVolume(v: Volume, by: number): Volume {
   return { level: round(v.level + by), muted: v.muted && by <= 0 };
 }
 
+/** One mouse-wheel notch turns the volume by this much (the slider's own step). */
+export const WHEEL_STEP = 0.05;
+/** A notch is 100 px in Chrome and Edge; a trackpad's small deltas add up to one. */
+const NOTCH_PX = 100;
+
+/**
+ * Wheel deltas → volume steps. `carry` is what's left from earlier events;
+ * turning the other way starts afresh. Up (a negative deltaY) is louder.
+ */
+export function wheelSteps(carry: number, deltaY: number, deltaMode: number): { steps: number; carry: number } {
+  const px = -deltaY * (deltaMode === 1 ? 40 : deltaMode === 2 ? 800 : 1);
+  const total = (Math.sign(carry) === -Math.sign(px) ? 0 : carry) + px;
+  const steps = Math.trunc(total / NOTCH_PX) || 0; // never -0
+  return { steps, carry: total - steps * NOTCH_PX };
+}
+
 export const volumePref = createDevicePref<Volume>("wanheda-music-volume", parseVolume, serializeVolume);

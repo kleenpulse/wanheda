@@ -4,7 +4,7 @@ import * as React from "react";
 import { motion, useReducedMotion } from "motion/react";
 import { LoaderCircle, Music, Pause, Play, SkipBack, SkipForward, Volume1, Volume2, VolumeX } from "lucide-react";
 import { BARS, REST, autoGain, bandEdges, bandLevels, easeBar, newGain } from "@/lib/media/levels";
-import { volumePref } from "@/lib/media/volume";
+import { volumePref, WHEEL_STEP, wheelSteps } from "@/lib/media/volume";
 import { cn } from "@/lib/utils";
 import { useCoverUrl } from "./cover";
 import { useMusicLibrary } from "./music-library";
@@ -114,16 +114,52 @@ export function Equalizer({ playing }: { playing: boolean }) {
 }
 
 const VOLUME_ICONS = { off: VolumeX, low: Volume1, high: Volume2 } as const;
+/** A wheel this soon after any scroll belongs to that scroll, not to the volume. */
+const SCROLL_GLIDE_MS = 300;
 
-/** The volume rocker: mute, and a slider (drag, or arrow keys a step at a time). Kept on this device. */
+/**
+ * The volume rocker: mute, and a slider (drag, arrow keys, or the mouse wheel
+ * anywhere over it, a notch a step). Kept on this device.
+ */
 function VolumeRocker() {
   const v = volumePref.use();
   const { setVolume, toggleMute } = useMusicPlayer.getState();
   const level = v.muted ? 0 : v.level;
   const Icon = VOLUME_ICONS[level === 0 ? "off" : level < 0.5 ? "low" : "high"];
   const pct = `${String(level * 100)}%`;
+
+  // React's onWheel is passive, so it can't keep the page behind from scrolling: a native listener can.
+  const rocker = React.useRef<HTMLDivElement>(null);
+  React.useEffect(() => {
+    const el = rocker.current;
+    if (!el) return;
+    let carry = 0;
+    // A page scroll that's already moving (Home's widget sits in a scrolling page)
+    // glides over the rocker instead of stopping on it and changing the volume.
+    let lastScroll = -Infinity;
+    const onScroll = () => {
+      lastScroll = performance.now();
+    };
+    const onWheel = (e: WheelEvent) => {
+      if (e.ctrlKey) return; // pinch or Ctrl+wheel is the browser's zoom
+      if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) return; // a sideways swipe is back/forward
+      if (performance.now() - lastScroll < SCROLL_GLIDE_MS) return;
+      e.preventDefault();
+      const turned = wheelSteps(carry, e.deltaY, e.deltaMode);
+      carry = turned.carry;
+      if (turned.steps !== 0) useMusicPlayer.getState().nudgeVolume(turned.steps * WHEEL_STEP);
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    // Scroll doesn't bubble; capturing on window hears every scroller's.
+    window.addEventListener("scroll", onScroll, { capture: true, passive: true });
+    return () => {
+      el.removeEventListener("wheel", onWheel);
+      window.removeEventListener("scroll", onScroll, { capture: true });
+    };
+  }, []);
+
   return (
-    <div className="flex shrink-0 items-center gap-1">
+    <div ref={rocker} className="flex shrink-0 items-center gap-1">
       <button
         type="button"
         aria-label={v.muted ? "Unmute music" : "Mute music"}
