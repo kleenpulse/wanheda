@@ -55,7 +55,7 @@ const TONES = {
   },
 } as const;
 
-function Round({ label, onClick, tone, kind = "plain", big = false, disabled = false, children }: {
+export function Round({ label, onClick, tone, kind = "plain", big = false, disabled = false, children }: {
   label: string;
   onClick: () => void;
   tone: ControlTone;
@@ -112,7 +112,7 @@ export function SpeechTransport({ tone }: { tone: ControlTone }) {
   );
 }
 
-function Chip({ label, onClick, tone, on = false, disabled = false, children }: {
+export function Chip({ label, onClick, tone, on = false, disabled = false, children }: {
   label: string;
   onClick: () => void;
   tone: ControlTone;

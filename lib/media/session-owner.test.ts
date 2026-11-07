@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { SessionArbiter, type SessionClaim, type SessionLike, type SessionOwnerId } from "./session-owner";
+import { SOUND_MODES, type DuckLevel, type SoundMix, type SoundMode } from "./sound-mix";
 
 function fake() {
   const handlers = new Map<MediaSessionAction, MediaSessionActionHandler | null>();
@@ -105,5 +106,136 @@ describe("SessionArbiter (V60)", () => {
     arb.setState("video", "playing");
     arb.setState("speech", "paused");
     expect(s.playbackState).toBe("playing");
+  });
+});
+
+describe("SessionArbiter: Sound modes (V60)", () => {
+  function withMode(mode: SoundMode, level: DuckLevel = 35) {
+    const s = fake();
+    const mix: SoundMix = { mode, level };
+    const arb = new SessionArbiter(
+      () => s,
+      (m) => ({ title: m.title }) as unknown as MediaMetadata,
+      () => mix,
+    );
+    return { s, arb, mix };
+  }
+  function ducking(id: SessionOwnerId) {
+    const c = claim(id);
+    const duck = vi.fn();
+    return { ...c, c: { ...c.c, duck }, duck };
+  }
+
+  for (const mode of SOUND_MODES) {
+    it(`${mode}: video and music always pause each other`, () => {
+      const { arb } = withMode(mode);
+      const video = ducking("video");
+      const music = ducking("music");
+      arb.claim(video.c, true);
+      arb.setState("video", "playing");
+      arb.claim(music.c, true);
+      expect(video.pause).toHaveBeenCalledOnce();
+      expect(arb.owner).toBe("music");
+    });
+
+    it(`${mode}: speech over music takes the keys; stopping it hands them back`, () => {
+      const { s, arb } = withMode(mode);
+      const music = ducking("music");
+      arb.claim(music.c, true);
+      arb.setState("music", "playing");
+      arb.claim(claim("speech").c, true);
+      arb.setState("speech", "playing");
+      expect(arb.owner).toBe("speech");
+      expect(music.pause).toHaveBeenCalledTimes(mode === "pause" ? 1 : 0);
+      if (mode === "pause") arb.setState("music", "paused");
+      arb.release("speech");
+      expect(arb.owner).toBe("music");
+      expect(s.playbackState).toBe(mode === "pause" ? "paused" : "playing");
+      s.handlers.get("play")?.({ action: "play" });
+      expect(music.play).toHaveBeenCalledOnce();
+    });
+  }
+
+  it("duck: music drops to the duck level while speech plays and comes back when it pauses or stops", () => {
+    const { arb } = withMode("duck", 20);
+    const music = ducking("music");
+    arb.claim(music.c, true);
+    arb.setState("music", "playing");
+    expect(music.duck).not.toHaveBeenCalled();
+    arb.claim(claim("speech").c, true);
+    arb.setState("speech", "playing");
+    expect(music.duck).toHaveBeenLastCalledWith(0.2);
+    arb.setState("speech", "paused");
+    expect(music.duck).toHaveBeenLastCalledWith(1);
+    arb.setState("speech", "playing");
+    arb.release("speech");
+    expect(music.duck).toHaveBeenLastCalledWith(1);
+    expect(music.duck).toHaveBeenCalledTimes(4);
+  });
+
+  it("duck: video ducks too, and music started under speech starts ducked", () => {
+    const { arb } = withMode("duck");
+    const video = ducking("video");
+    arb.claim(claim("speech").c, true);
+    arb.setState("speech", "playing");
+    arb.claim(video.c, true);
+    arb.setState("video", "playing");
+    expect(arb.owner).toBe("video");
+    expect(video.duck).toHaveBeenLastCalledWith(0.35);
+  });
+
+  it("pause and mix never duck", () => {
+    for (const mode of ["pause", "mix"] as const) {
+      const { arb } = withMode(mode);
+      const music = ducking("music");
+      arb.claim(music.c, true);
+      arb.setState("music", "playing");
+      arb.claim(claim("speech").c, true);
+      arb.setState("speech", "playing");
+      expect(music.duck).not.toHaveBeenCalled();
+    }
+  });
+
+  it("a changed setting applies at once (refresh)", () => {
+    const { arb, mix } = withMode("mix");
+    const music = ducking("music");
+    arb.claim(music.c, true);
+    arb.setState("music", "playing");
+    arb.claim(claim("speech").c, true);
+    arb.setState("speech", "playing");
+    mix.mode = "duck";
+    arb.refresh();
+    expect(music.duck).toHaveBeenLastCalledWith(0.35);
+    mix.mode = "mix";
+    arb.refresh();
+    expect(music.duck).toHaveBeenLastCalledWith(1);
+  });
+});
+
+describe("SessionArbiter: release lifts the duck (V60)", () => {
+  it("a ducked owner that leaves gets its full level back, so its next play isn't stuck low", () => {
+    const s = fake();
+    const arb = new SessionArbiter(
+      () => s,
+      (m) => ({ title: m.title }) as unknown as MediaMetadata,
+      () => ({ mode: "duck", level: 35 }),
+    );
+    const duck = vi.fn();
+    arb.claim({ ...claim("music").c, duck }, true);
+    arb.setState("music", "playing");
+    arb.claim(claim("speech").c, true);
+    arb.setState("speech", "playing");
+    expect(duck).toHaveBeenLastCalledWith(0.35);
+    arb.release("music");
+    expect(duck).toHaveBeenLastCalledWith(1);
+  });
+
+  it("releasing an owner that was never ducked doesn't call duck", () => {
+    const s = fake();
+    const arb = new SessionArbiter(() => s, (m) => ({ title: m.title }) as unknown as MediaMetadata);
+    const duck = vi.fn();
+    arb.claim({ ...claim("music").c, duck }, true);
+    arb.release("music");
+    expect(duck).not.toHaveBeenCalled();
   });
 });

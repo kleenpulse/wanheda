@@ -29,7 +29,8 @@ function coverUrl(key: string): Promise<string | null> {
   return p;
 }
 
-export function Cover({ coverKey, className }: { coverKey: string | null; className?: string }) {
+/** A cover's object URL once read (null without a cover, or before it loads). */
+export function useCoverUrl(coverKey: string | null): string | null {
   const [url, setUrl] = React.useState<string | null>(null);
   React.useEffect(() => {
     if (!coverKey) return;
@@ -41,6 +42,11 @@ export function Cover({ coverKey, className }: { coverKey: string | null; classN
       alive = false;
     };
   }, [coverKey]);
+  return coverKey ? url : null;
+}
+
+export function Cover({ coverKey, className }: { coverKey: string | null; className?: string }) {
+  const url = useCoverUrl(coverKey);
   return (
     <span className={cn("flex shrink-0 items-center justify-center overflow-hidden bg-foreground/6 text-ink-3 dark:bg-card-nested", className)}>
       {url && coverKey ? <img src={url} alt="" className="size-full object-cover" /> : <Disc3 aria-hidden className="size-1/2" />}

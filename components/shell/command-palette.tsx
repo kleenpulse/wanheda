@@ -31,7 +31,15 @@ import {
   Pencil,
   Play,
   Repeat,
+  Repeat1,
   Search,
+  Shuffle,
+  SkipBack,
+  SkipForward,
+  Square,
+  Volume1,
+  Volume2,
+  VolumeX,
   SquarePen,
   Sun,
   Timer as TimerIcon,
@@ -54,12 +62,15 @@ import { useIncome } from "@/components/income/use-income";
 import { togglePrivacy, usePrivacy } from "@/components/money/privacy";
 import { pushUrl, replaceUrlParams } from "@/hooks/use-url-param";
 import { formatDuration as formatMediaDuration, mediaHref } from "@/lib/media/media";
-import { searchTracks } from "@/lib/media/library";
+import { albumOrder, searchTracks } from "@/lib/media/library";
+import { SOUND_MODES, SOUND_MODE_LABELS, soundMixPref } from "@/lib/media/sound-mix";
+import { VOLUME_STEP, volumePref } from "@/lib/media/volume";
 import { continueList } from "@/lib/media/playback";
 import { lastAccountId, newTxn, useMoney, useMoneyApi, useNewSubscription } from "@/components/money/use-money";
 import { useNoteSearch, useNotesApi } from "@/components/notes/notes-provider";
 import { playerActions, usePlayer } from "@/components/media/player-store";
 import { useMusicLibrary } from "@/components/media/music-library";
+import { useMusicPlayer } from "@/components/media/music-player";
 import { useMedia } from "@/components/media/use-media";
 import { useReader } from "@/components/reader/use-reader";
 import { useNotifications } from "@/components/notifications/notifications-provider";
@@ -213,6 +224,13 @@ function PaletteBody({
     [musicTracks, query],
   );
   const media = mediaItems.filter((m) => !going.some((g) => g.id === m.id)).slice(0, 5);
+  // The music player (T64): its controls while it holds a song.
+  const musicTrack = useMusicPlayer((s) => (s.status === "idle" ? null : s.track));
+  const musicPlaying = useMusicPlayer((s) => s.status === "playing");
+  const musicShuffle = useMusicPlayer((s) => s.shuffle);
+  const musicRepeat = useMusicPlayer((s) => s.repeat);
+  const soundMix = soundMixPref.use();
+  const musicVolume = volumePref.use();
   // A video playing on /media: its controls, with the skin's own keys as hints (T62).
   const playerEl = usePlayer((s) => s.el);
   const playerTitle = usePlayer((s) => s.title);
@@ -611,13 +629,13 @@ function PaletteBody({
               key={t.path}
               value={`music-track-${t.path}`}
               keywords={[t.title, t.artist, t.album, "music", "song"]}
-              icon={Music}
-              title={`${t.title} · ${t.artist}`}
+              icon={Play}
+              title={`Play ${t.title} · ${t.artist}`}
               hint={t.album}
               onSelect={run(() => {
-                const href = `/media?tab=music&b=albums&g=${encodeURIComponent(`${t.albumArtist}\u0000${t.album}`)}` as const;
-                if (pathname === "/media") pushUrl(href);
-                else router.push(href);
+                // The song, with the rest of its album queued after it.
+                const album = (musicTracks ?? []).filter((x) => x.albumArtist === t.albumArtist && x.album === t.album).sort(albumOrder);
+                useMusicPlayer.getState().playList(album, Math.max(0, album.findIndex((x) => x.path === t.path)));
               })}
             />
           ))}
@@ -632,6 +650,93 @@ function PaletteBody({
             })}
           />
         </Command.Group>
+
+        {musicTrack ? (
+          <Command.Group heading="Music player">
+            <Item
+              value="music-toggle"
+              keywords={["play", "pause", "music", "song", musicTrack.artist]}
+              icon={musicPlaying ? Pause : Play}
+              title={`${musicPlaying ? "Pause" : "Play"} ${musicTrack.title}`}
+              hint={musicTrack.artist}
+              onSelect={run(() => {
+                useMusicPlayer.getState().toggle();
+              })}
+            />
+            <Item
+              value="music-next"
+              keywords={["next", "skip", "track", "song", "music"]}
+              icon={SkipForward}
+              title="Next track"
+              onSelect={run(() => {
+                useMusicPlayer.getState().next();
+              })}
+            />
+            <Item
+              value="music-prev"
+              keywords={["previous", "back", "track", "song", "music"]}
+              icon={SkipBack}
+              title="Previous track"
+              onSelect={run(() => {
+                useMusicPlayer.getState().prev();
+              })}
+            />
+            <Item
+              value="music-shuffle"
+              keywords={["shuffle", "random", "music"]}
+              icon={Shuffle}
+              title={musicShuffle ? "Turn shuffle off" : "Turn shuffle on"}
+              onSelect={run(() => {
+                useMusicPlayer.getState().setShuffle(!musicShuffle);
+              })}
+            />
+            <Item
+              value="music-repeat"
+              keywords={["repeat", "loop", "music"]}
+              icon={musicRepeat === "all" ? Repeat1 : Repeat}
+              title={musicRepeat === "off" ? "Repeat the queue" : musicRepeat === "all" ? "Repeat this track" : "Turn repeat off"}
+              onSelect={run(() => {
+                useMusicPlayer.getState().cycleRepeat();
+              })}
+            />
+            <Item
+              value="music-mute"
+              keywords={["mute", "unmute", "volume", "sound", "music"]}
+              icon={musicVolume.muted ? Volume2 : VolumeX}
+              title={musicVolume.muted ? "Unmute music" : "Mute music"}
+              onSelect={run(() => {
+                useMusicPlayer.getState().toggleMute();
+              })}
+            />
+            <Item
+              value="music-volume-up"
+              keywords={["volume", "louder", "up", "sound", "music"]}
+              icon={Volume2}
+              title={`Volume up (now ${String(Math.round((musicVolume.muted ? 0 : musicVolume.level) * 100))}%)`}
+              onSelect={run(() => {
+                useMusicPlayer.getState().nudgeVolume(VOLUME_STEP);
+              })}
+            />
+            <Item
+              value="music-volume-down"
+              keywords={["volume", "quieter", "down", "softer", "sound", "music"]}
+              icon={Volume1}
+              title={`Volume down (now ${String(Math.round((musicVolume.muted ? 0 : musicVolume.level) * 100))}%)`}
+              onSelect={run(() => {
+                useMusicPlayer.getState().nudgeVolume(-VOLUME_STEP);
+              })}
+            />
+            <Item
+              value="music-stop"
+              keywords={["stop", "music", "clear", "queue"]}
+              icon={Square}
+              title="Stop music"
+              onSelect={run(() => {
+                useMusicPlayer.getState().stop();
+              })}
+            />
+          </Command.Group>
+        ) : null}
 
         {player ? (
           <Command.Group heading="Player">
@@ -862,6 +967,19 @@ function PaletteBody({
               {...inUse(prefs.wallpaper === wallpaper)}
               onSelect={run(() => {
                 update({ wallpaper });
+              })}
+            />
+          ))}
+          {SOUND_MODES.map((mode) => (
+            <Item
+              key={mode}
+              value={`sound-mode-${mode}`}
+              keywords={["sound", "speech", "music", "video", "duck", "mix", "volume", SOUND_MODE_LABELS[mode]]}
+              icon={Volume2}
+              title={`Read-aloud over music: ${SOUND_MODE_LABELS[mode]}`}
+              {...inUse(soundMix.mode === mode)}
+              onSelect={run(() => {
+                soundMixPref.set({ ...soundMix, mode });
               })}
             />
           ))}

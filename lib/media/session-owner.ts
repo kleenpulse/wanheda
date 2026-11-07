@@ -1,10 +1,13 @@
+import { DEFAULT_SOUND_MIX, duckGain, soundMixPref, startPauses, type SoundMix, type SoundOwner } from "./sound-mix";
+
 // One owner of the Media Session per tab (V60): speech, video or music. The
 // last to start owns the OS media keys and the lock-screen metadata; nothing
-// else writes `navigator.mediaSession`. Starting one pauses the others (the
-// `pause` mode, the default; T64 adds duck and mix). Releasing the owner
-// hands the keys back to the newest claim still held.
+// else writes `navigator.mediaSession`. How a start treats the others is the
+// Sound setting (sound-mix.ts): `pause` pauses them, `duck` lowers music and
+// video while speech plays, `mix` leaves them; video and music always pause
+// each other. Releasing the owner hands the keys back to the newest claim still held.
 
-export type SessionOwnerId = "speech" | "video" | "music";
+export type SessionOwnerId = SoundOwner;
 
 export type SessionMetadata = { title: string; artist: string; album: string };
 
@@ -14,6 +17,8 @@ export type SessionClaim = {
   handlers: Partial<Record<MediaSessionAction, (details: MediaSessionActionDetails) => void>>;
   /** Stops this owner's sound when another starts. */
   pause: () => void;
+  /** Music and video: the gain to ramp to (1 = full), when speech ducks them or lets go. */
+  duck?: (gain: number) => void;
 };
 
 /** The parts of `navigator.mediaSession` the arbiter writes, so tests can fake it. */
@@ -37,10 +42,13 @@ export const SESSION_ACTIONS: readonly MediaSessionAction[] = [
 export class SessionArbiter {
   private claims: SessionClaim[] = [];
   private states = new Map<SessionOwnerId, MediaSessionPlaybackState>();
+  /** The gain each claim was last told, so a duck call goes out only on a change. */
+  private ducked = new WeakMap<SessionClaim, number>();
 
   constructor(
     private readonly session: () => SessionLike | null,
     private readonly toMetadata: (m: SessionMetadata) => MediaMetadata,
+    private readonly mix: () => SoundMix = () => DEFAULT_SOUND_MIX,
   ) {}
 
   get owner(): SessionOwnerId | null {
@@ -61,13 +69,15 @@ export class SessionArbiter {
     } else if (starting || at < 0) {
       if (at >= 0) this.claims.splice(at, 1);
       if (starting) {
-        for (const other of this.claims) if (this.states.get(other.id) === "playing") other.pause();
+        const { mode } = this.mix();
+        for (const other of this.claims) if (this.states.get(other.id) === "playing" && startPauses(c.id, other.id, mode)) other.pause();
       }
       this.claims.push(c);
     } else {
       this.claims[at] = c;
     }
     this.apply();
+    this.applyDuck();
   }
 
   /** The owner's playing|paused state; written to the OS only for the current owner. */
@@ -75,13 +85,38 @@ export class SessionArbiter {
     this.states.set(id, state);
     const s = this.session();
     if (s && this.owner === id) s.playbackState = state;
+    this.applyDuck();
   }
 
   release(id: SessionOwnerId): void {
     const was = this.owner;
+    // A ducked owner leaving gets its full level back first, or the next play starts at the duck level.
+    for (const c of this.claims) {
+      if (c.id !== id || !c.duck || (this.ducked.get(c) ?? 1) === 1) continue;
+      this.ducked.set(c, 1);
+      c.duck(1);
+    }
     this.claims = this.claims.filter((c) => c.id !== id);
     this.states.delete(id);
     if (was === id) this.apply();
+    this.applyDuck();
+  }
+
+  /** The Sound setting changed: music and video take the new gain at once. */
+  refresh(): void {
+    this.applyDuck();
+  }
+
+  private applyDuck(): void {
+    const mix = this.mix();
+    const speechPlaying = this.states.get("speech") === "playing";
+    for (const c of this.claims) {
+      if (!c.duck) continue;
+      const gain = duckGain(c.id, mix, speechPlaying);
+      if ((this.ducked.get(c) ?? 1) === gain) continue;
+      this.ducked.set(c, gain);
+      c.duck(gain);
+    }
   }
 
   private apply(): void {
@@ -112,4 +147,9 @@ export class SessionArbiter {
 export const mediaSession = new SessionArbiter(
   () => (typeof navigator !== "undefined" && "mediaSession" in navigator ? navigator.mediaSession : null),
   (m) => new MediaMetadata(m),
+  () => soundMixPref.get(),
 );
+
+soundMixPref.watch(() => {
+  mediaSession.refresh();
+});
