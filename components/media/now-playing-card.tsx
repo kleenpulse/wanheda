@@ -246,7 +246,7 @@ function WaveScrub() {
   };
   return (
     <div>
-      <div className="relative h-3.5 rounded-full has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-island-foreground/70">
+      <div className="group/scrub relative h-3.5 rounded-full has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-island-foreground/70">
         {tip ? (
           <span
             aria-hidden
@@ -268,7 +268,11 @@ function WaveScrub() {
         <div
           ref={head}
           aria-hidden
-          className="absolute top-1/2 size-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-island-foreground shadow-[0_0_0_3px_color-mix(in_oklab,var(--color-island)_25%,transparent)]"
+          // The round head shows only while the bar is in hand: hover, keyboard focus, a drag (touch has no hover).
+          className={cn(
+            "absolute top-1/2 size-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-island-foreground shadow-[0_0_0_3px_color-mix(in_oklab,var(--color-island)_25%,transparent)] transition-[opacity,scale] duration-150",
+            drag !== null ? "scale-100 opacity-100" : "scale-50 opacity-0 group-hover/scrub:scale-100 group-hover/scrub:opacity-100 group-has-focus-visible/scrub:scale-100 group-has-focus-visible/scrub:opacity-100",
+          )}
           style={{ left: pct }}
         />
         <input

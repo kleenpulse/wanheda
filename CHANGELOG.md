@@ -17,7 +17,7 @@ written after the fact, one per phase, and have no git tags.
 
 ### Added
 
-- Hovering the music progress bar shows the time you'd jump to, and dragging it shows where you'll land.
+- Hovering the music progress bar shows the time you'd jump to, and dragging it shows where you'll land. Its round handle only appears while you point at it, drag it or move it with the keyboard.
 - The Media icon in the sidebar, the dock and the phone tab bar turns into a music note while a song is in the player, and back into the clapperboard when music stops.
 - An OPay account shows the OPay logo in your accounts list and in Money's breakdown by account, instead of the plain bank icon.
 - A new Media app. Open a video or audio file from your computer, drop one onto the page, or paste a link, and it plays right there.
