@@ -3,12 +3,14 @@
 import * as React from "react";
 import { motion, useReducedMotion } from "motion/react";
 import { LoaderCircle, Music, Pause, Play, SkipBack, SkipForward, Volume1, Volume2, VolumeX } from "lucide-react";
+import { glowPref, showsGlow } from "@/lib/media/glow";
 import { BARS, REST, autoGain, bandEdges, bandLevels, easeBar, newGain } from "@/lib/media/levels";
 import { volumePref, WHEEL_STEP, wheelSteps } from "@/lib/media/volume";
 import { cn } from "@/lib/utils";
 import { useCoverUrl } from "./cover";
 import { useMusicLibrary } from "./music-library";
 import { musicLevels, musicPosition, useMusicPlayer } from "./music-player";
+import { SoundGlow } from "./sound-glow";
 
 // The now-playing card, ported from Motion Garden's LiveActivity media card
 // (shadow-garden components/registry/live-activity/activities.tsx: MediaCard,
@@ -323,14 +325,21 @@ export function NowPlayingCard({ className }: { className?: string }) {
   const loading = useMusicPlayer((s) => s.loading);
   const art = useCoverUrl(track?.coverKey ?? null);
   const source = useSource();
+  const glow = glowPref.use();
   const { prev, next, toggle } = useMusicPlayer.getState();
   if (!track) return null;
   const playing = status === "playing";
 
   return (
     <div className={cn("relative isolate overflow-hidden bg-island p-5 text-island-foreground", className)}>
-      {art ? <img src={art} alt="" draggable={false} className="absolute inset-0 -z-10 size-full object-cover opacity-45" /> : null}
-      <div className="absolute inset-0 -z-10 bg-linear-to-b from-island/30 via-island/55 to-island/80" />
+      {art ? (
+        <>
+          <img src={art} alt="" draggable={false} className="absolute inset-0 -z-10 size-full object-cover opacity-45" />
+          <div className="absolute inset-0 -z-10 bg-linear-to-b from-island/30 via-island/55 to-island/80" />
+        </>
+      ) : null}
+      {/* No art: the music paints the backdrop. Gated here, not inside, so each "on" mounts a fresh glow bound to its box. */}
+      {showsGlow(Boolean(art), glow) ? <SoundGlow playing={playing && !loading} /> : null}
       <div className="flex items-center justify-between gap-3">
         <span className="flex min-w-0 items-center gap-1.5 text-[11px] font-medium tracking-wide text-island-foreground/70 uppercase">
           <Music aria-hidden className="size-3.5 shrink-0" />
