@@ -14,6 +14,7 @@ import { Kbd } from "@/components/ui/kbd";
 import { Tip, TooltipGroup } from "@/components/ui/tooltip";
 import { MODULES, SYSTEM_PAGES, isActive, type ModuleManifest } from "@/lib/modules";
 import { TAB_SPRING } from "@/lib/motion";
+import { AppIcon } from "@/components/shell/app-icon";
 import { cn } from "@/lib/utils";
 
 /*
@@ -154,7 +155,6 @@ function RailLink({
   labelClass: string;
   tip: TipFn;
 }) {
-  const Icon = item.icon;
   return tip(
     item.title,
     <Link
@@ -177,7 +177,7 @@ function RailLink({
         />
       )}
       <span className="relative grid size-11 shrink-0 place-items-center [&_svg]:size-[18px]">
-        <Icon strokeWidth={1.75} />
+        <AppIcon id={item.id} icon={item.icon} strokeWidth={1.75} />
       </span>
       <span className={cn(labelClass, active && "font-medium")}>{item.title}</span>
     </Link>,

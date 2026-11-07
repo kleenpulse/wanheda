@@ -17,6 +17,8 @@ written after the fact, one per phase, and have no git tags.
 
 ### Added
 
+- Hovering the music progress bar shows the time you'd jump to, and dragging it shows where you'll land.
+- The Media icon in the sidebar, the dock and the phone tab bar turns into a music note while a song is in the player, and back into the clapperboard when music stops.
 - An OPay account shows the OPay logo in your accounts list and in Money's breakdown by account, instead of the plain bank icon.
 - A new Media app. Open a video or audio file from your computer, drop one onto the page, or paste a link, and it plays right there.
 - Links from YouTube, Vimeo, SoundCloud and Spotify play inside Wanheda. A link straight to a video or audio file plays too.
@@ -52,6 +54,8 @@ written after the fact, one per phase, and have no git tags.
 ### Fixed
 
 - The music list now fills the space under its tabs and scrolls on its own, so the page no longer scrolls with it.
+- The music progress bar glides smoothly as a song plays instead of stepping forward, and a click on it lands exactly where you clicked.
+- Opening an album in Music after scrolling the Albums list no longer leaves the first song faded out, and the album now opens at its first song.
 - In dark mode the island now has a soft glow like the Wanheda logo's, so it no longer disappears against the page.
 - The mouse wheel turns the music volume up and down when the pointer is over the volume control, and the page behind no longer scrolls while you do it.
 - The island opens and closes with a smoother, springier glide instead of a snap, and closes a little quicker than it opens.
