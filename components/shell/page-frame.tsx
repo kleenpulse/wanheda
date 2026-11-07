@@ -58,7 +58,8 @@ export function PageFrame({
 }) {
   return (
     <div className={cn("flex min-h-svh flex-col", FILL.frame)}>
-      <div className={cn(PAGE_COLUMN, "@container/frame pt-6 pb-6")}>
+      {/* pt-14 clears the island (h-9 pill fixed at top-2) with room to spare. */}
+      <div className={cn(PAGE_COLUMN, "@container/frame pt-14 pb-6")}>
         {/* Wraps: on a phone, a page's actions (the money tabs) drop under the title instead of squeezing it. */}
         <header className="entrance flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
           <div className="min-w-0">

@@ -6,10 +6,11 @@ import { buttonClass } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/calendar";
 import { Segmented } from "@/components/ui/segmented";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { exponentOf, formatMoney, parseAmount, toInputString } from "@/lib/money/currency";
+import { exponentOf, formatMoney } from "@/lib/money/currency";
 import { addDays, isDay, type Day } from "@/lib/money/dates";
 import { CATEGORY_NAME_MAX, PAYEE_MAX, byId, defaultAccount, findCategoryByName, newCategory, type Category, type MoneyPayload, type Txn } from "@/lib/money/money";
 import { cn } from "@/lib/utils";
+import { MoneyInput, MoneyNote, useMoneyField } from "./money-input";
 import { CategoryMark } from "./money-text";
 import { lastAccountId, newTxn, useMoneyApi } from "./use-money";
 
@@ -68,7 +69,6 @@ export function TxnForm({
   // An edited txn keeps its own account in the list, even if that account is archived now.
   const openAccounts = payload.accounts.filter((a) => !a.archived || a.id === initial?.accountId);
   const [direction, setDirection] = React.useState<Direction>(initial && initial.amountMinor > 0 ? "in" : "out");
-  const [amount, setAmount] = React.useState(initial ? toInputString(initial.amountMinor, initial.currency) : "");
   const [categoryId, setCategoryId] = React.useState<string>(initial?.categoryId ?? "");
   const [payee, setPayee] = React.useState(initial?.payee ?? "");
   const [accountId, setAccountId] = React.useState<string>(() => initial?.accountId ?? defaultAccount(payload.accounts, lastAccountId())?.id ?? "");
@@ -81,8 +81,9 @@ export function TxnForm({
 
   // An account that went away (archived on another device) falls back to the default.
   const account = openAccounts.find((a) => a.id === accountId) ?? defaultAccount(payload.accounts, lastAccountId());
-  const minor = account ? parseAmount(amount, account.currency) : null;
-  const amountError = amount.trim() === "" ? "Enter an amount" : minor === null || minor === 0 ? "Not an amount" : null;
+  const currency = account?.currency ?? initial?.currency ?? payload.baseCurrency;
+  const amount = useMoneyField({ initialMinor: initial?.amountMinor ?? null, currency, rule: "positive", emptyMessage: "Enter an amount" });
+  const minor = account ? amount.minor : null;
   const kind = direction === "in" ? "income" : "expense";
   const options = grouped(payload.categories, kind);
   const chips = variant === "sheet" ? topCategories(payload, kind, 8) : [];
@@ -104,7 +105,7 @@ export function TxnForm({
   const submit = (e: React.SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
     setTried(true);
-    if (!account || minor === null || minor === 0 || !isDay(day)) return;
+    if (!account || minor === null || !isDay(day)) return;
     // A name typed for "Other": reuse a live category of that name, else make one, queued ahead of the txn.
     let chosen = categoryId || null;
     const typed = naming ? newName.trim() : "";
@@ -131,7 +132,7 @@ export function TxnForm({
       onSaved?.();
       return;
     }
-    setAmount("");
+    amount.reset();
     setPayee("");
     setCategoryId("");
     setNewName("");
@@ -140,8 +141,8 @@ export function TxnForm({
     amountRef.current?.focus();
   };
 
-  const preview = account && minor ? formatMoney({ minor: direction === "in" ? minor : -minor, currency: account.currency }, { sign: "always" }) : null;
-  const decimals = account ? exponentOf(account.currency) : 2;
+  const signed = (m: number) => formatMoney({ minor: direction === "in" ? m : -m, currency }, { sign: "always" });
+  const decimals = exponentOf(currency);
 
   return (
     <form onSubmit={submit} noValidate aria-label={initial ? "Edit transaction" : "Add a transaction"} className="@container flex flex-col gap-4">
@@ -160,25 +161,18 @@ export function TxnForm({
         <label htmlFor={`${formId}-amount`} className={LABEL}>
           Amount{account ? ` (${account.currency})` : ""}
         </label>
-        <input
-          ref={amountRef}
+        <MoneyInput
+          field={amount}
+          invalid={amount.shownError(tried) !== null}
+          inputRef={amountRef}
           id={`${formId}-amount`}
           autoFocus={autoFocus}
-          inputMode="decimal"
-          autoComplete="off"
           enterKeyHint="done"
-          value={amount}
-          onChange={(e) => {
-            setAmount(e.target.value);
-          }}
-          placeholder={decimals > 0 ? "4,500 or 4.5k" : "4500"}
-          aria-invalid={tried && amountError !== null}
+          placeholder={decimals > 0 ? "4,500 or 4.5k" : "4,500"}
           aria-describedby={`${formId}-amount-note`}
-          className={cn(FIELD, "tabular", variant === "sheet" ? "h-16 text-[30px] font-semibold" : "h-12 text-[20px] font-semibold")}
+          className={variant === "sheet" ? "h-16 text-[30px] font-semibold" : "h-12 text-[20px] font-semibold"}
         />
-        <p id={`${formId}-amount-note`} className="tabular mt-1 min-h-[18px] text-[12px] text-ink-2" aria-live="polite">
-          {tried && amountError ? <span className="text-destructive">{amountError}</span> : preview}
-        </p>
+        <MoneyNote id={`${formId}-amount-note`} field={amount} tried={tried} format={signed} note={minor ? signed(minor) : null} className="mt-1 min-h-[18px]" />
       </div>
 
       {chips.length > 0 ? (

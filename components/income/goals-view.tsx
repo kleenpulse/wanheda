@@ -3,6 +3,7 @@
 import * as React from "react";
 import { CircleCheck, CircleDashed, Plus, Trash2, TriangleAlert, type LucideIcon } from "lucide-react";
 import { FIELD, LABEL } from "@/components/money/form-kit";
+import { MoneyInput, MoneyNote, useMoneyField } from "@/components/money/money-input";
 import { MoneyText } from "@/components/money/money-text";
 import { useFx, useLedger, useMoney, useToday } from "@/components/money/use-money";
 import { EmptyState } from "@/components/shell/page-frame";
@@ -12,7 +13,7 @@ import { GrowDialog } from "@/components/ui/grow-dialog";
 import { Segmented } from "@/components/ui/segmented";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { convertedNet, convertedTotals } from "@/lib/money/converted";
-import { CURRENCY_CODES, exponentOf, formatMoney, parseAmount, toInputString, type Currency } from "@/lib/money/currency";
+import { CURRENCY_CODES, formatMoney, type Currency } from "@/lib/money/currency";
 import { addDays, addMonths, DEFAULT_TIME_ZONE, endOfMonth, shortDayLabel, type Day } from "@/lib/money/dates";
 import { byId, type MoneyPayload } from "@/lib/money/money";
 import { cashIn } from "@/lib/money/net";
@@ -284,12 +285,12 @@ function GoalForm({
   const [title, setTitle] = React.useState(initial?.title ?? "");
   const [productId, setProductId] = React.useState<string>(initial?.productId ?? ALL);
   const [currency, setCurrency] = React.useState<Currency>(initial?.currency ?? (kind === "mrr" ? "USD" : baseCurrency));
-  const [amount, setAmount] = React.useState(initial ? toInputString(initial.targetMinor, initial.currency) : "");
+  const amount = useMoneyField({ initialMinor: initial?.targetMinor ?? null, currency, rule: "positive", emptyMessage: "Enter the target" });
   const [dueOn, setDueOn] = React.useState<Day>(initial?.dueOn ?? endOfMonth(addMonths(today, 6)));
   const [tried, setTried] = React.useState(false);
 
-  const minor = parseAmount(amount, currency);
-  const amountError = amount.trim() === "" ? "Enter the target" : minor === null || minor <= 0 ? `Not an amount${exponentOf(currency) === 0 ? " (no decimals in this currency)" : ""}` : null;
+  const minor = amount.minor;
+  const amountError = amount.error;
   const dueError = dueOn <= today ? "Pick a day after today" : null;
   const productItems = [{ value: ALL, label: "Every product" }, ...products.map((p) => ({ value: p.id, label: p.name }))];
 
@@ -365,18 +366,13 @@ function GoalForm({
           <label htmlFor={`${id}-amount`} className={LABEL}>
             {kind === "mrr" ? "Target MRR" : "Target savings"}
           </label>
-          <input
+          <MoneyInput
+            field={amount}
+            invalid={amount.shownError(tried) !== null}
             id={`${id}-amount`}
-            inputMode="decimal"
-            autoComplete="off"
-            value={amount}
-            onChange={(e) => {
-              setAmount(e.target.value);
-            }}
-            placeholder={kind === "mrr" ? "5000" : "2000000"}
-            aria-invalid={tried && amountError !== null}
+            placeholder={kind === "mrr" ? "5k" : "2m"}
             aria-describedby={`${id}-amount-note`}
-            className={cn(FIELD, "tabular h-12 text-[20px] font-semibold")}
+            className="h-12 text-[20px] font-semibold"
           />
         </div>
         <div>
@@ -402,17 +398,19 @@ function GoalForm({
             </SelectContent>
           </Select>
         </div>
-        <p id={`${id}-amount-note`} className="tabular col-span-2 -mt-2 min-h-[18px] text-[12px] text-ink-2" aria-live="polite">
-          {tried && amountError ? (
-            <span className="text-destructive">{amountError}</span>
-          ) : minor ? (
-            kind === "mrr" ? (
-              `${formatMoney({ minor, currency })} MRR. Only MRR in ${currency} counts.`
-            ) : (
-              `${formatMoney({ minor, currency })} in open accounts, other currencies converted.`
-            )
-          ) : null}
-        </p>
+        <MoneyNote
+          id={`${id}-amount-note`}
+          field={amount}
+          tried={tried}
+          className="col-span-2 -mt-2 min-h-[18px]"
+          note={
+            minor
+              ? kind === "mrr"
+                ? `${formatMoney({ minor, currency })} MRR. Only MRR in ${currency} counts.`
+                : `${formatMoney({ minor, currency })} in open accounts, other currencies converted.`
+              : null
+          }
+        />
       </div>
       <div>
         <label htmlFor={`${id}-due`} className={LABEL}>
