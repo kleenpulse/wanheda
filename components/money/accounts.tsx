@@ -10,7 +10,7 @@ import { CURRENCY_CODES, formatMoney, sumByCurrency, type Currency } from "@/lib
 import { ACCOUNT_KINDS, ACCOUNT_NAME_MAX, type Account, type AccountKind, type MoneyPayload } from "@/lib/money/money";
 import { accountBalance } from "@/lib/money/reports";
 import { cn } from "@/lib/utils";
-import { ACCOUNT_ICON } from "./breakdown";
+import { ACCOUNT_ICON, AccountMark } from "./breakdown";
 import { MoneyInput, MoneyNote, useMoneyField } from "./money-input";
 import { MoneyStack, MoneyText } from "./money-text";
 import { useAccountApi } from "./use-money";
@@ -45,13 +45,10 @@ export function AccountsCard({ payload }: { payload: MoneyPayload }) {
   );
 
   const row = (a: Account) => {
-    const Icon = ACCOUNT_ICON[a.kind];
     const balance = balanceOf(a);
     return (
       <li key={a.id} className="flex h-14 items-center gap-3 rounded-[14px] px-2.5 hover:bg-card-nested focus-within:bg-card-nested">
-        <span aria-hidden className="grid size-9 shrink-0 place-items-center rounded-full bg-card-nested text-ink-2 ring-1 ring-border dark:ring-glass-border">
-          <Icon className="size-4" strokeWidth={1.75} />
-        </span>
+        <AccountMark kind={a.kind} name={a.name} />
         <div className="min-w-0 flex-1">
           <p className={cn("truncate font-display text-[15px] leading-snug font-semibold tracking-[-0.005em]", a.archived ? "text-ink-2" : "text-foreground")}>{a.name}</p>
           <p className="truncate text-[12.5px] leading-snug text-ink-2">
