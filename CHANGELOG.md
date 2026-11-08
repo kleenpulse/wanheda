@@ -70,6 +70,7 @@ written after the fact, one per phase, and have no git tags.
 
 ### Changed
 
+- While the Reader is reading aloud, clicking Reader in the dock brings back the floating read-aloud card (or brings it to the front) instead of leaving your book for the library.
 - On Media Home, Recently played albums now show their cover edge to edge, the same as Most played songs, instead of a smaller cover inside a blurred frame.
 - The "you stopped at" question over a video is now frosted glass, so the picture behind it no longer shows through the words.
 - On Money and Income, the tabs at the top now sit closer to the page they switch.
