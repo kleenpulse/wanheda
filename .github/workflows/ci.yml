@@ -86,6 +86,9 @@ jobs:
           bun-version: 1.4.4
       - run: bun install --frozen-lockfile --ignore-scripts
       - run: bun run typecheck
+      # The desktop shell's own packages (no install scripts; Electron's binary isn't fetched here).
+      - run: bun install --cwd desktop --frozen-lockfile --ignore-scripts
+      - run: bun run desktop:typecheck
       - run: bun run test
       - name: Build with zero env (demo mode)
         run: bun run build

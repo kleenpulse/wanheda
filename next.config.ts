@@ -2,6 +2,7 @@ import type { NextConfig } from "next";
 // Validate the environment at build and start (a bad production env fails the build, SPEC V6).
 import "./env/server";
 import "./env/client";
+import { contentSecurityPolicy, CSP_HEADER } from "./lib/security/csp";
 
 const nextConfig: NextConfig = {
 	cacheComponents: true,
@@ -29,6 +30,12 @@ const nextConfig: NextConfig = {
 		},
 	},
 	devIndicators: false,
+	// One policy for the web and the desktop app (SPEC V67). Not in `next dev`,
+	// which needs eval and its hot-reload websocket.
+	headers() {
+		const dev = process.env.NODE_ENV === "development";
+		return Promise.resolve(dev ? [] : [{ source: "/:path*", headers: [{ key: CSP_HEADER, value: contentSecurityPolicy() }] }]);
+	},
 };
 
 export default nextConfig;

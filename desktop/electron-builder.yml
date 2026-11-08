@@ -1,0 +1,57 @@
+# Wanheda's Windows installer. Run through `bun run desktop:build`
+# (scripts/build.ts), which builds and stages the app first. Reviewed like any
+# *.config.* file (SPEC V76): it decides what ships and how Electron starts.
+appId: io.github.kleenpulse.wanheda
+productName: Wanheda
+artifactName: Wanheda-${version}-${os}-${arch}.${ext}
+
+directories:
+  # The staged main process; it has no dependencies, so nothing is collected.
+  app: .stage/app
+  output: .out
+  buildResources: build
+
+# The Electron fetched and checked by scripts/fetch-electron.ts (ADR-0014);
+# electron-builder never downloads its own.
+electronDist: node_modules/electron/dist
+electronLanguages: ["en-US"]
+
+asar: true
+npmRebuild: false
+nodeGypRebuild: false
+
+extraResources:
+  - from: .stage/server
+    to: server
+    filter: ["**/*"]
+  # electron-builder drops a node_modules folder at the root of `from`, so it gets its own entry.
+  - from: .stage/server/node_modules
+    to: server/node_modules
+    filter: ["**/*"]
+
+# Electron 45 has a ninth fuse, wasmTrapHandlers. It stays at its default (on):
+# it makes WebAssembly fast, and speech runs on it. This version of
+# electron-builder can't set it; scripts/build.ts checks it's on.
+electronFuses:
+  runAsNode: false
+  enableCookieEncryption: true
+  enableNodeOptionsEnvironmentVariable: false
+  enableNodeCliInspectArguments: false
+  enableEmbeddedAsarIntegrityValidation: true
+  onlyLoadAppFromAsar: true
+  loadBrowserProcessSpecificV8Snapshot: false
+  grantFileProtocolExtraPrivileges: false
+
+# The NSIS target doesn't register links; main.ts claims wanheda:// at start.
+protocols:
+  - name: Wanheda link
+    schemes: [wanheda]
+
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+
+nsis:
+  oneClick: true
+  perMachine: false

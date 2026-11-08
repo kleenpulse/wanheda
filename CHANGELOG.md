@@ -15,6 +15,14 @@ written after the fact, one per phase, and have no git tags.
 
 ## [Unreleased]
 
+### Added
+
+- Wanheda can run as a Windows app of its own. It opens in its own window with a tray icon, keeps playing when you close the window (Quit from the tray or the File menu stops it), and opens `wanheda://` links on the right page. On first start it asks for your `.env` file and locks the settings it knows with Windows' keychain, or starts in demo mode; File → Import .env file… and File → Use demo mode… change that later. Signing in with GitHub opens in a small window of its own.
+
+### Changed
+
+- The web app now tells the browser exactly which sites it may load scripts, frames and data from, so a page can't be made to run code or send data anywhere else. Video embeds, cover pictures, voices and the reader work as before.
+
 ## [0.7.0] - 2026-11-08
 
 ### Added
