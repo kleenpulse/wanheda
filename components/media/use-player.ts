@@ -106,6 +106,9 @@ function videoClaim(el: HTMLVideoElement, item: MediaItem, duck: (gain: number) 
     pause: () => {
       el.pause();
     },
+    resume: () => {
+      if (el.paused && !el.ended) void el.play().catch(() => undefined);
+    },
     duck,
   };
 }

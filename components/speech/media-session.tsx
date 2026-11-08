@@ -51,12 +51,19 @@ export function SpeechMediaSession() {
   const status = useSpeech((s) => s.status);
   const was = React.useRef(status);
 
+  // Held while speech is live, not per title: a release plays again what speech
+  // paused (V60), so a new document mid-speech must not let go in between.
   React.useEffect(() => {
-    if (!live || title === null) return;
-    mediaSession.claim(speechClaim(title, kind), false);
+    if (!live) return;
     return () => {
       mediaSession.release("speech");
     };
+  }, [live]);
+
+  // A new title refreshes the claim in place.
+  React.useEffect(() => {
+    if (!live || title === null) return;
+    mediaSession.claim(speechClaim(title, kind), false);
   }, [live, title, kind]);
 
   // After the claim above. Starting to speak takes the keys and pauses the
