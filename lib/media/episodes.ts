@@ -204,3 +204,51 @@ export function railItems(items: readonly MediaItem[], current: MediaItem, max =
   }
   return [current, ...upNext(items, current).slice(0, Math.max(0, max - 1))];
 }
+
+/** A series in the library, for Media Home's Shows shelf (T73). */
+export type Show = {
+  showKey: string;
+  show: string;
+  /** Its episodes in season and episode order. */
+  episodes: MediaItem[];
+  /** What a click on the show opens: the one after the furthest watched, else the first not watched, else the first. */
+  next: MediaItem;
+  watched: number;
+  /** When any episode was last played or added (ISO), for the shelf's order. */
+  lastAt: string;
+};
+
+/** Every show with at least two episodes in the library, the most recently touched first. */
+export function showsOf(items: readonly MediaItem[]): Show[] {
+  const byKey = new Map<string, { show: string; eps: { item: MediaItem; ep: Episode }[] }>();
+  for (const item of items) {
+    const ep = episodeOf(item);
+    if (!ep) continue;
+    let s = byKey.get(ep.showKey);
+    if (!s) {
+      s = { show: ep.show, eps: [] };
+      byKey.set(ep.showKey, s);
+    }
+    s.eps.push({ item, ep });
+  }
+  const out: Show[] = [];
+  for (const [showKey, s] of byKey) {
+    if (s.eps.length < 2) continue;
+    const episodes = s.eps
+      .sort((a, b) => a.ep.season - b.ep.season || a.ep.episode - b.ep.episode || a.item.title.localeCompare(b.item.title))
+      .map((x) => x.item);
+    const first = episodes[0];
+    if (!first) continue;
+    const watched = episodes.filter((i) => i.progress?.watched).length;
+    const lastAt = episodes.reduce((m, i) => {
+      const at = i.progress?.lastPlayedAt ?? i.createdAt;
+      return at > m ? at : m;
+    }, "");
+    // A show begun at season 2 (season 1 never marked) goes on from where it's been watched to.
+    const furthest = episodes.findLastIndex((i) => i.progress?.watched === true);
+    const after = furthest >= 0 ? episodes[furthest + 1] : undefined;
+    const next = after ?? episodes.find((i) => !i.progress?.watched) ?? first;
+    out.push({ showKey, show: s.show, episodes, next, watched, lastAt });
+  }
+  return out.sort((a, b) => b.lastAt.localeCompare(a.lastAt) || a.show.localeCompare(b.show));
+}

@@ -39,6 +39,13 @@ interface ActivityState {
   toggleTimer: (id: string) => void;
   addToTimer: (id: string, ms?: number) => void;
   cancelTimer: (id: string) => void;
+  /**
+   * How many surfaces hold the music on screen (the now-playing bar, V66): while
+   * any do, the island leaves out its media card. This tab only, never persisted.
+   */
+  musicHeld: number;
+  /** Holds the music on screen; call the returned function to let go. */
+  holdMusic: () => () => void;
 }
 
 function update(timers: Timer[], id: string, fn: (t: Timer) => Timer): Timer[] {
@@ -79,6 +86,16 @@ export const useActivity = create<ActivityState>()(
       },
       cancelTimer(id) {
         set((s) => ({ timers: s.timers.filter((t) => t.id !== id) }));
+      },
+      musicHeld: 0,
+      holdMusic() {
+        set((s) => ({ musicHeld: s.musicHeld + 1 }));
+        let held = true;
+        return () => {
+          if (!held) return;
+          held = false;
+          set((s) => ({ musicHeld: Math.max(0, s.musicHeld - 1) }));
+        };
       },
     }),
     {

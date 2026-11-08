@@ -4,6 +4,7 @@ import { create } from "zustand";
 import { relativeMusicPath, type Track } from "@/lib/media/library";
 import { db } from "@/lib/media/local";
 import { seedTracks } from "@/lib/media/music-seed";
+import { pruneList } from "@/lib/media/stats";
 import type { MusicRequest, MusicResponse, ScanSource, Stamped } from "@/lib/media/music-protocol";
 
 // The music library on this device (V58): the folder the owner picked (its
@@ -100,6 +101,9 @@ export const useMusicLibrary = create<State>((set, get) => {
         void db().then(async (d) => {
           if (!d) return;
           if (drop.length > 0) await d.tracks.bulkDelete(drop).catch(() => undefined);
+          // The play history lets go of files this completed scan found gone (V66); a failed one keeps it all.
+          const forget = pruneList({ phase: "done", kept: true, removed: m.removed, unreadable: m.unreadable });
+          if (forget.length > 0) await d.trackStats.bulkDelete(forget).catch(() => undefined);
           await d
             .transaction("rw", d.skipped, async () => {
               await d.skipped.clear();
@@ -255,4 +259,15 @@ export async function musicFile(path: string): Promise<File> {
   } catch {
     throw new Error("It isn't in the music folder any more. Rescan to tidy the list.");
   }
+}
+
+/** Whether the library is demo's (tones, or a pick kept in this tab only). */
+export function libraryIsDemo(): boolean {
+  return demoMode;
+}
+
+/** Whether play history is kept on this device: only for a kept folder, never demo or a tab-only pick (V66). */
+export function keepsHistory(): boolean {
+  const kind = useMusicLibrary.getState().folder.kind;
+  return !demoMode && (kind === "ready" || kind === "reconnect");
 }

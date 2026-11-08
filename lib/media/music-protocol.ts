@@ -22,5 +22,6 @@ export type MusicResponse =
   | { type: "progress"; id: number; seen: number; toParse: number; parsed: number; bad: number }
   | { type: "batch"; id: number; tracks: Track[] }
   /** `skipped`: every file present that won't parse (new and old), replacing the previous list. */
-  | { type: "done"; id: number; removed: string[]; parsed: number; kept: number; bad: number; skipped: Stamped[] }
+  /** `unreadable`: files listed but not opened (a drive pulled mid-scan); they're in `removed` too, but play history keeps them (V66). */
+  | { type: "done"; id: number; removed: string[]; unreadable: string[]; parsed: number; kept: number; bad: number; skipped: Stamped[] }
   | { type: "failed"; id: number; message: string };

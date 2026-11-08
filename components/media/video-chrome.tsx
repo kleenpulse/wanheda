@@ -24,17 +24,18 @@ import {
 } from "lucide-react";
 import { Kbd } from "@/components/ui/kbd";
 import { Tip, TooltipGroup } from "@/components/ui/tooltip";
-import { pushUrl, replaceUrlParams } from "@/hooks/use-url-param";
+import { replaceUrlParams } from "@/hooks/use-url-param";
 import { useReducedMotion } from "@/hooks/use-reduced-motion";
 import { autoplayPref, fitPref, playerClock, resolutionLabel, shouldOfferNext, videoVolumePref } from "@/lib/media/cinema";
 import { displayTitle, railItems, upNext } from "@/lib/media/episodes";
 import { locate, regrant } from "@/lib/media/local";
-import { formatDuration, mediaHref } from "@/lib/media/media";
+import { formatDuration } from "@/lib/media/media";
 import { frameStep, keyAction, SHORTCUTS, type KeyTarget, type PlayerAction } from "@/lib/media/player-keys";
 import type { MediaItem } from "@/lib/media/types";
 import { videoStore, type VideoSnapshot } from "@/lib/media/video-store";
 import { nudgeVolume, wheelSteps, WHEEL_STEP } from "@/lib/media/volume";
 import { cn } from "@/lib/utils";
+import { openWatch } from "./watch-nav";
 import { CaptionsLayer } from "./captions-layer";
 import { SUBTITLE_ACCEPT, seekElement, setElementRate, stepSpeed, usePlayer } from "./player-store";
 import { applyVideoVolume } from "./use-player";
@@ -56,6 +57,14 @@ import { VideoScrub } from "./video-scrub";
 // - The controls fade after a while of playing, but never while a menu is
 //   open, the pointer is on them, or the keyboard is in them; hidden, they
 //   are `inert`, and any key or a Tab brings them back.
+
+/**
+ * The centre play and ±10 buttons: the resume prompt's frosted glass in the
+ * theme's own ink (user 2026-11-08), so they read on any frame, light or dark.
+ * Under reduced transparency `--glass` is solid (globals.css).
+ */
+const CENTRE_GLASS =
+  "pointer-events-auto grid place-items-center rounded-full glass-window text-foreground shadow-lg outline-none transition-[filter,transform] duration-150 hover:brightness-110 focus-visible:ring-2 focus-visible:ring-ring";
 
 const HIDE_AFTER_MS = 2500;
 const OSD_MS = 700;
@@ -395,7 +404,7 @@ function VideoChrome({
   const goTo = (to: MediaItem, fromCard: boolean) => {
     if (fromCard) usePlayer.getState().finish?.();
     const open = () => {
-      pushUrl(mediaHref(to.id));
+      openWatch(to.id);
     };
     // A file whose permission lapsed: this click is the gesture the browser needs to grant it again.
     if (to.source === "local" && needsGesture) {
@@ -704,15 +713,15 @@ function VideoChrome({
 
         {centre ? (
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center gap-[clamp(1.5rem,8cqw,5rem)]">
-            <button type="button" aria-label="Back 10 seconds" className="pointer-events-auto relative grid size-12 place-items-center rounded-full text-island-foreground/90 outline-none hover:bg-island-foreground/12 focus-visible:ring-2 focus-visible:ring-island-foreground/70 active:scale-90" onClick={() => { seekBy(-10); }}>
-              <RotateCcw aria-hidden className="size-8" strokeWidth={1.75} />
+            <button type="button" aria-label="Back 10 seconds" className={cn(CENTRE_GLASS, "relative size-14 active:scale-90")} onClick={() => { seekBy(-10); }}>
+              <RotateCcw aria-hidden className="size-9" strokeWidth={1.6} />
               <span aria-hidden className="tabular absolute text-[10px] font-semibold">10</span>
             </button>
             <button
               type="button"
               aria-label={snap.paused ? "Play" : "Pause"}
               aria-keyshortcuts="k"
-              className="pointer-events-auto grid size-[clamp(3.5rem,11cqw,5.5rem)] place-items-center rounded-full bg-island-foreground/16 text-island-foreground backdrop-blur-md outline-none transition-[background-color,transform] duration-150 hover:bg-island-foreground/24 focus-visible:ring-2 focus-visible:ring-island-foreground/70 active:scale-95"
+              className={cn(CENTRE_GLASS, "size-[clamp(3.5rem,11cqw,5.5rem)] active:scale-95")}
               onClick={togglePlay}
             >
               {snap.waiting ? (
@@ -723,8 +732,8 @@ function VideoChrome({
                 <Pause aria-hidden className="size-[40%] fill-current" />
               )}
             </button>
-            <button type="button" aria-label="Forward 10 seconds" className="pointer-events-auto relative grid size-12 place-items-center rounded-full text-island-foreground/90 outline-none hover:bg-island-foreground/12 focus-visible:ring-2 focus-visible:ring-island-foreground/70 active:scale-90" onClick={() => { seekBy(10); }}>
-              <RotateCw aria-hidden className="size-8" strokeWidth={1.75} />
+            <button type="button" aria-label="Forward 10 seconds" className={cn(CENTRE_GLASS, "relative size-14 active:scale-90")} onClick={() => { seekBy(10); }}>
+              <RotateCw aria-hidden className="size-9" strokeWidth={1.6} />
               <span aria-hidden className="tabular absolute text-[10px] font-semibold">10</span>
             </button>
           </div>
@@ -826,8 +835,8 @@ function VideoChrome({
                     type="button"
                     aria-label={fit === "contain" ? "Fill the frame" : "Fit the whole picture"}
                     aria-pressed={fit === "cover"}
-                    // A narrow player keeps its essentials: fit and theatre step aside.
-                    className={cn(CHROME_BUTTON, "hidden @md/cinema:grid")}
+                    // The first to step aside on a narrow player: rarely needed (user 2026-11-08), theatre stays.
+                    className={cn(CHROME_BUTTON, "hidden @3xl/cinema:grid")}
                     onClick={() => {
                       fitPref.set(fit === "contain" ? "cover" : "contain");
                     }}
@@ -849,7 +858,8 @@ function VideoChrome({
                       type="button"
                       aria-label="Theatre"
                       aria-pressed={theatre}
-                      className={cn(CHROME_BUTTON, "hidden @3xl/cinema:grid")}
+                      // Kept on a narrow player (user 2026-11-08): a short window narrows the stage (FILL_STAGE), and that's when theatre helps most.
+                      className={cn(CHROME_BUTTON, "hidden @md/cinema:grid")}
                       onClick={() => {
                         usePlayer.getState().setTheatre(!theatre);
                       }}

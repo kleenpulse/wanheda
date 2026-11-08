@@ -78,7 +78,7 @@ describe("useMusicLibrary", () => {
       expect(posted).toHaveLength(1);
     });
     expect(lastScan().skipped).toEqual([]);
-    reply({ type: "done", id: lastScan().id, removed: [], parsed: 0, kept: 0, bad: 1, skipped: [["junk.mp3", 5, 5]] });
+    reply({ type: "done", id: lastScan().id, removed: [], unreadable: [], parsed: 0, kept: 0, bad: 1, skipped: [["junk.mp3", 5, 5]] });
     await flush();
     expect(fake.skipped.rows).toEqual([{ path: "junk.mp3", size: 5, lastModified: 5 }]);
 
@@ -104,7 +104,7 @@ describe("useMusicLibrary", () => {
     const { id } = lastScan();
     const track = { path: "a.mp3", size: 1, lastModified: 1 } as Track;
     reply({ type: "batch", id, tracks: [track] });
-    reply({ type: "done", id, removed: [], parsed: 1, kept: 0, bad: 1, skipped: [["b.mp3", 2, 2]] });
+    reply({ type: "done", id, removed: [], unreadable: [], parsed: 1, kept: 0, bad: 1, skipped: [["b.mp3", 2, 2]] });
     await flush();
     expect(lib.getState().tracks).toEqual([track]);
     expect(fake.tracks.bulkPut).not.toHaveBeenCalled();
@@ -119,7 +119,7 @@ describe("useMusicLibrary", () => {
     await vi.waitFor(() => {
       expect(posted).toHaveLength(1);
     });
-    reply({ type: "done", id: lastScan().id, removed: [], parsed: 0, kept: 0, bad: 1, skipped: [["x.mp3", 2, 2]] });
+    reply({ type: "done", id: lastScan().id, removed: [], unreadable: [], parsed: 0, kept: 0, bad: 1, skipped: [["x.mp3", 2, 2]] });
     await flush();
     expect(lib.getState().tracks).toEqual([]);
     expect(fake.tracks.bulkDelete).toHaveBeenCalledWith(["x.mp3"]);

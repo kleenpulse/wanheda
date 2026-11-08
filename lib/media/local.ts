@@ -6,6 +6,7 @@
 
 import Dexie, { type EntityTable } from "dexie";
 import type { Track } from "./library";
+import type { TrackStat } from "./stats";
 
 type HandleRow = { fp: string; handle: FileSystemFileHandle; name: string; size: number };
 
@@ -24,6 +25,7 @@ type MediaDb = Dexie & {
   tracks: EntityTable<Track, "path">;
   folders: EntityTable<FolderRow, "key">;
   skipped: EntityTable<SkippedRow, "path">;
+  trackStats: EntityTable<TrackStat, "path">;
 };
 
 let dbPromise: Promise<MediaDb | null> | null = null;
@@ -37,6 +39,8 @@ export function db(): Promise<MediaDb | null> {
     // The music index is per device (FRD §8): never on the server.
     d.version(3).stores({ handles: "fp", progress: "itemId, pending", tracks: "path", folders: "key" });
     d.version(4).stores({ handles: "fp", progress: "itemId, pending", tracks: "path", folders: "key", skipped: "path" });
+    // Play history (V66): per device, like the index it counts.
+    d.version(5).stores({ handles: "fp", progress: "itemId, pending", tracks: "path", folders: "key", skipped: "path", trackStats: "path, lastPlayedAt" });
     await d.open();
     return d;
   })().catch(() => null);
