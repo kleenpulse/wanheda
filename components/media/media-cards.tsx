@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { BookmarkCheck, BookmarkPlus, Disc3, Music, Pause, Play, Trash2 } from "lucide-react";
+import { BookmarkCheck, BookmarkPlus, Music, Pause, Play, Trash2 } from "lucide-react";
 import { buttonClass } from "@/components/ui/button";
 import { timeLeft } from "@/lib/media/cinema";
 import { displayTitle, episodeOf, type Show } from "@/lib/media/episodes";
@@ -11,7 +11,7 @@ import { resumeAt } from "@/lib/media/resume";
 import type { PlayGroup } from "@/lib/media/stats";
 import type { MediaItem } from "@/lib/media/types";
 import { cn } from "@/lib/utils";
-import { Cover, useCoverUrl } from "./cover";
+import { Cover } from "./cover";
 import { useMusicPlayer } from "./music-player";
 import { Equalizer, clock } from "./now-playing-card";
 import { SHELF_CARD } from "./shelf";
@@ -200,11 +200,10 @@ function NowChip({ playing }: { playing: boolean }) {
   );
 }
 
-/** A recently played album: its cover over a blur of itself under the island's scrim. A click plays it. */
+/** A recently played album: its cover full-bleed, as a most-played song's. A click plays it. */
 export function AlbumCard({ group }: { group: PlayGroup }) {
   const paths = React.useMemo(() => new Set(group.tracks.map((t) => t.path)), [group.tracks]);
   const holds = useHolds(paths);
-  const art = useCoverUrl(group.covers[0] ?? null);
   return (
     <button
       type="button"
@@ -212,28 +211,26 @@ export function AlbumCard({ group }: { group: PlayGroup }) {
       onClick={() => {
         playGroup(group.tracks, holds);
       }}
+      aria-current={holds ? "true" : undefined}
       aria-label={`${holds === "playing" ? "Pause" : "Play"} ${group.label} by ${group.sub}`}
       className={CARD}
     >
-      <span className="relative isolate block aspect-square overflow-hidden rounded-[18px] bg-island text-island-foreground">
-        {art ? <img src={art} alt="" draggable={false} className={cn("absolute inset-0 -z-10 size-full scale-150 object-cover opacity-80 blur-2xl", LIFT)} /> : null}
-        <span aria-hidden className="absolute inset-0 -z-10 bg-island/45" />
-        <span className={cn("absolute inset-[19%] overflow-hidden rounded-[12px] shadow-lift", LIFT)}>
-          {art ? (
-            <img src={art} alt="" draggable={false} className="size-full object-cover" />
-          ) : (
-            <span className="grid size-full place-items-center bg-signal-soft text-signal-ink dark:bg-signal/15 dark:text-signal">
-              <Disc3 aria-hidden className="size-1/3" />
-            </span>
-          )}
-        </span>
+      <span className="relative isolate block overflow-hidden rounded-[14px]">
+        <Cover coverKey={group.covers[0] ?? null} className={cn("aspect-square w-full", LIFT)} />
+        {holds ? <span aria-hidden className="absolute inset-0 bg-island/40" /> : null}
         {holds ? <NowChip playing={holds === "playing"} /> : null}
-        <span aria-hidden className="absolute inset-0 grid place-items-center opacity-0 transition-opacity duration-150 group-hover/card:opacity-100 group-focus-visible/card:opacity-100">
+        <span
+          aria-hidden
+          className={cn(
+            "absolute inset-0 grid place-items-center transition-opacity duration-150",
+            holds ? "opacity-100" : "opacity-0 group-hover/card:opacity-100 group-focus-visible/card:opacity-100",
+          )}
+        >
           <PlayGlyph paused={holds === "playing"} />
         </span>
       </span>
       <span className="flex min-w-0 flex-col gap-0.5 px-0.5">
-        <span className="truncate text-sm font-medium text-foreground">{group.label}</span>
+        <span className={cn("truncate text-sm font-medium", holds ? "text-signal-ink dark:text-signal" : "text-foreground")}>{group.label}</span>
         <span className="truncate text-xs text-ink-2">Album · {group.sub}</span>
       </span>
     </button>
@@ -253,10 +250,11 @@ export function FolderMixCard({ group }: { group: PlayGroup }) {
       onClick={() => {
         playGroup(group.tracks, holds);
       }}
+      aria-current={holds ? "true" : undefined}
       aria-label={`${holds === "playing" ? "Pause" : "Play"} the ${group.label} folder, ${String(n)} songs`}
       className={CARD}
     >
-      <span className="relative isolate block aspect-square overflow-hidden rounded-[18px] bg-island">
+      <span className="relative isolate block aspect-square overflow-hidden rounded-[14px] bg-island">
         <span className={cn("grid size-full grid-cols-2 grid-rows-2 gap-0.5", LIFT)}>
           {tiles.map((key, i) =>
             key ? (
@@ -268,13 +266,20 @@ export function FolderMixCard({ group }: { group: PlayGroup }) {
             ),
           )}
         </span>
+        {holds ? <span aria-hidden className="absolute inset-0 bg-island/40" /> : null}
         {holds ? <NowChip playing={holds === "playing"} /> : null}
-        <span aria-hidden className="absolute inset-0 grid place-items-center opacity-0 transition-opacity duration-150 group-hover/card:opacity-100 group-focus-visible/card:opacity-100">
+        <span
+          aria-hidden
+          className={cn(
+            "absolute inset-0 grid place-items-center transition-opacity duration-150",
+            holds ? "opacity-100" : "opacity-0 group-hover/card:opacity-100 group-focus-visible/card:opacity-100",
+          )}
+        >
           <PlayGlyph paused={holds === "playing"} />
         </span>
       </span>
       <span className="flex min-w-0 flex-col gap-0.5 px-0.5">
-        <span className="truncate text-sm font-medium text-foreground">{group.label}</span>
+        <span className={cn("truncate text-sm font-medium", holds ? "text-signal-ink dark:text-signal" : "text-foreground")}>{group.label}</span>
         <span className="tabular truncate text-xs text-ink-2">
           {n} {n === 1 ? "song" : "songs"}
           {group.durationS > 0 ? ` · ${hoursMinutes(group.durationS)}` : ""}
