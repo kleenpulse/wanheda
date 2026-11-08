@@ -1,0 +1,133 @@
+import { describe, expect, it } from "vitest";
+import { cleanTitle, displayTitle, folderFor, parseEpisode, playOrder, railItems, seasonsOf, upNext } from "./episodes";
+import type { MediaItem } from "./types";
+
+describe("parseEpisode", () => {
+  it("reads S01E11 and the show before it", () => {
+    expect(parseEpisode("Night.Harbor.S01E11.1080p.WEB-DL.x264.mkv")).toEqual({ show: "Night Harbor", showKey: "nightharbor", season: 1, episode: 11, name: null });
+    expect(parseEpisode("Night Harbor - s2e5 - The Reunion.mp4")).toMatchObject({ show: "Night Harbor", season: 2, episode: 5, name: "The Reunion" });
+    expect(parseEpisode("Show.S01.E05.mkv")).toMatchObject({ season: 1, episode: 5 });
+  });
+
+  it("reads 1x11 and Episode 11", () => {
+    expect(parseEpisode("Show 1x11.mkv")).toMatchObject({ show: "Show", season: 1, episode: 11 });
+    expect(parseEpisode("Show Season 2 Episode 3.mkv")).toMatchObject({ show: "Show", season: 2, episode: 3 });
+    expect(parseEpisode("Show Ep.7.mkv")).toMatchObject({ show: "Show", season: 1, episode: 7 });
+  });
+
+  it("never reads a resolution, a codec, a year or audio channels as an episode", () => {
+    expect(parseEpisode("1920x1080.mp4")).toBeNull();
+    expect(parseEpisode("Holiday 1280x720.mp4")).toBeNull();
+    expect(parseEpisode("Holiday.x264.mkv")).toBeNull();
+    expect(parseEpisode("Holiday.x265.HEVC.mkv")).toBeNull();
+    expect(parseEpisode("Keynote E3 2019.mp4")).toBeNull();
+    expect(parseEpisode("Concert H.265 5.1.mkv")).toBeNull();
+    expect(parseEpisode("Deep 5.mp4")).toBeNull();
+    expect(parseEpisode("Harbor Lights (2024).mkv")).toBeNull();
+  });
+
+  it("takes the show from the folder when the file names only the episode", () => {
+    expect(parseEpisode("Episode 11.mkv", "Hometown")).toMatchObject({ show: "Hometown", season: 1, episode: 11 });
+    expect(parseEpisode("Episode 4.mkv", "Hometown/Season 2")).toMatchObject({ show: "Hometown", season: 2, episode: 4 });
+    expect(parseEpisode("S01E03.mkv", "Night Harbor (2021)")).toMatchObject({ show: "Night Harbor", episode: 3 });
+    expect(parseEpisode("Episode 11.mkv")).toBeNull();
+  });
+
+  it("joins spellings of one show", () => {
+    expect(parseEpisode("The.Office.US.S02E01.mkv")?.showKey).toBe(parseEpisode("The Office (US) - S02E02.mkv")?.showKey);
+  });
+
+  it("takes the first episode of a multi-episode file (a known miss)", () => {
+    expect(parseEpisode("Show.S01E01E02.mkv")).toMatchObject({ episode: 1 });
+  });
+});
+
+describe("cleanTitle", () => {
+  it("drops the extension, release tags and dots", () => {
+    expect(cleanTitle("Harbor.Lights.2024.1080p.BluRay.x264-GROUP.mkv")).toBe("Harbor Lights 2024");
+    expect(cleanTitle("[Group] My_Film.mp4")).toBe("My Film");
+    expect(cleanTitle("Harbor Lights (2024)")).toBe("Harbor Lights (2024)");
+    expect(cleanTitle("x264")).toBe("x264");
+  });
+});
+
+const at = (id: string, uri: string, source: MediaItem["source"] = "local", folder?: string): MediaItem => ({
+  id,
+  kind: "video",
+  source,
+  fp: id,
+  uri,
+  title: uri,
+  durationS: null,
+  meta: folder ? { folder } : {},
+  watchLaterAt: null,
+  progress: null,
+  createdAt: "",
+  updatedAt: "",
+});
+
+describe("playOrder and upNext", () => {
+  // Newest first, as the library lists them: the episodes are out of order here.
+  const items = [
+    at("e3", "Show.S01E03.mkv"),
+    at("x", "Holiday.mp4"),
+    at("e1", "Show.S01E01.mkv"),
+    at("s2", "Show.S02E01.mkv"),
+    at("yt", "https://youtu.be/abc", "embed"),
+    at("e2", "Show.S01E02.mkv"),
+  ];
+
+  it("plays a show in season and episode order", () => {
+    const e1 = items[2];
+    if (!e1) throw new Error("fixture");
+    expect(playOrder(items, e1).map((i) => i.id)).toEqual(["e1", "e2", "e3", "s2"]);
+    expect(upNext(items, e1).map((i) => i.id)).toEqual(["e2", "e3", "s2"]);
+  });
+
+  it("plays anything else down the library list, never into an embed", () => {
+    const x = items[1];
+    if (!x) throw new Error("fixture");
+    expect(upNext(items, x).map((i) => i.id)).toEqual(["e1", "s2", "e2"]);
+  });
+
+  it("lists the show's seasons", () => {
+    const e1 = items[2];
+    const x = items[1];
+    if (!e1 || !x) throw new Error("fixture");
+    expect(seasonsOf(items, e1)).toEqual([1, 2]);
+    expect(seasonsOf(items, x)).toEqual([]);
+  });
+});
+
+describe("displayTitle", () => {
+  it("names an episode by its line, and anything else cleaned", () => {
+    expect(displayTitle(at("a", "Night.Harbor.S01E02.720p.WEB-DL.x264.mp4"))).toEqual({ title: "Episode 2", show: "Night Harbor", line: "Season 1 · Episode 2" });
+    expect(displayTitle(at("b", "Harbor.Lights.2024.1080p.mkv")).title).toBe("Harbor Lights 2024");
+  });
+});
+
+describe("folderFor", () => {
+  it("puts the picked folder's name in front when the path doesn't have it", () => {
+    expect(folderFor("Season 1/ep.mkv", "Hometown")).toBe("Hometown/Season 1");
+    expect(folderFor("ep.mkv", "Hometown")).toBe("Hometown");
+    expect(folderFor("Hometown/Season 1/ep.mkv", "Hometown")).toBe("Hometown/Season 1");
+  });
+});
+
+describe("railItems", () => {
+  it("caps anything outside a series at 20, the playing one first", () => {
+    const many = Array.from({ length: 2000 }, (_, i) => at(`v${String(i)}`, `Clip ${String(i)}.mp4`));
+    const first = many[0];
+    if (!first) throw new Error("fixture");
+    const rail = railItems(many, first);
+    expect(rail.length).toBe(20);
+    expect(rail[0]?.id).toBe("v0");
+  });
+
+  it("shows a whole show in episode order", () => {
+    const show = [at("e3", "Show.S01E03.mkv"), at("e1", "Show.S01E01.mkv"), at("e2", "Show.S01E02.mkv")];
+    const e2 = show[2];
+    if (!e2) throw new Error("fixture");
+    expect(railItems(show, e2).map((i) => i.id)).toEqual(["e1", "e2", "e3"]);
+  });
+});

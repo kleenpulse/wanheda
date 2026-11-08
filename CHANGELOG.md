@@ -17,6 +17,15 @@ written after the fact, one per phase, and have no git tags.
 
 ### Added
 
+- Videos have a new player of their own. Big skip-back, play and skip-forward buttons sit in the middle, the bar shows the time you'd jump to (and, for files on this device, the picture there), and the controls fade away while you watch and come back when you move the mouse or press a key. Full screen keeps everything: the menus, the subtitles and the "resume or start over" question all work there too.
+- Shows sort themselves. Name files like `Show.S01E05.mkv`, `Show 1x05` or `Episode 5` (in the show's folder) and they play in episode order: Next, the keyboard and the media keys go to the next episode, and the player names them "Show · Season 1 · Episode 5".
+- An Up next stack beside the picture lists the episodes with their pictures and how much is left, with a Season menu to look through other seasons. It opens with its button and shows itself when you pause in full screen.
+- In a video's last seconds a card offers the next one and counts down to it, with Play now and Cancel. Moving on counts the one you were watching as watched. Settings in the player can turn this off.
+- Picture in picture follows you to the next video however you move on: Next, the list, autoplay, the media keys or the window's own next button. If the next one can't play there (a YouTube link, a file that isn't on this device), the window closes instead of freezing.
+- Videos in your list show a picture from the video itself, made on this device. YouTube links get their YouTube picture, fetched once and kept on the device.
+- Subtitles are drawn by Wanheda, so they move up out of the way of the controls, and you can make them Small, Medium or Large. Press C to turn them on or off.
+- The player's settings menu has speed, subtitle size, autoplay, Save this frame (downloads the picture on screen as a PNG) and a list of keyboard shortcuts (press ?). New keys: J and L skip 10 seconds, the arrow keys skip 5 seconds and change the volume, 0 to 9 jump through the video, < and > change the speed, Shift+N and Shift+P go to the next and previous video, and , and . step one frame while paused.
+- A Fill button crops the picture to fill the frame (and back to Fit), and the video keeps its own volume, separate from music's.
 - The Aurora wallpaper can hang from the top of the screen or rise from the bottom. When Aurora is picked, a small Top / Bottom switch appears under it in Settings → Appearance. From the bottom, it glows up from behind the dock and stays there as you scroll.
 - Wallpapers can now show on any page. In Settings → Appearance, pick Home, every page, or a different wallpaper for each page, and choose whether it stays below the top bar or fills the whole page behind the title too. The palette's wallpaper commands change the page you're on.
 - Videos can now come from a whole folder. In Media → Videos, press Open a folder and every video in it (and in the folders inside it) joins your list in name order, so episodes line up as Ep 1, Ep 2 … Ep 10. They play from where they are; nothing is uploaded. The video list now scrolls on its own beside the player, the way the music list does, instead of the whole page scrolling.
@@ -55,6 +64,7 @@ written after the fact, one per phase, and have no git tags.
 
 ### Changed
 
+- The "you stopped at" question over a video is now frosted glass, so the picture behind it no longer shows through the words.
 - On Money and Income, the tabs at the top now sit closer to the page they switch.
 - In the light Bench theme, cards are now a soft grey that stands out from the white page behind them, the same way they do in dark mode.
 - Amount fields in Money and Income are smarter. They only take what can be part of an amount, so stray letters can't get in, and they add the thousands commas as you type. Short forms and sums work: type `20k`, `1.5m` or `2.5k + 800` and the line under the field shows what it comes to, then the field fills it in when you leave it. Pasting `₦20,000.00`, `US$ 1,000` or a statement's `(1,234.50)` just works. The arrow keys nudge the amount up or down (hold Shift for steps of 10), and an opening balance has a ± button to make it negative, handy on a phone keyboard with no minus key.

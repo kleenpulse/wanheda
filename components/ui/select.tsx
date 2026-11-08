@@ -41,14 +41,17 @@ export function SelectContent({
   sideOffset = 8,
   align = "start",
   alignItemWithTrigger = false,
+  container,
   ...props
 }: SelectPrimitive.Popup.Props & {
   sideOffset?: number;
   align?: SelectPrimitive.Positioner.Props["align"];
   alignItemWithTrigger?: boolean;
+  /** Where the list renders, if not the body: a full-screen element shows only what is inside it. */
+  container?: HTMLElement | null | undefined;
 }) {
   return (
-    <SelectPrimitive.Portal>
+    <SelectPrimitive.Portal container={container}>
       <SelectPrimitive.Positioner
         sideOffset={sideOffset}
         align={align}

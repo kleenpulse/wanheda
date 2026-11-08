@@ -92,6 +92,7 @@ function MorphPopup({
   sideOffset = 8,
   align = "center",
   glide = false,
+  container,
   className,
   children,
   ...props
@@ -100,6 +101,8 @@ function MorphPopup({
   sideOffset?: number;
   align?: Align;
   glide?: boolean;
+  /** Where the tooltip renders, if not the body: a full-screen element shows only what is inside it. */
+  container?: HTMLElement | null | undefined;
 }) {
   // useId output isn't a valid url(#…) fragment as-is.
   const filterId = `tip-goo-${React.useId().replace(/[^a-zA-Z0-9]/g, "")}`;
@@ -108,7 +111,7 @@ function MorphPopup({
   const label = <span className={cn(labelClass, glide && "whitespace-nowrap")}>{children}</span>;
 
   return (
-    <TooltipPrimitive.Portal>
+    <TooltipPrimitive.Portal container={container}>
       {/* Fixed: the goo layer bleeds 24px past the pill, and an absolute
           positioner at the viewport edge would widen the page with it. */}
       <TooltipPrimitive.Positioner
@@ -161,10 +164,13 @@ const TooltipGroupContext = React.createContext<TooltipGroupValue | null>(null);
 export function TooltipGroup({
   side = "top",
   sideOffset = 8,
+  container,
   children,
 }: {
   side?: Side;
   sideOffset?: number;
+  /** Where the tooltip renders, if not the body (a full-screen player). */
+  container?: HTMLElement | null | undefined;
   children: React.ReactNode;
 }) {
   const [handle] = React.useState(() => TooltipPrimitive.createHandle<React.ReactNode>());
@@ -175,7 +181,7 @@ export function TooltipGroup({
         {children}
         <TooltipPrimitive.Root handle={handle}>
           {({ payload }) => (
-            <MorphPopup glide side={side} sideOffset={sideOffset}>
+            <MorphPopup glide side={side} sideOffset={sideOffset} container={container}>
               {payload}
             </MorphPopup>
           )}
@@ -193,11 +199,14 @@ export function Tip({
   label,
   side,
   sideOffset,
+  container,
   ...props
 }: Omit<TooltipPrimitive.Trigger.Props<React.ReactNode>, "handle" | "payload"> & {
   label: React.ReactNode;
   side?: Side;
   sideOffset?: number;
+  /** Where a lone tooltip renders, if not the body (inside a group, the group's container rules). */
+  container?: HTMLElement | null | undefined;
 }) {
   const group = React.useContext(TooltipGroupContext);
   if (group) {
@@ -216,7 +225,7 @@ export function Tip({
   return (
     <TooltipPrimitive.Root>
       <TooltipPrimitive.Trigger data-slot="tooltip-trigger" {...props} />
-      <MorphPopup side={side} {...(sideOffset === undefined ? {} : { sideOffset })}>
+      <MorphPopup side={side} container={container} {...(sideOffset === undefined ? {} : { sideOffset })}>
         {label}
       </MorphPopup>
     </TooltipPrimitive.Root>

@@ -1,7 +1,9 @@
 "use client";
 
 import * as React from "react";
+import { videoVolumePref } from "@/lib/media/cinema";
 import { mediaSession, type SessionClaim } from "@/lib/media/session-owner";
+import { volumeGain, type Volume } from "@/lib/media/volume";
 import { rampAt } from "@/lib/media/sound-mix";
 import { DUCK_RAMP } from "@/lib/motion";
 import type { MediaItem } from "@/lib/media/types";
@@ -17,6 +19,12 @@ import { usePlaybackTracking } from "./use-playback-tracking";
 
 const STEP_S = 10;
 const RAMP_TICK_MS = 16;
+
+/** Sets the element to a volume pref: the slider's square as the level (as music does), mute as mute. */
+export function applyVideoVolume(el: HTMLMediaElement, v: Volume): void {
+  el.volume = volumeGain({ level: v.level, muted: false });
+  el.muted = v.muted;
+}
 
 /**
  * Ramps a video's volume to a share of the owner's own level (V60). Timers,
@@ -105,10 +113,23 @@ function videoClaim(el: HTMLVideoElement, item: MediaItem, duck: (gain: number) 
 export function usePlayerWiring(video: React.RefObject<HTMLVideoElement | null>, mounted: number, item: MediaItem): void {
   usePlaybackTracking(video, mounted, item);
 
+  // Picture in picture on a player that's going (any way: a row, the keys, the PiP window's own
+  // next, autoplay, closing): hand it to the next player (V65). A layout cleanup runs before
+  // React removes the node, while the element is still the PiP element.
+  React.useLayoutEffect(() => {
+    const el = video.current;
+    if (!el) return;
+    return () => {
+      if (document.pictureInPictureElement === el) usePlayer.getState().startCarry();
+    };
+  }, [video, mounted]);
+
   React.useEffect(() => {
     const el = video.current;
     if (!el) return;
-    usePlayer.getState().register(el, item.title);
+    usePlayer.getState().register(el, item.title, item.id);
+    // The video's own volume (T72), before the ducker reads it as the owner's level.
+    applyVideoVolume(el, videoVolumePref.get());
     const ducker = elementDucker(el);
     const onPlay = () => {
       mediaSession.claim(videoClaim(el, item, ducker.duck), true);

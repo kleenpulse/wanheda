@@ -4,7 +4,8 @@
 // an allowlisted provider (V56).
 
 import { z } from "zod";
-import { MEDIA_KINDS, type MediaItem, type MediaProgress } from "./types";
+import { playOrder } from "./episodes";
+import { MEDIA_KINDS, type MediaItem, type MediaMeta, type MediaProgress } from "./types";
 import { parseMediaUrl } from "./url";
 
 export const MEDIA_KEY = ["media"] as const;
@@ -22,6 +23,7 @@ const meta = z
     size: z.number().int().nonnegative().max(2 ** 50).optional(),
     format: z.string().max(40).optional(),
     provider: z.string().max(20).optional(),
+    folder: z.string().max(200).optional(),
   })
   .strict();
 
@@ -91,15 +93,19 @@ export function upsertItem(items: readonly MediaItem[], item: MediaItem): MediaI
 }
 
 /**
- * The item `dir` rows from `id` in the library list, for the prev|next media
- * keys. Embeds are passed over: a provider iframe never takes the keys, so
- * landing on one would end the run. Null at either end, or when `id` is gone.
+ * The item `dir` steps from `id` in its play order (episodes.ts: the rest of
+ * its show in episode order, else the library list), for the prev|next media
+ * keys, Shift+N|P and autoplay, so they all agree with the up-next rail (T72).
+ * Embeds are passed over: a provider iframe never takes the keys, so landing
+ * on one would end the run. Null at either end, or when `id` is gone.
  */
 export function stepItem(items: readonly MediaItem[], id: string, dir: 1 | -1): MediaItem | null {
-  const at = items.findIndex((i) => i.id === id);
-  if (at < 0) return null;
-  for (let i = at + dir; i >= 0 && i < items.length; i += dir) {
-    const item = items[i];
+  const current = items.find((i) => i.id === id);
+  if (!current) return null;
+  const order = playOrder(items, current);
+  const at = order.findIndex((i) => i.id === id);
+  for (let i = at + dir; i >= 0 && i < order.length; i += dir) {
+    const item = order[i];
     if (item && item.source !== "embed") return item;
   }
   return null;
@@ -113,4 +119,16 @@ export function formatDuration(s: number | null): string {
   const m = Math.floor((t % 3600) / 60);
   const sec = String(t % 60).padStart(2, "0");
   return h > 0 ? `${String(h)}:${String(m).padStart(2, "0")}:${sec}` : `${String(m)}:${sec}`;
+}
+
+/** The meta a stored row may carry: only these keys survive a read (the store's whitelist). */
+export function toMeta(raw: unknown): MediaMeta {
+  if (typeof raw !== "object" || raw === null) return {};
+  const r = raw as Record<string, unknown>;
+  return {
+    ...(typeof r.size === "number" ? { size: r.size } : {}),
+    ...(typeof r.format === "string" ? { format: r.format } : {}),
+    ...(typeof r.provider === "string" ? { provider: r.provider } : {}),
+    ...(typeof r.folder === "string" ? { folder: r.folder.slice(0, 200) } : {}),
+  };
 }
