@@ -1,4 +1,4 @@
-import { abortError, type SpeakEngine, type SynthOptions, type VoiceInfo } from "./engine";
+import { abortError, type SpeakEngine, type SpeakOptions, type VoiceInfo } from "./engine";
 
 // The Web Speech engine (SPEC V45): the zero-download fallback, the voice
 // that works with no setup (and in demo mode). The browser speaks; there is
@@ -28,12 +28,13 @@ export const webSpeech: SpeakEngine = {
     return Promise.resolve(speechSynthesis.getVoices().map((v) => ({ id: v.voiceURI, name: v.name, lang: v.lang })));
   },
 
-  speak(text: string, voice: string | null, { rate, signal }: SynthOptions): Promise<void> {
+  speak(text: string, voice: string | null, { rate, volume, signal }: SpeakOptions): Promise<void> {
     if (!webSpeechAvailable()) return Promise.reject(new Error("this browser has no speech synthesis"));
     if (signal.aborted) return Promise.reject(abortError());
     return new Promise<void>((resolve, reject) => {
       const u = new SpeechSynthesisUtterance(text);
       u.rate = rate;
+      u.volume = Math.min(1, Math.max(0, volume));
       const v = pickVoice(voice);
       if (v) {
         u.voice = v;

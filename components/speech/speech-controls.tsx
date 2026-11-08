@@ -6,9 +6,10 @@ import { usePathname, useRouter } from "next/navigation";
 import { Gauge, LoaderCircle, Moon, Pause, Play, SkipBack, SkipForward, Square, UserRound } from "lucide-react";
 import { useVoiceManager } from "@/components/settings/voice-manager";
 import { pushUrl } from "@/hooks/use-url-param";
-import { SPEEDS } from "@/lib/speech/prefs";
+import { VolumeRocker, type VolumeTarget } from "@/components/media/volume-rocker";
+import { SPEEDS, speechVolumePref } from "@/lib/speech/prefs";
 import { nextSleep, sleepLabel } from "@/lib/speech/sleep";
-import { useSpeech } from "@/lib/speech/store";
+import { nudgeSpeechVolume, setSpeechVolume, toggleSpeechMute, useSpeech } from "@/lib/speech/store";
 import { catalogVoice } from "@/lib/speech/voices";
 import { cn } from "@/lib/utils";
 
@@ -78,8 +79,20 @@ export function Round({ label, onClick, tone, kind = "plain", big = false, disab
   );
 }
 
-/** Prev, play|pause, next and stop. */
-export function SpeechTransport({ tone }: { tone: ControlTone }) {
+const SPEECH_VOLUME: VolumeTarget = {
+  pref: speechVolumePref,
+  what: "reading",
+  set: setSpeechVolume,
+  nudge: nudgeSpeechVolume,
+  toggleMute: toggleSpeechMute,
+};
+
+/**
+ * Prev, play|pause, next and stop, and read-aloud's own volume. `wheel={false}`
+ * where the controls float over a page that scrolls (the mini window): a scroll
+ * passing over the rocker must move the page, never the volume (T73).
+ */
+export function SpeechTransport({ tone, wheel = true }: { tone: ControlTone; wheel?: boolean }) {
   const status = useSpeech((s) => s.status);
   const waiting = useSpeech((s) => s.waiting);
   const sentence = useSpeech((s) => s.sentence);
@@ -89,7 +102,7 @@ export function SpeechTransport({ tone }: { tone: ControlTone }) {
   const playing = status === "playing";
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex flex-wrap items-center gap-2">
       <Round label="Previous sentence" tone={tone} disabled={idle || sentence === 0} onClick={prev}>
         <SkipBack aria-hidden className="fill-current" />
       </Round>
@@ -108,6 +121,9 @@ export function SpeechTransport({ tone }: { tone: ControlTone }) {
       <Round label="Stop reading" tone={tone} disabled={idle} onClick={stop}>
         <Square aria-hidden className="fill-current" />
       </Round>
+      <div className="ml-auto">
+        <VolumeRocker target={SPEECH_VOLUME} tone={tone} wheel={wheel} />
+      </div>
     </div>
   );
 }

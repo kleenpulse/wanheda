@@ -1,8 +1,9 @@
 import { createDevicePref } from "@/hooks/device-pref";
+import { parseVolume, serializeVolume, type Volume } from "@/lib/media/volume";
 import { clampRate } from "./engine";
 import { catalogVoice, DEFAULT_VOICE } from "./voices";
 
-// Speech prefs (SPEC V46): the chosen voice and speed are per device, like
+// Speech prefs (SPEC V46): the chosen voice, speed and volume are per device, like
 // the voices themselves (a voice another device holds is no use here).
 // The speech store reads them at each play and writes the speed when it changes.
 
@@ -22,3 +23,6 @@ export function parseRatePref(raw: string | null): number {
 export const voicePref = createDevicePref<string>("wanheda-speech-voice", parseVoicePref, (v) => (v === DEFAULT_VOICE ? null : v));
 
 export const ratePref = createDevicePref<number>("wanheda-speech-rate", parseRatePref, (v) => (v === 1 ? null : String(clampRate(v))));
+
+/** Read-aloud's own volume, apart from music's: same shape, same curve (level² is the gain). */
+export const speechVolumePref = createDevicePref<Volume>("wanheda-speech-volume", parseVolume, serializeVolume);

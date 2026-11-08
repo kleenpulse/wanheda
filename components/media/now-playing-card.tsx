@@ -2,15 +2,16 @@
 
 import * as React from "react";
 import { motion, useReducedMotion } from "motion/react";
-import { LoaderCircle, Music, Pause, Play, SkipBack, SkipForward, Volume1, Volume2, VolumeX } from "lucide-react";
+import { LoaderCircle, Music, Pause, Play, SkipBack, SkipForward } from "lucide-react";
 import { glowPref, showsGlow } from "@/lib/media/glow";
 import { BARS, REST, autoGain, bandEdges, bandLevels, easeBar, newGain } from "@/lib/media/levels";
-import { volumePref, WHEEL_STEP, wheelSteps } from "@/lib/media/volume";
+import { volumePref } from "@/lib/media/volume";
 import { cn } from "@/lib/utils";
 import { useCoverUrl } from "./cover";
 import { useMusicLibrary } from "./music-library";
 import { musicLevels, musicPosition, useMusicPlayer } from "./music-player";
 import { SoundGlow } from "./sound-glow";
+import { VolumeRocker, type VolumeTarget } from "./volume-rocker";
 
 // The now-playing card, ported from Motion Garden's LiveActivity media card
 // (shadow-garden components/registry/live-activity/activities.tsx: MediaCard,
@@ -115,85 +116,23 @@ export function Equalizer({ playing }: { playing: boolean }) {
   );
 }
 
-const VOLUME_ICONS = { off: VolumeX, low: Volume1, high: Volume2 } as const;
-/** A wheel this soon after any scroll belongs to that scroll, not to the volume. */
-const SCROLL_GLIDE_MS = 300;
+const MUSIC_VOLUME: VolumeTarget = {
+  pref: volumePref,
+  what: "music",
+  set: (level) => {
+    useMusicPlayer.getState().setVolume(level);
+  },
+  nudge: (by) => {
+    useMusicPlayer.getState().nudgeVolume(by);
+  },
+  toggleMute: () => {
+    useMusicPlayer.getState().toggleMute();
+  },
+};
 
-/**
- * The volume rocker: mute, and a slider (drag, arrow keys, or the mouse wheel
- * anywhere over it, a notch a step). Kept on this device. `wheel={false}` where
- * the rocker floats over a page that scrolls (the now-playing bar, T73): a
- * scroll passing over it must move the page, never the volume.
- */
-export function VolumeRocker({ wheel = true }: { wheel?: boolean }) {
-  const v = volumePref.use();
-  const { setVolume, toggleMute } = useMusicPlayer.getState();
-  const level = v.muted ? 0 : v.level;
-  const Icon = VOLUME_ICONS[level === 0 ? "off" : level < 0.5 ? "low" : "high"];
-  const pct = `${String(level * 100)}%`;
-
-  // React's onWheel is passive, so it can't keep the page behind from scrolling: a native listener can.
-  const rocker = React.useRef<HTMLDivElement>(null);
-  React.useEffect(() => {
-    const el = rocker.current;
-    if (!el || !wheel) return;
-    let carry = 0;
-    // A page scroll that's already moving (Home's widget sits in a scrolling page)
-    // glides over the rocker instead of stopping on it and changing the volume.
-    let lastScroll = -Infinity;
-    const onScroll = () => {
-      lastScroll = performance.now();
-    };
-    const onWheel = (e: WheelEvent) => {
-      if (e.ctrlKey) return; // pinch or Ctrl+wheel is the browser's zoom
-      if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) return; // a sideways swipe is back/forward
-      if (performance.now() - lastScroll < SCROLL_GLIDE_MS) return;
-      e.preventDefault();
-      const turned = wheelSteps(carry, e.deltaY, e.deltaMode);
-      carry = turned.carry;
-      if (turned.steps !== 0) useMusicPlayer.getState().nudgeVolume(turned.steps * WHEEL_STEP);
-    };
-    el.addEventListener("wheel", onWheel, { passive: false });
-    // Scroll doesn't bubble; capturing on window hears every scroller's.
-    window.addEventListener("scroll", onScroll, { capture: true, passive: true });
-    return () => {
-      el.removeEventListener("wheel", onWheel);
-      window.removeEventListener("scroll", onScroll, { capture: true });
-    };
-  }, [wheel]);
-
-  return (
-    <div ref={rocker} className="flex shrink-0 items-center gap-1">
-      <button
-        type="button"
-        aria-label={v.muted ? "Unmute music" : "Mute music"}
-        title={v.muted ? "Unmute" : "Mute"}
-        onClick={toggleMute}
-        className="grid size-7 place-items-center rounded-full text-island-foreground/80 outline-none transition-[background-color,transform] duration-150 hover:bg-island-foreground/12 hover:text-island-foreground focus-visible:ring-2 focus-visible:ring-island-foreground/70 active:scale-90"
-      >
-        <Icon aria-hidden className="size-4" />
-      </button>
-      <div className="relative h-5 w-20 rounded-full has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-island-foreground/70">
-        <div className="absolute inset-x-0 top-1/2 h-[3px] -translate-y-1/2 overflow-hidden rounded-full bg-island-foreground/25">
-          <div className="h-full rounded-full bg-island-foreground" style={{ width: pct }} />
-        </div>
-        <div aria-hidden className="absolute top-1/2 size-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-island-foreground" style={{ left: pct }} />
-        <input
-          type="range"
-          aria-label="Volume"
-          aria-valuetext={v.muted ? "Muted" : `${String(Math.round(level * 100))}%`}
-          min={0}
-          max={100}
-          step={5}
-          value={Math.round(level * 100)}
-          onChange={(e) => {
-            setVolume(Number(e.currentTarget.value) / 100);
-          }}
-          className="absolute inset-0 w-full cursor-pointer opacity-0"
-        />
-      </div>
-    </div>
-  );
+/** The music's volume rocker (kept on this device). */
+export function MusicVolume({ wheel = true }: { wheel?: boolean }) {
+  return <VolumeRocker target={MUSIC_VOLUME} wheel={wheel} />;
 }
 
 /** The wave progress bar, seekable: drag or arrow keys, the seek lands on release. */
@@ -347,7 +286,7 @@ export function NowPlayingCard({ className }: { className?: string }) {
           <Music aria-hidden className="size-3.5 shrink-0" />
           <span className="truncate">{source}</span>
         </span>
-        <VolumeRocker />
+        <MusicVolume />
       </div>
       <div className="mt-2.5">
         <p className="truncate text-base font-semibold">{track.title}</p>

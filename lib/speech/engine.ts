@@ -39,6 +39,11 @@ export interface SynthOptions {
   signal: AbortSignal;
 }
 
+export interface SpeakOptions extends SynthOptions {
+  /** Gain 0–1. The browser speaks it, so it holds for the whole utterance. */
+  volume: number;
+}
+
 export interface PcmEngine extends EngineBase {
   kind: "pcm";
   /** Audio for `text` in `voice`. Throws on failure; rejects with an AbortError once `signal` aborts. */
@@ -48,7 +53,7 @@ export interface PcmEngine extends EngineBase {
 export interface SpeakEngine extends EngineBase {
   kind: "speak";
   /** Speaks `text` and resolves when it has been spoken. Rejects with an AbortError once `signal` aborts. */
-  speak(text: string, voice: string | null, opts: SynthOptions): Promise<void>;
+  speak(text: string, voice: string | null, opts: SpeakOptions): Promise<void>;
   pause(): void;
   resume(): void;
 }

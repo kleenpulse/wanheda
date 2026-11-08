@@ -30,7 +30,7 @@ export function SoundSection() {
   const glow = glowPref.use();
   const resume = resumeModePref.use();
   return (
-    <>
+    <div className="flex flex-col gap-4">
       <SettingsCard title="When two things play">
         <SettingRow
           label="Read-aloud over music or video"
@@ -105,6 +105,6 @@ export function SoundSection() {
           </SettingRow>
         ) : null}
       </SettingsCard>
-    </>
+    </div>
   );
 }

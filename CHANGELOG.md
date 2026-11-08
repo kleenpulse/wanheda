@@ -17,6 +17,8 @@ written after the fact, one per phase, and have no git tags.
 
 ### Added
 
+- Read aloud has its own volume. A volume slider and a mute button sit next to the reading controls, on the island and in the read-aloud window. It's kept on this device and is separate from the music volume, so you can turn the voice down without touching your songs.
+- Amy is now one of the voices you can download in Settings → Voices (about 63 MB). Her recordings don't say what they may be used for, so she's marked as not cleared for commercial use, like Lessac.
 - Media opens on a new Home tab: pick up a video where you left it, replay the albums and folders you played lately, see your most played songs (with genre chips once you play more than one genre), jump into a show at the next episode you haven't watched, and find your Watch later list and what you added recently. Each row scrolls sideways; See all takes you to the full list. With nothing added yet, Home shows one card to open a folder of videos, pick your music folder or paste a link.
 - Media now has three tabs in its top bar, Home, Videos and Music (where Money keeps its tabs), and opens on Home (it used to open on Videos). Videos shows your library as picture cards, with a search box. A video opens over whichever tab you were on, and Back takes you to that tab again.
 - Wanheda remembers what you play, on this device only: a song counts after you've listened to 30 seconds of it, or half of it for a short one. Skipping to the end doesn't count. Music → Songs can sort by most played.
@@ -75,6 +77,7 @@ written after the fact, one per phase, and have no git tags.
 
 ### Fixed
 
+- Settings → Sound's cards have room between them again, like every other settings page, instead of being stacked edge to edge.
 - Money's Spent, Received and Net totals no longer spill out of their cards in a narrower window. They stay one per row until there's room for three across, and then the amounts size themselves to fit.
 - Short videos now pick up where you left off. Before, a clip under about 40 seconds always started from the beginning even though its row showed a progress bar, and a row now only shows a bar when the video will really continue from there.
 - The music list now fills the space under its tabs and scrolls on its own, so the page no longer scrolls with it.
