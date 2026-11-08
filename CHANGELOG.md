@@ -70,6 +70,7 @@ written after the fact, one per phase, and have no git tags.
 
 ### Changed
 
+- On Media Home, Recently played albums now show their cover edge to edge, the same as Most played songs, instead of a smaller cover inside a blurred frame.
 - The "you stopped at" question over a video is now frosted glass, so the picture behind it no longer shows through the words.
 - On Money and Income, the tabs at the top now sit closer to the page they switch.
 - In the light Bench theme, cards are now a soft grey that stands out from the white page behind them, the same way they do in dark mode.
