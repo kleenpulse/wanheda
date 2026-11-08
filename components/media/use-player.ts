@@ -9,9 +9,11 @@ import { usePlayer } from "./player-store";
 import { usePlaybackTracking } from "./use-playback-tracking";
 
 // Everything a playing `<video>` on /media joins (T62): resume and watched
-// (V55), the tab's Media Session as the owner while it plays (V60; prev and
-// next step 10 s; ducked under speech in the Sound setting's duck mode), and
-// the player store the palette and theatre mode read.
+// (V55), the tab's Media Session as the owner while it plays (V60; next and
+// prev move through the library list, prev straight to the row above so the
+// one playing keeps its saved place; seek keys step 10 s;
+// ducked under speech in the Sound setting's duck mode), and the player store
+// the palette and theatre mode read.
 
 const STEP_S = 10;
 const RAMP_TICK_MS = 16;
@@ -77,13 +79,14 @@ function videoClaim(el: HTMLVideoElement, item: MediaItem, duck: (gain: number) 
         el.pause();
       },
       previoustrack: () => {
-        seek(-STEP_S);
+        // Never music's restart-first: that would overwrite this video's saved place (owner, 2026-11-08).
+        usePlayer.getState().step?.(-1);
       },
       seekbackward: (d) => {
         seek(-(d.seekOffset ?? STEP_S));
       },
       nexttrack: () => {
-        seek(STEP_S);
+        usePlayer.getState().step?.(1);
       },
       seekforward: (d) => {
         seek(d.seekOffset ?? STEP_S);

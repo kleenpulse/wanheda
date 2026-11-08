@@ -4,20 +4,39 @@ import * as React from "react";
 import { useAccount } from "@/components/shell/account";
 import { writesDue } from "@/lib/media/playback";
 import { isWatched, resumeAt } from "@/lib/media/resume";
+import { resumeModePref } from "@/lib/media/resume-mode";
 import type { MediaItem, MediaProgress } from "@/lib/media/types";
 import { usePlayback } from "./playback-store";
+import { usePlayer } from "./player-store";
 
-// Resume and watched for one playing item (V55): starts where it was left
-// (10 s < pos < duration − 30 s, never a watched one), saves locally every
-// 5 s while playing, to the server every 15 s, and both at once on pause,
-// end, hide and page close (the last by beacon).
+// Resume and watched for one playing item (V55): a saved place (resumeAt:
+// past 10 s and short of the last 30 s, each capped at 10 % of the length,
+// never a watched one) is taken as Settings → Sound says — ask (opens paused
+// there, Resume | Start over in the stage; play = Resume), resume, or start
+// over. Saves locally every 5 s while playing, to the server every 15 s, and
+// both at once on pause, end, hide and page close (the last by beacon).
 
 /** Wires one element; returns the teardown (which saves the place as a pause). */
 function track(el: HTMLVideoElement, itemId: string, opening: MediaProgress | null, demo: boolean): () => void {
   const last = { local: 0, server: 0 };
   // `watched` is sticky: rewatching a finished item never un-marks it (only a
   // future explicit unmark would).
-  const state = { resumed: false, watched: opening?.watched ?? false };
+  const state: { resumed: boolean; watched: boolean; choice: "resume" | "start" | "asking" | null } = {
+    resumed: false,
+    watched: opening?.watched ?? false,
+    choice: null,
+  };
+  const at = () => resumeAt(opening, Number.isFinite(el.duration) ? el.duration : null);
+  const stopAsking = () => {
+    if (usePlayer.getState().ask?.itemId === itemId) usePlayer.getState().setAsk(null);
+  };
+  const answer = (choice: "resume" | "start") => {
+    if (state.choice !== "asking") return;
+    state.choice = choice;
+    stopAsking();
+    if (choice === "start") el.currentTime = 0;
+    void el.play().catch(() => undefined);
+  };
 
   const write = (reason: "tick" | "pause" | "ended" | "hidden", beacon = false) => {
     const duration = Number.isFinite(el.duration) ? el.duration : null;
@@ -34,8 +53,26 @@ function track(el: HTMLVideoElement, itemId: string, opening: MediaProgress | nu
   const onMeta = () => {
     if (state.resumed) return;
     state.resumed = true;
-    const at = resumeAt(opening, Number.isFinite(el.duration) ? el.duration : null);
-    if (at > 0) el.currentTime = at;
+    const place = at();
+    if (place <= 0) return;
+    // Decided once per opening: a source swap (remux) re-applies it without asking again.
+    if (state.choice === null) {
+      const mode = resumeModePref.get();
+      // A hidden tab (a headset or lock-screen next) has nobody to see the prompt: resume.
+      state.choice = mode === "ask" ? (document.visibilityState === "hidden" ? "resume" : "asking") : mode;
+    }
+    if (state.choice === "start") return;
+    el.currentTime = place;
+    if (state.choice !== "asking") return;
+    // The opener's play() is already on its way: hold it here, on the frame it would resume from.
+    el.pause();
+    usePlayer.getState().setAsk({ itemId, at: place, answer });
+  };
+  /** Play while asking (the skin's button, Space, the play key) is a Resume. */
+  const onPlay = () => {
+    if (state.choice !== "asking" || !state.resumed) return;
+    state.choice = "resume";
+    stopAsking();
   };
   // A source swap (native load error ⇒ remux on the same element) starts at 0
   // again, so it must resume again, not overwrite the saved place.
@@ -62,6 +99,7 @@ function track(el: HTMLVideoElement, itemId: string, opening: MediaProgress | nu
   el.addEventListener("loadedmetadata", onMeta);
   el.addEventListener("emptied", onEmptied);
   el.addEventListener("timeupdate", onTime);
+  el.addEventListener("play", onPlay);
   el.addEventListener("pause", onPause);
   el.addEventListener("ended", onEnded);
   document.addEventListener("visibilitychange", onHidden);
@@ -69,9 +107,11 @@ function track(el: HTMLVideoElement, itemId: string, opening: MediaProgress | nu
   return () => {
     // Leaving the item (another one, or another app) counts as a pause.
     if (!el.paused) write("pause");
+    stopAsking();
     el.removeEventListener("loadedmetadata", onMeta);
     el.removeEventListener("emptied", onEmptied);
     el.removeEventListener("timeupdate", onTime);
+    el.removeEventListener("play", onPlay);
     el.removeEventListener("pause", onPause);
     el.removeEventListener("ended", onEnded);
     document.removeEventListener("visibilitychange", onHidden);

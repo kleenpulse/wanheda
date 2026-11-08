@@ -1,17 +1,21 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import {
   BookmarkCheck,
   BookmarkPlus,
   Captions,
   Clapperboard,
+  FileVideo,
   FolderOpen,
   HardDrive,
   Link2,
   Music,
+  Play,
   Plus,
   RectangleHorizontal,
+  RotateCcw,
   Trash2,
   TriangleAlert,
 } from "lucide-react";
@@ -19,8 +23,10 @@ import { buttonClass } from "@/components/ui/button";
 import { Segmented } from "@/components/ui/segmented";
 import { toast } from "@/components/ui/toaster";
 import { pushUrl, replaceUrlParams, useUrlParam } from "@/hooks/use-url-param";
-import { formatDuration, mediaHref } from "@/lib/media/media";
+import { fsaFolderPicker, videosInFiles, videosInFolder, type FolderVideo } from "@/lib/media/local";
+import { formatDuration, mediaHref, stepItem } from "@/lib/media/media";
 import { continueList, watchLaterList } from "@/lib/media/playback";
+import { resumeAt } from "@/lib/media/resume";
 import type { MediaItem } from "@/lib/media/types";
 import { cn } from "@/lib/utils";
 import { MusicView } from "./music-view";
@@ -32,6 +38,8 @@ import { providerName, useMedia, useMediaApi } from "./use-media";
 // /media (T61, T62): one player, the library beside it (or below it in
 // theatre mode). `?m=` is the item playing, so a reload or a link reopens it.
 // Adding a file never uploads it (V54).
+
+const plural = (n: number, one: string) => `${n.toLocaleString("en-GB")} ${n === 1 ? one : `${one}s`}`;
 
 function sourceLabel(item: MediaItem): string {
   if (item.source === "local") return "This device";
@@ -49,6 +57,9 @@ function AddBar({ onAdded }: { onAdded: (item: MediaItem) => void }) {
   const [link, setLink] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
   const [busy, setBusy] = React.useState(false);
+  /** A folder being added: how far along (`of` null while it's still being read). */
+  const [adding, setAdding] = React.useState<{ done: number; of: number | null } | null>(null);
+  const folderRef = React.useRef<HTMLInputElement>(null);
   const pick = useFilePick(async (file, handle) => {
     setBusy(true);
     try {
@@ -59,9 +70,71 @@ function AddBar({ onAdded }: { onAdded: (item: MediaItem) => void }) {
     }
   });
 
+  const addVideos = async (name: string, load: () => Promise<FolderVideo[]>) => {
+    // Busy from the start: a big tree takes a while to read, and a second pick mustn't start meanwhile.
+    setAdding({ done: 0, of: null });
+    try {
+      const videos = await load();
+      if (videos.length === 0) {
+        toast({ title: `No videos in ${name}`, body: "Music goes in the Music tab, from its own folder." });
+        return;
+      }
+      setAdding({ done: 0, of: videos.length });
+      const { first, added, known, copies, failed } = await api.addFolder(videos, (done) => {
+        setAdding({ done, of: videos.length });
+      });
+      const notes = [
+        known > 0 ? `${plural(known, "video")} ${known === 1 ? "was" : "were"} already in your list.` : null,
+        copies > 0 ? `${plural(copies, "file")} ${copies === 1 ? "is a copy" : "are copies"} of another, so ${copies === 1 ? "it's" : "they're"} listed once.` : null,
+        failed > 0 ? `${plural(failed, "file")} couldn't be read or saved. Try ${failed === 1 ? "it" : "them"} again with Open a file.` : null,
+      ].filter((n) => n !== null);
+      toast({
+        title:
+          added > 0
+            ? `Added ${plural(added, "video")} from ${name}`
+            : known > 0
+              ? `Nothing new in ${name}`
+              : `Couldn't add the videos in ${name}`,
+        body: notes.length > 0 ? notes.join(" ") : "They play from this folder on this device; nothing is uploaded.",
+      });
+      // Opening plays, so only when nothing is open yet.
+      if (first && !new URLSearchParams(window.location.search).get("m")) onAdded(first);
+    } catch {
+      toast({ title: `Couldn't read ${name}`, body: "The browser wouldn't open it. Anything added before it stopped stays in your list." });
+    } finally {
+      setAdding(null);
+    }
+  };
+
+  const openFolder = () => {
+    const picker = fsaFolderPicker();
+    if (!picker) {
+      folderRef.current?.click();
+      return;
+    }
+    void picker({ mode: "read", id: "wanheda-videos" }).then(
+      (dir) => addVideos(dir.name, () => videosInFolder(dir)),
+      () => undefined, // closed the picker
+    );
+  };
+
   return (
     <div className="flex flex-col gap-2">
       {pick.input}
+      <input
+        ref={folderRef}
+        type="file"
+        name="video-folder"
+        hidden
+        multiple
+        {...({ webkitdirectory: "" } as Record<string, string>)}
+        onChange={(e) => {
+          const files = Array.from(e.currentTarget.files ?? []);
+          e.currentTarget.value = "";
+          if (files.length === 0) return;
+          void addVideos(files[0]?.webkitRelativePath.split("/")[0] ?? "the folder", () => Promise.resolve(videosInFiles(files)));
+        }}
+      />
       <form
         className="flex items-center gap-2"
         onSubmit={(e) => {
@@ -104,27 +177,66 @@ function AddBar({ onAdded }: { onAdded: (item: MediaItem) => void }) {
           {error}
         </p>
       ) : null}
-      <button
-        type="button"
-        onClick={pick.open}
-        onPointerEnter={preloadSurface}
-        disabled={busy}
-        className={buttonClass("ghost", "pill-sm", "self-start bg-foreground/6 text-foreground dark:bg-card-nested")}
-      >
-        <FolderOpen aria-hidden />
-        {busy ? "Reading…" : "Open a file"}
-      </button>
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={pick.open}
+          onPointerEnter={preloadSurface}
+          disabled={busy || adding !== null}
+          className={buttonClass("ghost", "pill-sm", "bg-foreground/6 text-foreground dark:bg-card-nested")}
+        >
+          <FileVideo aria-hidden />
+          {busy ? "Reading…" : "Open a file"}
+        </button>
+        <button
+          type="button"
+          onClick={openFolder}
+          onPointerEnter={preloadSurface}
+          disabled={busy || adding !== null}
+          aria-live="polite"
+          className={buttonClass("ghost", "pill-sm", "bg-foreground/6 text-foreground dark:bg-card-nested")}
+        >
+          <FolderOpen aria-hidden />
+          {adding?.of === null ? (
+            "Reading folder…"
+          ) : adding ? (
+            <span className="tabular">
+              Adding {adding.done} of {adding.of}…
+            </span>
+          ) : (
+            "Open a folder"
+          )}
+        </button>
+      </div>
     </div>
   );
 }
 
-function Row({ item, active, onRemove, onWatchLater }: { item: MediaItem; active: boolean; onRemove: () => void; onWatchLater: () => void }) {
+function Row({
+  item,
+  active,
+  follow,
+  onRemove,
+  onWatchLater,
+}: {
+  item: MediaItem;
+  active: boolean;
+  /** Bring the row into the list's view when it becomes the one playing (the media keys move it). */
+  follow: boolean;
+  onRemove: () => void;
+  onWatchLater: () => void;
+}) {
+  const ref = React.useRef<HTMLLIElement>(null);
+  React.useEffect(() => {
+    if (active && follow && ref.current) followRow(ref.current);
+  }, [active, follow]);
   const duration = formatDuration(item.durationS);
   const watched = item.progress?.watched ?? false;
-  const share = item.progress && item.durationS ? Math.min(1, item.progress.positionS / item.durationS) : 0;
+  // A bar only where opening it picks up there (resumeAt), so the row never promises a place the player skips.
+  const share = item.progress && item.durationS && resumeAt(item.progress, item.durationS) > 0 ? Math.min(1, item.progress.positionS / item.durationS) : 0;
   const queued = item.watchLaterAt !== null;
   return (
-    <li className="group relative">
+    <li ref={ref} className="group relative">
       <button
         type="button"
         aria-current={active ? "true" : undefined}
@@ -191,6 +303,27 @@ function Row({ item, active, onRemove, onWatchLater }: { item: MediaItem; active
   );
 }
 
+/**
+ * Scrolls the library list (only the list: stacked, the view scrolls too, and the player must stay put)
+ * just enough to show the row, clear of the dock clearance at its foot. FOLLOW_ROOM covers the
+ * progress bar the row grows once it plays, after this has measured it.
+ */
+const FOLLOW_ROOM = 16;
+function followRow(row: HTMLElement) {
+  const list = row.closest<HTMLElement>("[data-video-list]");
+  if (!list) return;
+  // A row clicked earlier keeps focus, and a key press then shows its ring: move focus (and the ring) to the playing row.
+  const focused = document.activeElement;
+  const own = row.querySelector("button");
+  if (own && focused instanceof HTMLElement && focused !== own && list.contains(focused) && focused.closest("li")) own.focus({ preventScroll: true });
+  if (getComputedStyle(list).overflowY === "visible") return;
+  const r = row.getBoundingClientRect();
+  const l = list.getBoundingClientRect();
+  const foot = l.bottom - parseFloat(getComputedStyle(list).paddingBottom);
+  if (r.top < l.top) list.scrollBy({ top: r.top - l.top - FOLLOW_ROOM });
+  else if (r.bottom + FOLLOW_ROOM > foot) list.scrollBy({ top: r.bottom + FOLLOW_ROOM - foot });
+}
+
 function ListSkeleton() {
   return (
     <ul aria-busy aria-label="Loading library" className="flex flex-col gap-1">
@@ -203,6 +336,21 @@ function ListSkeleton() {
     </ul>
   );
 }
+
+// The pb is page-frame.tsx's FLOATING_BAR_CLEARANCE, moved into whatever scrolls (written out: Tailwind reads it from source).
+/** The videos view filling the page (stacked below lg, so it scrolls itself there; focus rings get 4px of room). */
+const FILL_VIEW =
+  "-mx-1 -mt-1 min-h-0 flex-1 px-1 pt-1 max-lg:content-start max-lg:overflow-y-auto max-lg:overscroll-contain max-lg:scroll-fade max-lg:pb-[calc(76px+2rem)] lg:grid-cols-[minmax(0,1fr)_22rem] lg:grid-rows-[minmax(0,1fr)]";
+/** Side by side, the list takes the column's height to the sheet's bottom edge, as Music's does (music-view.tsx LIST_FILL). */
+/**
+ * A wide but short window: the 16:9 stage is narrowed so it, the title and the bar sit above the dock.
+ * 25rem = the header and tabs above the stage, the title and bar below it, and the dock clearance;
+ * 24rem is a floor for the frame's own minimum height.
+ */
+const FILL_STAGE = "lg:max-w-[max(24rem,calc((100svh-25rem)*16/9))]";
+/** If it still doesn't fit (a very short window), the column scrolls rather than run under the dock. */
+const FILL_PLAYER = "lg:-mx-1 lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain lg:px-1 lg:pb-[calc(76px+2rem)]";
+const FILL_LIST = "lg:min-h-40 lg:flex-1 lg:overflow-y-auto lg:overscroll-contain lg:scroll-fade lg:pb-[calc(76px+2rem)]";
 
 const isSubtitleFile = (f: File) => /\.(srt|vtt)$/i.test(f.name);
 
@@ -266,6 +414,52 @@ function NowPlayingBar({ item }: { item: MediaItem }) {
   );
 }
 
+/** Resume mode "ask" (Settings → Sound): the video waits, paused on its saved place. Play in the player works as Resume too. */
+function ResumePrompt({ itemId }: { itemId: string }) {
+  const ask = usePlayer((s) => (s.ask?.itemId === itemId ? s.ask : null));
+  if (!ask) return null;
+  // Floored, as the player's own clock shows it (formatDuration rounds).
+  const at = formatDuration(Math.floor(ask.at));
+  return (
+    <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-4">
+      <div
+        role="group"
+        aria-label="Saved place"
+        className="pointer-events-auto flex max-w-sm flex-col items-center gap-3 rounded-card bg-sheet/95 px-5 py-4 text-center text-foreground shadow-lg"
+      >
+        <p className="text-sm text-ink-2">
+          You stopped at <span className="tabular font-medium text-foreground">{at}</span>.
+        </p>
+        <div className="flex flex-wrap items-center justify-center gap-2">
+          <button
+            type="button"
+            className={buttonClass("inverse", "pill-sm")}
+            onClick={() => {
+              ask.answer("resume");
+            }}
+          >
+            <Play aria-hidden />
+            Resume from <span className="tabular">{at}</span>
+          </button>
+          <button
+            type="button"
+            className={buttonClass("ghost", "pill-sm", "bg-foreground/6 text-foreground dark:bg-card-nested")}
+            onClick={() => {
+              ask.answer("start");
+            }}
+          >
+            <RotateCcw aria-hidden />
+            Start over
+          </button>
+        </div>
+        <Link href="/settings?s=sound" className="text-xs text-ink-3 underline-offset-2 hover:text-foreground hover:underline">
+          Always resume or start over? Settings → Sound
+        </Link>
+      </div>
+    </div>
+  );
+}
+
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-1">
@@ -313,11 +507,26 @@ function VideosView() {
     pushUrl(mediaHref(item.id));
   };
 
-  const row = (item: MediaItem) => (
+  // The prev|next media keys walk the All list from the item that's open.
+  const currentId = current?.id ?? null;
+  React.useEffect(() => {
+    if (!items || !currentId) return;
+    usePlayer.getState().setStep((dir) => {
+      const to = stepItem(items, currentId, dir);
+      if (to) pushUrl(mediaHref(to.id));
+      return to !== null;
+    });
+    return () => {
+      usePlayer.getState().setStep(null);
+    };
+  }, [items, currentId]);
+
+  const row = (item: MediaItem, follow = false) => (
     <Row
       key={item.id}
       item={item}
       active={item.id === current?.id}
+      follow={follow}
       onWatchLater={() => {
         api.setWatchLater(item, item.watchLaterAt === null);
       }}
@@ -331,7 +540,10 @@ function VideosView() {
 
   return (
     <div
-      className={cn("grid gap-6", !theatre && "lg:grid-cols-[minmax(0,1fr)_22rem]")}
+      // Out of theatre the view fills the page as Music does (page-frame.tsx): the page never
+      // scrolls. Side by side, only the library list scrolls; stacked, the view scrolls as one.
+      data-page-fill={theatre ? undefined : ""}
+      className={cn("grid gap-6", !theatre && FILL_VIEW)}
       onKeyDown={(e) => {
         // `t` toggles theatre while focus is in the player; Video.js keeps its own keys.
         if (e.key !== "t" || e.ctrlKey || e.metaKey || e.altKey) return;
@@ -370,10 +582,16 @@ function VideosView() {
         });
       }}
     >
-      <section aria-label="Player" className={cn("flex min-w-0 flex-col gap-3 rounded-card transition-shadow", dragging && "ring-2 ring-signal")}>
+      <section
+        aria-label="Player"
+        className={cn("flex min-w-0 flex-col gap-3 rounded-card transition-shadow", !theatre && FILL_PLAYER, dragging && "ring-2 ring-signal")}
+      >
         {current ? (
           <>
-            <Stage item={current} />
+            <div className={cn("relative", !theatre && FILL_STAGE)}>
+              <Stage item={current} />
+              <ResumePrompt itemId={current.id} />
+            </div>
             <div className="flex min-w-0 flex-col gap-0.5 px-1">
               <h2 className="truncate font-display text-xl leading-tight tracking-[-0.01em] text-foreground">{current.title}</h2>
               <p className="truncate text-xs text-ink-2">
@@ -393,7 +611,7 @@ function VideosView() {
         )}
       </section>
 
-      <aside aria-label="Library" className="flex min-w-0 flex-col gap-4">
+      <aside aria-label="Library" className={cn("flex min-w-0 flex-col gap-4", !theatre && "lg:min-h-0")}>
         <AddBar onAdded={open} />
         {failed ? (
           <p className="flex items-center gap-2 px-1 text-[13px] text-ink-2">
@@ -405,19 +623,19 @@ function VideosView() {
         ) : items === null ? (
           <ListSkeleton />
         ) : items.length === 0 ? null : (
-          <div className="-mx-1 flex max-h-[min(70vh,44rem)] flex-col gap-4 overflow-y-auto scroll-fade overscroll-contain px-1 py-1">
+          <div data-video-list className={cn("-mx-1 flex flex-col gap-4 px-1 py-1", theatre ? "max-h-[min(70vh,44rem)] overflow-y-auto scroll-fade overscroll-contain" : FILL_LIST)}>
             {going.length > 0 ? (
               <Section title="Continue">
-                <ul className="flex flex-col gap-1">{going.map(row)}</ul>
+                <ul className="flex flex-col gap-1">{going.map((i) => row(i))}</ul>
               </Section>
             ) : null}
             {later.length > 0 ? (
               <Section title="Watch later">
-                <ul className="flex flex-col gap-1">{later.map(row)}</ul>
+                <ul className="flex flex-col gap-1">{later.map((i) => row(i))}</ul>
               </Section>
             ) : null}
             <Section title="All">
-              <ul className="flex flex-col gap-1">{items.map(row)}</ul>
+              <ul className="flex flex-col gap-1">{items.map((i) => row(i, true))}</ul>
             </Section>
           </div>
         )}

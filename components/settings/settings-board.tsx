@@ -76,7 +76,7 @@ const SECTIONS = {
   },
   sound: {
     label: "Sound",
-    blurb: "How read-aloud shares the speakers with music and video, and the glow behind songs without art.",
+    blurb: "How read-aloud shares the speakers with music and video, where a video you've started picks up, and the glow behind songs without art.",
     group: "Preferences",
     icon: Volume2,
     note: "Kept on this device",

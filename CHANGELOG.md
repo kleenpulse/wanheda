@@ -18,6 +18,9 @@ written after the fact, one per phase, and have no git tags.
 ### Added
 
 - Wallpapers can now show on any page. In Settings → Appearance, pick Home, every page, or a different wallpaper for each page, and choose whether it stays below the top bar or fills the whole page behind the title too. The palette's wallpaper commands change the page you're on.
+- Videos can now come from a whole folder. In Media → Videos, press Open a folder and every video in it (and in the folders inside it) joins your list in name order, so episodes line up as Ep 1, Ep 2 … Ep 10. They play from where they are; nothing is uploaded. The video list now scrolls on its own beside the player, the way the music list does, instead of the whole page scrolling.
+- The next and previous keys on your keyboard or headset now move between videos in your list, and the list scrolls to keep the one playing in view. Each video keeps its place when you move on. Links to YouTube and other sites are skipped, since their players don't listen to those keys.
+- You choose what happens when you open a video you've already started. By default it asks: the video waits on the spot where you stopped, with Resume and Start over (pressing play resumes). Settings → Sound can make it always resume or always start over instead.
 - Hovering the music progress bar shows the time you'd jump to, and dragging it shows where you'll land. Its round handle only appears while you point at it, drag it or move it with the keyboard.
 - A song without cover art gets a live backdrop in the now-playing card: a glow in your accent colour that rises from the bottom and moves with the music, then settles when you pause. Settings → Sound sets how bright it is (or turns it off) and how much the music moves it.
 - The Media icon in the sidebar, the dock and the phone tab bar turns into a music note while a song is in the player, and back into the clapperboard when music stops.
@@ -56,6 +59,7 @@ written after the fact, one per phase, and have no git tags.
 
 ### Fixed
 
+- Short videos now pick up where you left off. Before, a clip under about 40 seconds always started from the beginning even though its row showed a progress bar, and a row now only shows a bar when the video will really continue from there.
 - The music list now fills the space under its tabs and scrolls on its own, so the page no longer scrolls with it.
 - The music progress bar glides smoothly as a song plays instead of stepping forward, and a click on it lands exactly where you clicked.
 - Opening an album in Music after scrolling the Albums list no longer leaves the first song faded out, and the album now opens at its first song.
