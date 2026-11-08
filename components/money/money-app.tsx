@@ -194,7 +194,9 @@ function MoneyView({ payload, view }: { payload: MoneyPayload; view: MoneyPage }
         <Notice>This range holds more entries than one read returns, so its older totals are short. Pick a shorter range.</Notice>
       ) : null}
 
-      <section aria-label="Totals" className="grid grid-cols-1 gap-2.5 @xl:grid-cols-3 @xl:gap-4">
+      {/* Three across only from @4xl; below, one row per total. Across, the amount scales with the page
+          column (2.6cqi, at most 30px), so a long one like -₦549,958.85 stays inside its card (user 2026-11-08). */}
+      <section aria-label="Totals" className="grid grid-cols-1 gap-2.5 @4xl:grid-cols-3 @4xl:gap-4">
         <Stat label="Spent" note={rangeLabel(period.from, period.to, today)} value={cur.spend}>
           <Delta cur={cur.spend.total.minor} prev={was.spend.total.minor} goodWhenUp={false} against={against} />
         </Stat>
@@ -518,15 +520,15 @@ function PeriodBar({
  */
 function Stat({ label, note, value, children }: { label: string; note: string; value: Converted; children: React.ReactNode }) {
   return (
-    <div className="bento grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 px-4 py-3 @xl:flex @xl:flex-col @xl:items-stretch @xl:gap-3 @xl:p-5">
+    <div className="bento grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 px-4 py-3 @4xl:flex @4xl:flex-col @4xl:items-stretch @4xl:gap-3 @4xl:p-5">
       <div className="flex min-w-0 items-center justify-between gap-3">
         <h3 className="readout">{label}</h3>
-        <span className="readout tabular hidden truncate @xl:inline">{note}</span>
+        <span className="readout tabular hidden truncate @4xl:inline">{note}</span>
       </div>
       <ConvertedStack
         roll
         value={value}
-        className="col-start-2 row-span-2 row-start-1 items-end text-right font-display text-[22px] leading-none font-semibold tracking-[-0.01em] text-foreground @xl:items-start @xl:text-left @xl:text-[30px]"
+        className="col-start-2 row-span-2 row-start-1 items-end text-right font-display text-[22px] leading-none font-semibold tracking-[-0.01em] text-foreground @4xl:items-start @4xl:text-left @4xl:text-[min(30px,2.6cqi)]"
       />
       <div className="min-w-0">{children}</div>
     </div>

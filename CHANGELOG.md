@@ -61,6 +61,7 @@ written after the fact, one per phase, and have no git tags.
 
 ### Fixed
 
+- Money's Spent, Received and Net totals no longer spill out of their cards in a narrower window. They stay one per row until there's room for three across, and then the amounts size themselves to fit.
 - Short videos now pick up where you left off. Before, a clip under about 40 seconds always started from the beginning even though its row showed a progress bar, and a row now only shows a bar when the video will really continue from there.
 - The music list now fills the space under its tabs and scrolls on its own, so the page no longer scrolls with it.
 - The music progress bar glides smoothly as a song plays instead of stepping forward, and a click on it lands exactly where you clicked.
