@@ -77,9 +77,14 @@ export type MediaFail = { ok: false; reason: "demo" | "invalid" | "off" | "faile
 export type ItemReply = { ok: true; item: MediaItem; existing: boolean } | MediaFail;
 export type DeleteReply = { ok: true } | MediaFail;
 
-/** The item's place in /media: `?m=` is the item playing. */
-export function mediaHref(id: string): `/media?m=${string}` {
-  return `/media?m=${encodeURIComponent(id)}`;
+/**
+ * The item's place in /media: `?m=` is the item playing (the Watch view). A
+ * tab it was opened from stays in the URL, so Back returns to that tab (T73);
+ * without one, Back lands on Home.
+ */
+export function mediaHref(id: string, tab: string | null = null): `/media?${string}` {
+  const m = `m=${encodeURIComponent(id)}`;
+  return tab ? `/media?tab=${encodeURIComponent(tab)}&${m}` : `/media?${m}`;
 }
 
 /** Newest first, as the library lists them. */

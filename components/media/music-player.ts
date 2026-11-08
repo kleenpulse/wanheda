@@ -5,6 +5,7 @@ import { toast } from "@/components/ui/toaster";
 import type { Track } from "@/lib/media/library";
 import type { MusicEngine } from "@/lib/media/music-engine";
 import { mediaSession, type SessionClaim } from "@/lib/media/session-owner";
+import { accrue, shouldCount, type Accrual } from "@/lib/media/stats";
 import { isTonePath } from "@/lib/media/tones";
 import { nudgeVolume, volumeGain, volumePref } from "@/lib/media/volume";
 import {
@@ -20,6 +21,7 @@ import {
   type Repeat,
 } from "@/lib/media/queue";
 import { FolderAccessError, musicFile } from "./music-library";
+import { useTrackStats } from "./track-stats";
 
 // The music player (T64, V59, V60): one per tab, the one place music is
 // started, steered and stopped. The Music list, the island's media card, the
@@ -49,6 +51,12 @@ type State = {
   startedAt: number;
   shuffle: boolean;
   repeat: Repeat;
+  /**
+   * Goes up on each start: a track change, or a repeat-one loop (V66). The play
+   * history counts a start once, after enough of it was heard; a seek, a pause
+   * and a resume are the same start.
+   */
+  playId: number;
 
   /** Plays `tracks[index]` and queues the rest of the list after it. */
   playList: (tracks: readonly Track[], index: number) => void;
@@ -77,6 +85,14 @@ const STEP_S = 10;
 let engine: MusicEngine | null = null;
 let enginePromise: Promise<MusicEngine> | null = null;
 let ticker: ReturnType<typeof setInterval> | null = null;
+/**
+ * A play the store asked for whose sound hasn't begun. The engine reports every
+ * segment it starts, a seek's included; one it starts on its own (the next
+ * track, a repeat-one loop) is a new start.
+ */
+let asked = false;
+/** The queue ran out: playing again from its top is a new start, though the track shown is the same. */
+let fromTop = false;
 
 /** Starts loading the engine (and Mediabunny) before the first press, so play feels instant. */
 export function preloadMusicEngine(): void {
@@ -109,7 +125,9 @@ function loadEngine(): Promise<MusicEngine> {
           const queue = moveTo(s.queue, key);
           const track = currentItem(queue);
           const changed = track !== s.track;
-          useMusicPlayer.setState({ queue, track, duration: durationS, loading: false, ...(changed ? { position: 0 } : {}) });
+          const own = !asked;
+          asked = false;
+          useMusicPlayer.setState({ queue, track, duration: durationS, loading: false, ...(changed ? { position: 0 } : {}), ...(own ? { playId: s.playId + 1 } : {}) });
           if (changed && track) mediaSession.claim(musicClaim(track), false);
         },
         onEnd: () => {
@@ -118,11 +136,14 @@ function loadEngine(): Promise<MusicEngine> {
           // The queue ran out: back to its start, paused, so play starts it over.
           const first = s.queue.order[0];
           const queue = first === undefined ? s.queue : moveTo(s.queue, first);
+          asked = false;
+          fromTop = true;
           useMusicPlayer.setState({ queue, track: currentItem(queue), status: "paused", loading: false, position: 0 });
           stopTicker();
           mediaSession.setState("music", "paused");
         },
         onError: (key, message) => {
+          asked = false;
           const t = useMusicPlayer.getState().queue?.items[key];
           toast({ title: `Couldn't play ${t?.title ?? "a track"}`, body: message });
         },
@@ -224,7 +245,10 @@ export const useMusicPlayer = create<State>((set, get) => {
     const track = currentItem(queue);
     if (!track) return;
     const startedAt = Date.now();
-    set({ queue, track, status: "playing", loading: true, position: from, duration: track.durationS, startedAt });
+    const start = track !== get().track || fromTop;
+    fromTop = false;
+    asked = true;
+    set({ queue, track, status: "playing", loading: true, position: from, duration: track.durationS, startedAt, ...(start ? { playId: get().playId + 1 } : {}) });
     mediaSession.claim(musicClaim(track), true);
     mediaSession.setState("music", "playing");
     startTicker();
@@ -246,6 +270,7 @@ export const useMusicPlayer = create<State>((set, get) => {
     startedAt: 0,
     shuffle: false,
     repeat: "off",
+    playId: 0,
 
     playList: (tracks, index) => {
       if (tracks.length === 0) return;
@@ -300,6 +325,8 @@ export const useMusicPlayer = create<State>((set, get) => {
         engine?.close();
         const first = q.order[0];
         const queue = first === undefined ? q : moveTo(q, first);
+        asked = false;
+        fromTop = true;
         set({ queue, track: currentItem(queue), status: "paused", loading: false, position: 0 });
         stopTicker();
         mediaSession.setState("music", "paused");
@@ -334,6 +361,8 @@ export const useMusicPlayer = create<State>((set, get) => {
 
     stop: () => {
       engine?.close();
+      asked = false;
+      fromTop = false;
       stopTicker();
       set({ queue: null, track: null, status: "idle", loading: false, position: 0, duration: null });
       mediaSession.release("music");
@@ -366,4 +395,17 @@ export const useMusicPlayer = create<State>((set, get) => {
       setVolumePref(v.muted ? { level: v.level > 0 ? v.level : 0.5, muted: false } : { ...v, muted: true });
     },
   };
+});
+
+// The play history's clock (V66): every change to the store is a step. While
+// playing, the ticker changes the position a few times a second; a pause is a
+// change too, so time stops accruing at once.
+let accrual: Accrual | null = null;
+useMusicPlayer.subscribe((s) => {
+  const now = Date.now();
+  const next = accrue(accrual, { playId: s.playId, path: s.track?.path ?? null, playing: s.status === "playing" && !s.loading }, now);
+  if (next && shouldCount(next, s.duration)) {
+    accrual = { ...next, counted: true };
+    useTrackStats.getState().record(next.path, now);
+  } else accrual = next;
 });

@@ -1,17 +1,19 @@
 "use client";
 
 import * as React from "react";
-import { AudioLines, ChevronLeft, FolderOpen, FolderSync, Pause, RefreshCw, Search, TriangleAlert } from "lucide-react";
+import { AudioLines, ChevronLeft, FolderOpen, FolderSync, Pause, RefreshCw, Search, TriangleAlert, X } from "lucide-react";
 import { useAccount } from "@/components/shell/account";
 import { buttonClass } from "@/components/ui/button";
 import { Segmented } from "@/components/ui/segmented";
 import { replaceUrlParams, useUrlParam } from "@/hooks/use-url-param";
 import { BROWSE, groupTracks, searchTracks, sortSongs, type Browse, type Group, type Track } from "@/lib/media/library";
 import { formatDuration } from "@/lib/media/media";
+import { sortByPlays } from "@/lib/media/stats";
 import { cn } from "@/lib/utils";
 import { Cover } from "./cover";
 import { hasFolderPicker, useMusicLibrary } from "./music-library";
 import { preloadMusicEngine, useMusicPlayer } from "./music-player";
+import { useTrackStats } from "./track-stats";
 import { VirtualList } from "./virtual-list";
 
 /**
@@ -20,6 +22,18 @@ import { VirtualList } from "./virtual-list";
  * few rows, so a very short window scrolls the page rather than hide the list.
  */
 const LIST_FILL = "min-h-40 flex-1 pb-[calc(76px+2rem)]";
+/** The same, with room for the now-playing bar over the list's foot (T73: its height and gap). */
+const LIST_FILL_BAR = "min-h-40 flex-1 pb-[calc(76px+2rem+4.5rem)]";
+
+/** Reads this device's music index and play history (once per tab) and warms the engine. */
+export function useMusicLibraryLoad(): void {
+  const demo = useAccount().kind !== "owner";
+  React.useEffect(() => {
+    useMusicLibrary.getState().load(demo);
+    useTrackStats.getState().load(demo);
+    preloadMusicEngine();
+  }, [demo]);
+}
 
 // The music library (T63, V58): pick a folder once, browse by artist, album,
 // genre or folder, or search. A song plays on a click, with the rest of the
@@ -167,19 +181,19 @@ function FolderBar() {
   );
 }
 
-export function MusicView() {
-  const demo = useAccount().kind !== "owner";
+export function MusicView({ barRoom = false }: { barRoom?: boolean }) {
   const tracks = useMusicLibrary((s) => s.tracks);
   const browseParam = useUrlParam("b");
   const groupKey = useUrlParam("g");
+  // Home's "See all" on Most played: Songs, most played first (T73).
+  const byPlays = useUrlParam("sort") === "plays";
+  const stats = useTrackStats((s) => s.stats);
   // Songs first: the music this device holds, one click from playing (user 2026-11-07).
   const browse: Browse = isBrowse(browseParam) ? browseParam : "songs";
   const [query, setQuery] = React.useState("");
 
-  React.useEffect(() => {
-    useMusicLibrary.getState().load(demo);
-    preloadMusicEngine();
-  }, [demo]);
+  useMusicLibraryLoad();
+  const fill = barRoom ? LIST_FILL_BAR : LIST_FILL;
 
   const all = React.useMemo(() => tracks ?? [], [tracks]);
   const groups = React.useMemo(() => (browse === "songs" ? [] : groupTracks(all, browse)), [all, browse]);
@@ -187,8 +201,9 @@ export function MusicView() {
   const songs = React.useMemo(() => {
     if (query.trim()) return sortSongs(searchTracks(all, query));
     if (open) return open.tracks;
-    return browse === "songs" ? sortSongs(all) : null;
-  }, [all, query, open, browse]);
+    if (browse !== "songs") return null;
+    return byPlays ? sortByPlays(all, stats) : sortSongs(all);
+  }, [all, query, open, browse, byPlays, stats]);
 
   return (
     // Fills the page (page-frame.tsx): the list scrolls, the page doesn't.
@@ -200,7 +215,7 @@ export function MusicView() {
           value={browse}
           options={BROWSE_OPTIONS}
           onChange={(v) => {
-            replaceUrlParams({ b: v, g: null });
+            replaceUrlParams({ b: v, g: null, sort: null });
           }}
         />
         <label className="relative flex min-w-48 flex-1 items-center">
@@ -217,6 +232,22 @@ export function MusicView() {
           />
         </label>
       </div>
+
+      {byPlays && browse === "songs" && !query.trim() ? (
+        <div className="flex items-center gap-2">
+          <p className="text-[13px] text-ink-2">Most played first</p>
+          <button
+            type="button"
+            className={buttonClass("ghost", "circle-sm")}
+            aria-label="Sort by title instead"
+            onClick={() => {
+              replaceUrlParams({ sort: null });
+            }}
+          >
+            <X aria-hidden />
+          </button>
+        </div>
+      ) : null}
 
       {open && !query.trim() ? (
         <div className="flex items-center gap-2">
@@ -248,7 +279,7 @@ export function MusicView() {
           <VirtualList
             // Own scroller per list: an album opens at its top, not at the
             // browse list's scroll offset.
-            key={open ? `group:${open.key}` : "songs"}
+            key={open ? `group:${open.key}` : byPlays ? "songs:plays" : "songs"}
             label={query.trim() ? "Search results" : (open?.label ?? "Songs")}
             items={songs}
             rowHeight={ROW}
@@ -264,7 +295,7 @@ export function MusicView() {
                 }}
               />
             )}
-            className={LIST_FILL}
+            className={fill}
           />
         )
       ) : (
@@ -282,7 +313,7 @@ export function MusicView() {
               }}
             />
           )}
-          className={LIST_FILL}
+          className={fill}
         />
       )}
     </div>

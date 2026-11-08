@@ -72,6 +72,7 @@ import { playerActions, usePlayer } from "@/components/media/player-store";
 import { useMusicLibrary } from "@/components/media/music-library";
 import { useMusicPlayer } from "@/components/media/music-player";
 import { useMedia } from "@/components/media/use-media";
+import { openWatch } from "@/components/media/watch-nav";
 import { useReader } from "@/components/reader/use-reader";
 import { useNotifications } from "@/components/notifications/notifications-provider";
 import { usePrefs } from "@/components/prefs/prefs-provider";
@@ -843,7 +844,7 @@ function PaletteBody({
                 title={`Continue ${m.title}`}
                 hint={formatMediaDuration(m.progress.positionS)}
                 onSelect={run(() => {
-                  if (pathname === "/media") pushUrl(mediaHref(m.id));
+                  if (pathname === "/media") openWatch(m.id);
                   else router.push(mediaHref(m.id));
                 })}
               />
@@ -857,7 +858,7 @@ function PaletteBody({
                 title={`Play ${m.title}`}
                 {...(m.durationS ? { hint: formatMediaDuration(m.durationS) } : {})}
                 onSelect={run(() => {
-                  if (pathname === "/media") pushUrl(mediaHref(m.id));
+                  if (pathname === "/media") openWatch(m.id);
                   else router.push(mediaHref(m.id));
                 })}
               />

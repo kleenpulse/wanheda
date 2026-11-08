@@ -24,4 +24,11 @@ describe("island priority (V61)", () => {
     const out = rankActivities([a("t-soon", "timer"), a("t-later", "timer"), a("dl", "transfer"), a("remux", "transfer")]);
     expect(out.map((x) => x.item)).toEqual(["t-soon", "t-later", "dl", "remux"]);
   });
+
+  it("a hidden kind leaves; the rest keep their order (the now-playing bar holds the music, V66)", () => {
+    const all = [a("music", "media", 500), a("speech", "speech", 100), a("t1", "timer", 900), a("alert", "alert")];
+    expect(rankActivities(all, ["media"]).map((x) => x.item)).toEqual(["speech", "t1", "alert"]);
+    expect(rankActivities([a("music", "media", 500), a("t1", "timer", 900)], ["media"])[0]?.item).toBe("t1");
+    expect(rankActivities(all, []).map((x) => x.item)).toEqual(["music", "speech", "t1", "alert"]);
+  });
 });

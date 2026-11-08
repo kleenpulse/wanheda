@@ -24,22 +24,23 @@ const post = (m: MusicResponse) => {
 
 type DirLike = FileSystemDirectoryHandle & { values: () => AsyncIterable<FileSystemHandle> };
 
-async function walk(dir: FileSystemDirectoryHandle, prefix: string, out: { seen: SeenFile; get: () => Promise<File> }[], id: number): Promise<void> {
+async function walk(dir: FileSystemDirectoryHandle, prefix: string, out: { seen: SeenFile; get: () => Promise<File> }[], unreadable: string[], id: number): Promise<void> {
   for await (const entry of (dir as DirLike).values()) {
     if (cancelled.has(id)) return;
     const path = prefix ? `${prefix}/${entry.name}` : entry.name;
     if (entry.kind === "directory") {
-      if (!entry.name.startsWith(".")) await walk(entry, path, out, id);
+      if (!entry.name.startsWith(".")) await walk(entry, path, out, unreadable, id);
     } else if (isAudioPath(entry.name)) {
       const file = await entry.getFile().catch(() => null);
       if (file) out.push({ seen: { path, size: file.size, lastModified: file.lastModified }, get: () => Promise.resolve(file) });
+      else unreadable.push(path);
     }
   }
 }
 
-async function list(source: ScanSource, id: number) {
+async function list(source: ScanSource, id: number, unreadable: string[]) {
   const out: { seen: SeenFile; get: () => Promise<File> }[] = [];
-  if (source.kind === "dir") await walk(source.handle, "", out, id);
+  if (source.kind === "dir") await walk(source.handle, "", out, unreadable, id);
   else {
     for (const file of source.files) {
       const rel = relativeMusicPath(file);
@@ -92,7 +93,8 @@ async function keepCover(picture: { data: Uint8Array; format: string } | undefin
 async function scan(m: Extract<MusicRequest, { type: "scan" }>): Promise<void> {
   const { id } = m;
   try {
-    const files = await list(m.source, id);
+    const unreadable: string[] = [];
+    const files = await list(m.source, id, unreadable);
     if (cancelled.has(id)) return;
     const stamps = (rows: Stamped[]) => new Map(rows.map(([path, size, lastModified]) => [path, { size, lastModified }]));
     const { parse, keep, removed, stillBad } = diffScan(
@@ -150,7 +152,7 @@ async function scan(m: Extract<MusicRequest, { type: "scan" }>): Promise<void> {
       if (batch.length >= BATCH || Date.now() - flushedAt > BATCH_MS) flush();
     }
     flush();
-    post({ type: "done", id, removed, parsed, kept: keep, bad, skipped });
+    post({ type: "done", id, removed, unreadable, parsed, kept: keep, bad, skipped });
   } catch (e) {
     if (!cancelled.has(id)) post({ type: "failed", id, message: e instanceof Error ? e.message : String(e) });
   } finally {

@@ -70,6 +70,8 @@ export function Island() {
   const musicTitle = useMusicPlayer((s) => (s.status === "idle" ? null : (s.track?.title ?? null)));
   const musicAt = useMusicPlayer((s) => s.startedAt);
   const media = React.useMemo(() => (musicTitle === null ? null : mediaActivity(musicTitle)), [musicTitle]);
+  // The now-playing bar on Media Home and Music holds the music: the island leaves its card out meanwhile (V61, V66).
+  const musicHeld = useActivity((s) => s.musicHeld > 0);
   const ranked = React.useMemo(() => {
     const all: Ranked<IslandActivity>[] = [
       ...(media ? [{ item: media, kind: "media" as const, startedAt: musicAt }] : []),
@@ -78,8 +80,8 @@ export function Island() {
       ...[...transfers, ...(remux ? [remux] : []), ...(scan ? [scan] : [])].map((item) => ({ item, kind: "transfer" as const, startedAt: 0 })),
       ...[...saas.map(saasAlertActivity), ...alerts.map((a) => moneyAlertActivity(a, today))].map((item) => ({ item, kind: "alert" as const, startedAt: 0 })),
     ];
-    return rankActivities(all);
-  }, [media, musicAt, speech, speechAt, timers, lastStarted, lastStartedAt, transfers, remux, scan, saas, alerts, today]);
+    return rankActivities(all, musicHeld ? ["media"] : []);
+  }, [musicHeld, media, musicAt, speech, speechAt, timers, lastStarted, lastStartedAt, transfers, remux, scan, saas, alerts, today]);
   const activities = React.useMemo(() => ranked.map((r) => r.item), [ranked]);
   // The leader comes forward when it changes, or when it starts again.
   const show = ranked[0]?.item.id;

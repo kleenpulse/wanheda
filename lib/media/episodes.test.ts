@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cleanTitle, displayTitle, folderFor, parseEpisode, playOrder, railItems, seasonsOf, upNext } from "./episodes";
+import { cleanTitle, displayTitle, folderFor, parseEpisode, playOrder, railItems, seasonsOf, showsOf, upNext } from "./episodes";
 import type { MediaItem } from "./types";
 
 describe("parseEpisode", () => {
@@ -129,5 +129,55 @@ describe("railItems", () => {
     const e2 = show[2];
     if (!e2) throw new Error("fixture");
     expect(railItems(show, e2).map((i) => i.id)).toEqual(["e1", "e2", "e3"]);
+  });
+});
+
+describe("showsOf (Media Home's Shows)", () => {
+  const watched = (item: MediaItem, lastPlayedAt: string): MediaItem => ({ ...item, progress: { positionS: 0, watched: true, lastPlayedAt } });
+
+  it("one card per show with two or more episodes, opening the first not watched", () => {
+    const items = [
+      at("h3", "Night.Harbor.S01E03.mkv"),
+      watched(at("h1", "Night.Harbor.S01E01.mkv"), "2026-11-01T00:00:00Z"),
+      at("h2", "Night.Harbor.S01E02.mkv"),
+      at("solo", "Lone.Show.S01E01.mkv"),
+      at("film", "Holiday 1920x1080.mp4"),
+      at("yt", "https://www.youtube.com/watch?v=x", "embed"),
+    ];
+    const shows = showsOf(items);
+    expect(shows.map((s) => s.show)).toEqual(["Night Harbor"]);
+    expect(shows[0]?.episodes.map((i) => i.id)).toEqual(["h1", "h2", "h3"]);
+    expect(shows[0]?.next.id).toBe("h2");
+    expect(shows[0]?.watched).toBe(1);
+  });
+
+  it("goes on after the furthest watched, though earlier ones were never marked", () => {
+    const shows = showsOf([
+      at("s1e1", "Show.S01E01.mkv"),
+      at("s1e2", "Show.S01E02.mkv"),
+      watched(at("s2e1", "Show.S02E01.mkv"), "2026-11-03T00:00:00Z"),
+      at("s2e2", "Show.S02E02.mkv"),
+    ]);
+    expect(shows[0]?.next.id).toBe("s2e2");
+  });
+
+  it("the last one watched but earlier gaps: the first not watched", () => {
+    const shows = showsOf([at("a1", "Show.S01E01.mkv"), watched(at("a2", "Show.S01E02.mkv"), "2026-11-03T00:00:00Z")]);
+    expect(shows[0]?.next.id).toBe("a1");
+  });
+
+  it("all watched: opens the first again", () => {
+    const shows = showsOf([watched(at("a2", "Show.S01E02.mkv"), "2026-11-02T00:00:00Z"), watched(at("a1", "Show.S01E01.mkv"), "2026-11-01T00:00:00Z")]);
+    expect(shows[0]?.next.id).toBe("a1");
+  });
+
+  it("the show played most recently comes first", () => {
+    const shows = showsOf([
+      at("a1", "Alpha.S01E01.mkv"),
+      at("a2", "Alpha.S01E02.mkv"),
+      watched(at("b1", "Beta.S01E01.mkv"), "2026-11-05T00:00:00Z"),
+      at("b2", "Beta.S01E02.mkv"),
+    ]);
+    expect(shows.map((s) => s.show)).toEqual(["Beta", "Alpha"]);
   });
 });

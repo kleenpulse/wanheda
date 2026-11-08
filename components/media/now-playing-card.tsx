@@ -38,7 +38,7 @@ export function clock(s: number | null): string {
   return h > 0 ? `${String(h)}:${String(m).padStart(2, "0")}:${sec}` : `${String(m).padStart(2, "0")}:${sec}`;
 }
 
-function RoundButton({ label, onClick, disabled = false, className, children }: { label: string; onClick: () => void; disabled?: boolean; className?: string; children: React.ReactNode }) {
+export function RoundButton({ label, onClick, disabled = false, className, children }: { label: string; onClick: () => void; disabled?: boolean; className?: string; children: React.ReactNode }) {
   return (
     <button
       type="button"
@@ -121,9 +121,11 @@ const SCROLL_GLIDE_MS = 300;
 
 /**
  * The volume rocker: mute, and a slider (drag, arrow keys, or the mouse wheel
- * anywhere over it, a notch a step). Kept on this device.
+ * anywhere over it, a notch a step). Kept on this device. `wheel={false}` where
+ * the rocker floats over a page that scrolls (the now-playing bar, T73): a
+ * scroll passing over it must move the page, never the volume.
  */
-function VolumeRocker() {
+export function VolumeRocker({ wheel = true }: { wheel?: boolean }) {
   const v = volumePref.use();
   const { setVolume, toggleMute } = useMusicPlayer.getState();
   const level = v.muted ? 0 : v.level;
@@ -134,7 +136,7 @@ function VolumeRocker() {
   const rocker = React.useRef<HTMLDivElement>(null);
   React.useEffect(() => {
     const el = rocker.current;
-    if (!el) return;
+    if (!el || !wheel) return;
     let carry = 0;
     // A page scroll that's already moving (Home's widget sits in a scrolling page)
     // glides over the rocker instead of stopping on it and changing the volume.
@@ -158,7 +160,7 @@ function VolumeRocker() {
       el.removeEventListener("wheel", onWheel);
       window.removeEventListener("scroll", onScroll, { capture: true });
     };
-  }, []);
+  }, [wheel]);
 
   return (
     <div ref={rocker} className="flex shrink-0 items-center gap-1">
@@ -195,7 +197,7 @@ function VolumeRocker() {
 }
 
 /** The wave progress bar, seekable: drag or arrow keys, the seek lands on release. */
-function WaveScrub() {
+export function WaveScrub() {
   const position = useMusicPlayer((s) => s.position);
   const duration = useMusicPlayer((s) => s.duration);
   const playing = useMusicPlayer((s) => s.status === "playing" && !s.loading);

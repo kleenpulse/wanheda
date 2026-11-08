@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatDuration, itemCreateSchema, stepItem, toMeta, upsertItem } from "./media";
+import { formatDuration, itemCreateSchema, mediaHref, stepItem, toMeta, upsertItem } from "./media";
 import { seedMedia } from "./seed";
 import type { MediaItem } from "./types";
 
@@ -103,5 +103,17 @@ describe("stepItem follows a show's episode order", () => {
     expect(stepItem(items, "e2", -1)?.id).toBe("e1");
     expect(stepItem(items, "e2", 1)).toBeNull();
     expect(stepItem(items, "x", 1)?.id).toBe("e2");
+  });
+});
+
+describe("mediaHref (T73)", () => {
+  const id = "0b7e5c1e-8a4b-4c1e-9d2a-1f2e3d4c5b6a";
+  it("opens the Watch view; Back from a bare one lands on Home", () => {
+    expect(mediaHref(id)).toBe(`/media?m=${id}`);
+  });
+  it("keeps the tab it was opened from", () => {
+    expect(mediaHref(id, "videos")).toBe(`/media?tab=videos&m=${id}`);
+    expect(mediaHref(id, "music")).toBe(`/media?tab=music&m=${id}`);
+    expect(mediaHref(id, null)).toBe(`/media?m=${id}`);
   });
 });
