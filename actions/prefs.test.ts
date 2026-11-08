@@ -8,7 +8,15 @@ vi.mock("@/lib/prefs/store", () => ({ savePrefs: savePrefsStore }));
 const { savePrefs } = await import("./prefs");
 
 const owner = { kind: "owner", user: { id: "user-1", email: "o@example.test", name: "O" } };
-const GOOD = { skin: "bench", accent: "#a855f7", wallpaper: "aurora", timerMode: "single" };
+const GOOD = {
+  skin: "bench",
+  accent: "#a855f7",
+  wallpaper: "aurora",
+  timerMode: "single",
+  wallpaperScope: "pages",
+  wallpaperCover: "page",
+  wallpaperPages: { home: "aurora", media: "stars" },
+};
 
 beforeEach(() => {
   requireOwner.mockReset();
@@ -29,6 +37,8 @@ describe("savePrefs", () => {
       { ...GOOD, accent: "#A855F7" },
       { ...GOOD, accent: "red;}body{display:none" },
       { ...GOOD, wallpaper: "url(x)" },
+      { ...GOOD, wallpaperScope: "everywhere" },
+      { ...GOOD, wallpaperPages: { home: "none" } },
       { ...GOOD, extra: 1 },
       null,
     ]) {

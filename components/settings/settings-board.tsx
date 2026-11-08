@@ -42,7 +42,7 @@ interface Section {
 const SECTIONS = {
   appearance: {
     label: "Appearance",
-    blurb: "The theme, the skin, the accent and Home's wallpaper.",
+    blurb: "The theme, the skin, the accent and the wallpapers.",
     group: "Preferences",
     icon: Palette,
     prefs: true,

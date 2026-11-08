@@ -78,6 +78,13 @@
       "when": 1794068356335,
       "tag": "0010_media_watch_later",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1794140152737,
+      "tag": "0011_wallpaper_pages",
+      "breakpoints": true
     }
   ]
 }

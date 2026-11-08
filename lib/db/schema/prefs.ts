@@ -14,6 +14,11 @@ export const userPrefs = pgTable("user_prefs", {
   accent: text("accent"),
   wallpaper: text("wallpaper").notNull().default("none"),
   timerMode: text("timer_mode").notNull().default("single"),
+  // Wallpapers on any page (T69, SPEC V64): Home|all|per page, sheet|whole page,
+  // and the per-page scenes, checked entry by entry by lib/prefs/prefs.ts.
+  wallpaperScope: text("wallpaper_scope").notNull().default("home"),
+  wallpaperCover: text("wallpaper_cover").notNull().default("sheet"),
+  wallpaperPages: jsonb("wallpaper_pages").$type<unknown>(),
   // Money (Phase 3): reports convert into this currency (decided 2026-11-05: NGN
   // by default), and "today" is the owner's calendar day in this zone (SPEC V27).
   baseCurrency: char("base_currency", { length: 3 }).notNull().default("NGN"),

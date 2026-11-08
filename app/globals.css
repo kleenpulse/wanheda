@@ -497,7 +497,7 @@
 
 	/* Bench light stickies: deeper tints than Ember's papers (user
 	   2026-11-05: darker on Bench). Ink >= 13.9:1, ink-2 >= 5.4:1; marks
-	   inherited from :root, still >= 3:1 on Bench's white card. */
+	   inherited from :root, still >= 3:1 on Bench's floor-grey card. */
 	--sticky-plain: #e8e8e8;
 	--sticky-amber: #ffe2bd;
 	--sticky-rose: #ffdce4;
@@ -511,7 +511,9 @@
 
 	--background: #f9f9fb;
 	--foreground: #16191d;
-	--card: #ffffff;
+	/* The floor grey, not the sheet's white: cards stand off the sheet the
+	   way dark Bench's cards do (user 2026-11-08). */
+	--card: #f9f9fb;
 	--card-foreground: #16191d;
 	--popover: #ffffff;
 	--popover-foreground: #16191d;
@@ -889,9 +891,9 @@ html[data-transparency="reduce"].dark[data-skin="bench"] {
 	--sidebar: #08090a;
 }
 
-/* Home wallpapers (prefs): live scenes in components/prefs/wallpapers, drawn
-   in the skin's tokens. This frames them: a slow fade in, and a fade out at
-   the bottom so the scene dissolves into the sheet instead of ending on a line. */
+/* Wallpapers (prefs, SPEC V64): live scenes in components/prefs/wallpapers,
+   drawn in the skin's tokens. This frames them: a slow fade in, and a fade out
+   at the bottom so the scene dissolves into the sheet instead of ending on a line. */
 .wallpaper-fade {
 	mask-image: linear-gradient(to bottom, #000 45%, transparent);
 	animation: wallpaper-in 900ms var(--ease-out-quint) both;
@@ -900,6 +902,18 @@ html[data-transparency="reduce"].dark[data-skin="bench"] {
 	from {
 		opacity: 0;
 	}
+}
+
+/* Whole-page wallpaper under reduced transparency: the sheet stays solid, so
+   the scene only shows in the band above it. Unlayered, so it beats the
+   sheet's see-through utility. */
+@media (prefers-reduced-transparency: reduce) {
+	[data-wallpaper-cover="page"] [data-sheet] {
+		background-color: var(--sheet);
+	}
+}
+html[data-transparency="reduce"] [data-wallpaper-cover="page"] [data-sheet] {
+	background-color: var(--sheet);
 }
 
 /* Skin switch: circular reveal from the toggle (components/theme-toggle.tsx).

@@ -35,7 +35,15 @@ export async function loadPrefs(userId: string): Promise<LoadedPrefs> {
 export async function savePrefs(userId: string, p: Prefs): Promise<boolean> {
   const db = getDb();
   if (!db) return false;
-  const values = { skin: p.skin, accent: p.accent, wallpaper: p.wallpaper, timerMode: p.timerMode };
+  const values = {
+    skin: p.skin,
+    accent: p.accent,
+    wallpaper: p.wallpaper,
+    timerMode: p.timerMode,
+    wallpaperScope: p.wallpaperScope,
+    wallpaperCover: p.wallpaperCover,
+    wallpaperPages: p.wallpaperPages,
+  };
   await db
     .insert(userPrefs)
     .values({ userId, ...values })

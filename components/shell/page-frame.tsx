@@ -1,4 +1,5 @@
 import type * as React from "react";
+import { SheetWallpaper } from "@/components/prefs/wallpaper";
 import { EmptyMark } from "@/components/shell/empty-mark";
 import { PrivacyButton } from "@/components/money/privacy";
 import { ModeChip } from "@/components/shell/mode-chip";
@@ -28,6 +29,18 @@ const FILL = {
   column: "has-[[data-page-fill]]:min-h-0 has-[[data-page-fill]]:flex-1 has-[[data-page-fill]]:pb-0",
 };
 
+/**
+ * The page's root and its sheet, shared with the route skeleton (loading.tsx)
+ * so a hop that shows it looks like the page it becomes (SPEC V64). The root
+ * is positioned so it paints over the shell's whole-page wallpaper. Under that
+ * wallpaper the sheet lets the scene through with a tint only, never a
+ * backdrop-filter, which would trap the page's non-portaled fixed overlays.
+ * The sheet must also carry `data-sheet` for the reduced-transparency rule.
+ */
+export const PAGE_ROOT = "relative flex min-h-svh flex-col";
+export const PAGE_SHEET =
+  "relative isolate flex-1 rounded-t-frame bg-sheet in-data-[wallpaper-cover=page]:bg-sheet/55 dark:border-t dark:border-glass-border";
+
 /** Page width cap, net of the rail: Raven's calc(1900px - rail). Skeletons share it. */
 export const PAGE_COLUMN = "mx-auto w-full max-w-[calc(1900px-var(--rail-w))] px-5 md:px-8";
 
@@ -44,7 +57,6 @@ export function PageFrame({
   subtitle,
   actions,
   sheetClassName,
-  backdrop,
   children,
 }: {
   title: React.ReactNode;
@@ -52,12 +64,10 @@ export function PageFrame({
   /** The page's own controls, at the right of the header. */
   actions?: React.ReactNode;
   sheetClassName?: string;
-  /** Drawn behind the sheet's content, clipped to its rounded top: Home's wallpaper. */
-  backdrop?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
-    <div className={cn("flex min-h-svh flex-col", FILL.frame)}>
+    <div className={cn(PAGE_ROOT, FILL.frame)}>
       <div className={cn(PAGE_COLUMN, "@container/frame pt-6 pb-6")}>
         {/* Wraps: on a phone, a page's actions (the money tabs) drop under the title instead of squeezing it.
             From @4xl the title and the eye share the island's line (h-9 at top-2: the header starts 8 px down),
@@ -82,12 +92,11 @@ export function PageFrame({
         </header>
       </div>
 
-      <div className={cn("relative isolate flex-1 rounded-t-frame bg-sheet dark:border-t dark:border-glass-border", FILL.sheet)}>
-        {backdrop ? (
-          <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 overflow-hidden rounded-t-frame">
-            {backdrop}
-          </div>
-        ) : null}
+      <div data-sheet className={cn(PAGE_SHEET, FILL.sheet)}>
+        {/* Below the top bar: the wallpaper clipped to the sheet's rounded top. */}
+        <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 overflow-hidden rounded-t-frame">
+          <SheetWallpaper />
+        </div>
         <div className={cn(PAGE_COLUMN, "@container flex flex-col gap-4 pt-6 md:pt-8", FLOATING_BAR_CLEARANCE, FILL.column, sheetClassName)}>{children}</div>
       </div>
     </div>

@@ -8,12 +8,30 @@ import { SettingRow, SettingsCard } from "@/components/settings/setting-row";
 import { TimerModeSetting } from "@/components/settings/timer-mode";
 import { revealTheme, type ThemeChoice } from "@/components/theme-toggle";
 import { Segmented } from "@/components/ui/segmented";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useHydrated } from "@/hooks/use-hydrated";
-import { ACCENT_PRESETS, PICKER_FALLBACK, SKINS, SKIN_LABELS, WALLPAPERS, WALLPAPER_LABELS, parseAccent } from "@/lib/prefs/prefs";
+import {
+  ACCENT_PRESETS,
+  PICKER_FALLBACK,
+  SKINS,
+  SKIN_LABELS,
+  WALLPAPERS,
+  WALLPAPER_COVERS,
+  WALLPAPER_COVER_LABELS,
+  WALLPAPER_LABELS,
+  WALLPAPER_SCOPES,
+  WALLPAPER_SCOPE_LABELS,
+  parseAccent,
+  seedPages,
+  withPageWallpaper,
+} from "@/lib/prefs/prefs";
+import { WALLPAPER_PAGE_LIST } from "@/lib/prefs/wallpaper-pages";
 import { cn } from "@/lib/utils";
 
 const SKIN_OPTIONS = SKINS.map((value) => ({ value, label: SKIN_LABELS[value] }));
 const WALLPAPER_OPTIONS = WALLPAPERS.map((value) => ({ value, label: WALLPAPER_LABELS[value] }));
+const SCOPE_OPTIONS = WALLPAPER_SCOPES.map((value) => ({ value, label: WALLPAPER_SCOPE_LABELS[value] }));
+const COVER_OPTIONS = WALLPAPER_COVERS.map((value) => ({ value, label: WALLPAPER_COVER_LABELS[value] }));
 
 /** Sample rows that wear the current skin and accent, so a change shows before you leave the page. */
 const PREVIEW = [
@@ -197,11 +215,108 @@ export function AppearanceSection() {
         </SettingRow>
       </SettingsCard>
 
-      <SettingsCard title="Home">
-        <SettingRow label="Wallpaper" description="Behind the board on Home. It follows the skin and the accent." layout="wide">
+      <WallpaperCard />
+    </div>
+  );
+}
+
+/** A compact dropdown, labelled by its setting row. */
+function PrefSelect<T extends string>({
+  labelId,
+  value,
+  options,
+  onChange,
+  className,
+}: {
+  labelId: string;
+  value: T;
+  options: readonly { value: T; label: string }[];
+  onChange: (value: T) => void;
+  className?: string;
+}) {
+  return (
+    <Select
+      items={options}
+      value={value}
+      onValueChange={(v) => {
+        if (v) onChange(v);
+      }}
+    >
+      <SelectTrigger aria-labelledby={labelId} className={cn("h-10 w-44 pl-3", className)}>
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {options.map((o) => (
+          <SelectItem key={o.value} value={o.value}>
+            <span>{o.label}</span>
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+/** Settings → Appearance → Wallpaper (SPEC V64): which pages, which scene, and how far it reaches. */
+function WallpaperCard() {
+  const { prefs, update } = usePrefs();
+  const scope = prefs.wallpaperScope;
+
+  return (
+    <SettingsCard title="Wallpaper">
+      <SettingRow label="Show on" description="Home only, every page, or a different wallpaper for each page." layout="wide">
+        {(labelId) => (
+          <PrefSelect
+            labelId={labelId}
+            value={scope}
+            options={SCOPE_OPTIONS}
+            onChange={(wallpaperScope) => {
+              // Switching to per page starts from what shows now, or keeps the picks already made.
+              update(wallpaperScope === "pages" ? { wallpaperScope, wallpaperPages: seedPages(prefs) } : { wallpaperScope });
+            }}
+          />
+        )}
+      </SettingRow>
+
+      {scope === "pages" ? (
+        WALLPAPER_PAGE_LIST.map((page) => {
+          const Icon = page.icon;
+          return (
+            <SettingRow
+              key={page.id}
+              label={
+                <>
+                  <Icon aria-hidden className="size-4 text-ink-2" strokeWidth={1.75} />
+                  {page.title}
+                </>
+              }
+            >
+              {(labelId) => (
+                <PrefSelect
+                  labelId={labelId}
+                  value={prefs.wallpaperPages[page.id] ?? "none"}
+                  options={WALLPAPER_OPTIONS}
+                  className="w-36"
+                  onChange={(wallpaper) => {
+                    update({ wallpaperPages: withPageWallpaper(prefs.wallpaperPages, page.id, wallpaper) });
+                  }}
+                />
+              )}
+            </SettingRow>
+          );
+        })
+      ) : (
+        <SettingRow
+          label="Wallpaper"
+          description={
+            scope === "all"
+              ? "Behind every page. It follows the skin and the accent."
+              : "Behind the board on Home. It follows the skin and the accent."
+          }
+          layout="wide"
+        >
           {() => (
             <Segmented
-              label="Home wallpaper"
+              label="Wallpaper"
               value={prefs.wallpaper}
               options={WALLPAPER_OPTIONS}
               onChange={(wallpaper) => {
@@ -210,8 +325,21 @@ export function AppearanceSection() {
             />
           )}
         </SettingRow>
-      </SettingsCard>
-    </div>
+      )}
+
+      <SettingRow label="Covers" description="Below the top bar keeps the header plain. Whole page runs the scene behind it too." layout="wide">
+        {() => (
+          <Segmented
+            label="Wallpaper covers"
+            value={prefs.wallpaperCover}
+            options={COVER_OPTIONS}
+            onChange={(wallpaperCover) => {
+              update({ wallpaperCover });
+            }}
+          />
+        )}
+      </SettingRow>
+    </SettingsCard>
   );
 }
 

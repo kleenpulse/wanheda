@@ -91,7 +91,8 @@ import { todayIn } from "@/lib/money/dates";
 import { byId, categoryPath, type Category, type Txn } from "@/lib/money/money";
 import { looksLikeQuickAdd, parseQuickAdd } from "@/lib/money/quick-add";
 import { parseCapture } from "@/lib/notes/notes";
-import { ACCENT_PRESETS, SKINS, SKIN_LABELS, TIMER_MODE_LABELS, WALLPAPERS, WALLPAPER_LABELS } from "@/lib/prefs/prefs";
+import { ACCENT_PRESETS, SKINS, SKIN_LABELS, TIMER_MODE_LABELS, WALLPAPERS, WALLPAPER_COVERS, WALLPAPER_COVER_LABELS, WALLPAPER_LABELS, wallpaperFor, withPageWallpaper } from "@/lib/prefs/prefs";
+import { wallpaperPageFor } from "@/lib/prefs/wallpaper-pages";
 import { TIMER_MODES } from "@/lib/activity/timer";
 import { cn } from "@/lib/utils";
 import { useWindows } from "@/lib/windows/store";
@@ -198,6 +199,10 @@ function PaletteBody({
   const { prefs, update } = usePrefs();
   const account = useAccount();
   const pathname = usePathname();
+  // The page the wallpaper commands act on; a route no page owns falls back to Home.
+  const wallpaperPage = wallpaperPageFor(pathname) ?? "home";
+  // What this page wears now: on Money under the Home scope that is none, so no scene reads as in use.
+  const currentWallpaper = wallpaperFor(prefs, wallpaperPage);
   const [signOutState, setSignOutState] = React.useState<"idle" | "pending" | "failed">("idle");
   // The body mounts per open, so "done" is judged as of opening.
   const [openedAt] = React.useState(Date.now);
@@ -957,16 +962,34 @@ function PaletteBody({
               })}
             />
           ))}
+          {/* Per page, the wallpaper commands set this page's scene; otherwise the one wallpaper (SPEC V64). */}
           {WALLPAPERS.map((wallpaper) => (
             <Item
               key={wallpaper}
               value={`wallpaper-${wallpaper}`}
-              keywords={["wallpaper", "background", "home", WALLPAPER_LABELS[wallpaper]]}
+              keywords={["wallpaper", "background", "home", "page", WALLPAPER_LABELS[wallpaper]]}
               icon={Wallpaper}
               title={`Wallpaper: ${WALLPAPER_LABELS[wallpaper]}`}
-              {...inUse(prefs.wallpaper === wallpaper)}
+              {...inUse(currentWallpaper === wallpaper)}
               onSelect={run(() => {
-                update({ wallpaper });
+                if (prefs.wallpaperScope !== "pages") {
+                  update({ wallpaper });
+                  return;
+                }
+                update({ wallpaperPages: withPageWallpaper(prefs.wallpaperPages, wallpaperPage, wallpaper) });
+              })}
+            />
+          ))}
+          {WALLPAPER_COVERS.map((wallpaperCover) => (
+            <Item
+              key={wallpaperCover}
+              value={`wallpaper-cover-${wallpaperCover}`}
+              keywords={["wallpaper", "background", "cover", "whole", "page", "top bar", WALLPAPER_COVER_LABELS[wallpaperCover]]}
+              icon={Wallpaper}
+              title={`Wallpaper covers: ${WALLPAPER_COVER_LABELS[wallpaperCover].toLowerCase()}`}
+              {...inUse(prefs.wallpaperCover === wallpaperCover)}
+              onSelect={run(() => {
+                update({ wallpaperCover });
               })}
             />
           ))}

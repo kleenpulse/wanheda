@@ -1,7 +1,7 @@
 import { TIMER_MODES, type TimerMode } from "@/lib/activity/timer";
 
-// The owner's preferences (FR-SHELL-7): skin, accent colour, home wallpaper
-// and the timer mode. Pure and shared by the server (DB rows, the cookie) and
+// The owner's preferences (FR-SHELL-7): skin, accent colour, the wallpapers
+// (which pages, which scene, how far it reaches) and the timer mode. Pure and shared by the server (DB rows, the cookie) and
 // the client (the picker, the <head> boot script).
 //
 // The database is the source of truth for the owner, so prefs follow them to
@@ -14,13 +14,36 @@ export type Skin = (typeof SKINS)[number];
 
 export const WALLPAPERS = ["none", "aurora", "contour", "stars", "dots"] as const;
 export type Wallpaper = (typeof WALLPAPERS)[number];
+/** A wallpaper that draws something: what a per-page entry holds. */
+export type Scene = Exclude<Wallpaper, "none">;
+export const SCENES = ["aurora", "contour", "stars", "dots"] as const satisfies readonly Scene[];
+
+/** Pages that can wear a wallpaper: the ids of MODULES + SYSTEM_PAGES (a test keeps them in step). */
+export const WALLPAPER_PAGES = ["home", "money", "income", "notes", "reader", "media", "settings"] as const;
+export type WallpaperPage = (typeof WALLPAPER_PAGES)[number];
+
+/** Where the wallpaper shows: Home only, every page, or a scene chosen per page. */
+export const WALLPAPER_SCOPES = ["home", "all", "pages"] as const;
+export type WallpaperScope = (typeof WALLPAPER_SCOPES)[number];
+
+/** How far it reaches: the sheet under the top bar, or the whole page behind the header too. */
+export const WALLPAPER_COVERS = ["sheet", "page"] as const;
+export type WallpaperCover = (typeof WALLPAPER_COVERS)[number];
+
+/** Per-page scenes. A page that isn't listed has none. */
+export type WallpaperPages = Partial<Record<WallpaperPage, Scene>>;
 
 export interface Prefs {
   skin: Skin;
   /** The owner's signal colour, `#rrggbb`, or null for the skin's own. */
   accent: string | null;
+  /** The one wallpaper for the `home` and `all` scopes. */
   wallpaper: Wallpaper;
   timerMode: TimerMode;
+  wallpaperScope: WallpaperScope;
+  wallpaperCover: WallpaperCover;
+  /** Used by the `pages` scope. */
+  wallpaperPages: WallpaperPages;
 }
 
 /** Quick picks beside the free colour input. Data, not styling: the picker shows them as swatches. */
@@ -46,9 +69,20 @@ export const WALLPAPER_LABELS: Record<Wallpaper, string> = {
   dots: "Dots",
 };
 
+export const WALLPAPER_SCOPE_LABELS: Record<WallpaperScope, string> = { home: "Home", all: "All pages", pages: "Choose per page" };
+export const WALLPAPER_COVER_LABELS: Record<WallpaperCover, string> = { sheet: "Below the top bar", page: "Whole page" };
+
 export const TIMER_MODE_LABELS: Record<TimerMode, string> = { single: "One per length", multiple: "Allow repeats" };
 
-export const DEFAULT_PREFS: Prefs = { skin: "default", accent: null, wallpaper: "none", timerMode: "single" };
+export const DEFAULT_PREFS: Prefs = {
+  skin: "default",
+  accent: null,
+  wallpaper: "none",
+  timerMode: "single",
+  wallpaperScope: "home",
+  wallpaperCover: "sheet",
+  wallpaperPages: {},
+};
 
 const HEX = /^#[0-9a-f]{6}$/;
 
@@ -63,6 +97,18 @@ export function parseAccent(value: unknown): string | null {
   return HEX.test(v) ? v : null;
 }
 
+/** Entry by entry: unknown pages, unknown scenes and `none` are dropped. */
+export function parseWallpaperPages(raw: unknown): WallpaperPages {
+  const out: WallpaperPages = {};
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return out;
+  const r = raw as Record<string, unknown>;
+  for (const page of WALLPAPER_PAGES) {
+    const scene = r[page];
+    if (typeof scene === "string" && (SCENES as readonly string[]).includes(scene)) out[page] = scene as Scene;
+  }
+  return out;
+}
+
 /** Field by field: a bad or missing field falls back to its default, the rest survive. */
 export function parsePrefs(raw: unknown): Prefs {
   const r = typeof raw === "object" && raw !== null ? (raw as Record<string, unknown>) : {};
@@ -71,25 +117,108 @@ export function parsePrefs(raw: unknown): Prefs {
     accent: parseAccent(r.accent),
     wallpaper: oneOf(WALLPAPERS, r.wallpaper, DEFAULT_PREFS.wallpaper),
     timerMode: oneOf(TIMER_MODES, r.timerMode, DEFAULT_PREFS.timerMode),
+    wallpaperScope: oneOf(WALLPAPER_SCOPES, r.wallpaperScope, DEFAULT_PREFS.wallpaperScope),
+    wallpaperCover: oneOf(WALLPAPER_COVERS, r.wallpaperCover, DEFAULT_PREFS.wallpaperCover),
+    wallpaperPages: parseWallpaperPages(r.wallpaperPages),
   };
 }
 
+/** Entry by entry: two maps built apart are never `===`. */
+export function samePages(a: WallpaperPages, b: WallpaperPages): boolean {
+  return WALLPAPER_PAGES.every((page) => a[page] === b[page]);
+}
+
 export function samePrefs(a: Prefs, b: Prefs): boolean {
-  return a.skin === b.skin && a.accent === b.accent && a.wallpaper === b.wallpaper && a.timerMode === b.timerMode;
+  return (
+    a.skin === b.skin &&
+    a.accent === b.accent &&
+    a.wallpaper === b.wallpaper &&
+    a.timerMode === b.timerMode &&
+    a.wallpaperScope === b.wallpaperScope &&
+    a.wallpaperCover === b.wallpaperCover &&
+    samePages(a.wallpaperPages, b.wallpaperPages)
+  );
+}
+
+// Wallpapers (SPEC V64) ---------------------------------------------------
+
+type WallpaperChoice = Pick<Prefs, "wallpaper" | "wallpaperScope" | "wallpaperPages">;
+
+/** The scene a page wears. Everything that draws or ticks a wallpaper asks this. */
+export function wallpaperFor(p: WallpaperChoice, page: WallpaperPage | null): Wallpaper {
+  if (!page) return "none";
+  if (p.wallpaperScope === "pages") return p.wallpaperPages[page] ?? "none";
+  if (p.wallpaperScope === "all") return p.wallpaper;
+  return page === "home" ? p.wallpaper : "none";
+}
+
+/** The map with one page's scene set, or removed for none. A new object: prefs are state. */
+export function withPageWallpaper(pages: WallpaperPages, page: WallpaperPage, wallpaper: Wallpaper): WallpaperPages {
+  const out: WallpaperPages = {};
+  for (const p of WALLPAPER_PAGES) {
+    const scene = p === page ? wallpaper : pages[p];
+    if (scene && scene !== "none") out[p] = scene;
+  }
+  return out;
+}
+
+/**
+ * The per-page map to use when switching to `pages`. An empty map is seeded
+ * from what shows now, so nothing disappears at the switch; a map the owner
+ * already filled is kept, so pages → all → pages keeps their picks.
+ */
+export function seedPages(p: WallpaperChoice): WallpaperPages {
+  if (WALLPAPER_PAGES.some((page) => p.wallpaperPages[page])) return p.wallpaperPages;
+  const out: WallpaperPages = {};
+  if (p.wallpaper === "none") return out;
+  for (const page of WALLPAPER_PAGES) {
+    if (p.wallpaperScope === "all" || page === "home") out[page] = p.wallpaper;
+  }
+  return out;
 }
 
 // Cookie ------------------------------------------------------------------
 
 export const PREFS_COOKIE = "wanheda-prefs";
 
-/** `skin.accent.wallpaper.timerMode`, accent without `#` or `-`: cookie-safe, no encoding. */
+/** `home-aurora_money-stars`, or `-` for none: page ids and scene names never hold `-`, `_` or `.`. */
+function encodePages(pages: WallpaperPages): string {
+  const pairs = WALLPAPER_PAGES.flatMap((page) => {
+    const scene = pages[page];
+    return scene ? [`${page}-${scene}`] : [];
+  });
+  return pairs.length ? pairs.join("_") : "-";
+}
+
+function decodePages(value: string | undefined): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const pair of (value ?? "").split("_")) {
+    const [page, scene] = pair.split("-");
+    if (page && scene) out[page] = scene;
+  }
+  return out;
+}
+
+/**
+ * `skin.accent.wallpaper.timerMode.scope.cover.pages`, accent without `#` or
+ * `-`: cookie-safe, no encoding. The boot script reads only the first two, and
+ * a cookie from before the wallpaper fields decodes them to their defaults.
+ */
 export function encodePrefs(p: Prefs): string {
-  return [p.skin, p.accent ? p.accent.slice(1) : "-", p.wallpaper, p.timerMode].join(".");
+  return [p.skin, p.accent ? p.accent.slice(1) : "-", p.wallpaper, p.timerMode, p.wallpaperScope, p.wallpaperCover, encodePages(p.wallpaperPages)].join(".");
 }
 
 export function decodePrefs(value: string | undefined | null): Prefs {
-  const [skin, accent, wallpaper, timerMode] = (value ?? "").split(".");
-  return parsePrefs({ skin, accent: accent && accent !== "-" ? `#${accent}` : null, wallpaper, timerMode });
+  const [skin, accent, wallpaper, timerMode, wallpaperScope, wallpaperCover, pages] = (value ?? "").split(".");
+  return parsePrefs({
+    skin,
+    accent: accent && accent !== "-" ? `#${accent}` : null,
+    wallpaper,
+    timerMode,
+    wallpaperScope,
+    wallpaperCover,
+    wallpaperPages: decodePages(pages),
+  });
 }
 
 /** A year, whole site, never sent cross-site. Written by the client after a change or a load. */

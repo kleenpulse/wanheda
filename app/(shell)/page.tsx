@@ -1,6 +1,5 @@
 import { Suspense } from "react";
 import { Board } from "@/components/board/board";
-import { Wallpaper } from "@/components/prefs/wallpaper";
 import { Prefetch } from "@/components/providers/prefetch";
 import { ModeText } from "@/components/shell/mode-text";
 import { PageFrame } from "@/components/shell/page-frame";
@@ -17,7 +16,6 @@ export default function Home() {
     <PageFrame
       title="Home"
       subtitle={<ModeText owner="Your board" demo="Seed data, open to anyone." />}
-      backdrop={<Wallpaper />}
     >
       {/* useSearchParams reads the request (SPEC V16). */}
       <Suspense fallback={null}>
