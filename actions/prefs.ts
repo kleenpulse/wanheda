@@ -1,25 +1,11 @@
 "use server";
 
-import { z } from "zod";
-import { TIMER_MODES } from "@/lib/activity/timer";
 import { requireOwner } from "@/lib/auth/owner";
-import { SKINS, WALLPAPERS } from "@/lib/prefs/prefs";
+import { prefsSchema } from "@/lib/prefs/schema";
 import { savePrefs as storePrefs, saveReaderPrefs as storeReaderPrefs } from "@/lib/prefs/store";
 import { completeReaderPrefs } from "@/lib/reader/prefs";
 
 export type SavePrefsResult = { ok: true } | { ok: false; reason: "demo" | "invalid" | "failed" };
-
-const prefsSchema = z
-  .object({
-    skin: z.enum(SKINS),
-    accent: z
-      .string()
-      .regex(/^#[0-9a-f]{6}$/)
-      .nullable(),
-    wallpaper: z.enum(WALLPAPERS),
-    timerMode: z.enum(TIMER_MODES),
-  })
-  .strict();
 
 /**
  * Saves the owner's prefs (FR-SHELL-7). The owner comes from the session

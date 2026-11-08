@@ -891,9 +891,9 @@ html[data-transparency="reduce"].dark[data-skin="bench"] {
 	--sidebar: #08090a;
 }
 
-/* Home wallpapers (prefs): live scenes in components/prefs/wallpapers, drawn
-   in the skin's tokens. This frames them: a slow fade in, and a fade out at
-   the bottom so the scene dissolves into the sheet instead of ending on a line. */
+/* Wallpapers (prefs, SPEC V64): live scenes in components/prefs/wallpapers,
+   drawn in the skin's tokens. This frames them: a slow fade in, and a fade out
+   at the bottom so the scene dissolves into the sheet instead of ending on a line. */
 .wallpaper-fade {
 	mask-image: linear-gradient(to bottom, #000 45%, transparent);
 	animation: wallpaper-in 900ms var(--ease-out-quint) both;
@@ -902,6 +902,18 @@ html[data-transparency="reduce"].dark[data-skin="bench"] {
 	from {
 		opacity: 0;
 	}
+}
+
+/* Whole-page wallpaper under reduced transparency: the sheet stays solid, so
+   the scene only shows in the band above it. Unlayered, so it beats the
+   sheet's see-through utility. */
+@media (prefers-reduced-transparency: reduce) {
+	[data-wallpaper-cover="page"] [data-sheet] {
+		background-color: var(--sheet);
+	}
+}
+html[data-transparency="reduce"] [data-wallpaper-cover="page"] [data-sheet] {
+	background-color: var(--sheet);
 }
 
 /* Skin switch: circular reveal from the toggle (components/theme-toggle.tsx).

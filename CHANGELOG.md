@@ -17,6 +17,7 @@ written after the fact, one per phase, and have no git tags.
 
 ### Added
 
+- Wallpapers can now show on any page. In Settings → Appearance, pick Home, every page, or a different wallpaper for each page, and choose whether it stays below the top bar or fills the whole page behind the title too. The palette's wallpaper commands change the page you're on.
 - Hovering the music progress bar shows the time you'd jump to, and dragging it shows where you'll land. Its round handle only appears while you point at it, drag it or move it with the keyboard.
 - A song without cover art gets a live backdrop in the now-playing card: a glow in your accent colour that rises from the bottom and moves with the music, then settles when you pause. Settings → Sound sets how bright it is (or turns it off) and how much the music moves it.
 - The Media icon in the sidebar, the dock and the phone tab bar turns into a music note while a song is in the player, and back into the clapperboard when music stops.
@@ -50,8 +51,8 @@ written after the fact, one per phase, and have no git tags.
 
 ### Changed
 
-- Amount fields in Money and Income are smarter. They only take what can be part of an amount, so stray letters can't get in, and they add the thousands commas as you type. Short forms and sums work: type `20k`, `1.5m` or `2.5k + 800` and the line under the field shows what it comes to, then the field fills it in when you leave it. Pasting `₦20,000.00`, `US$ 1,000` or a statement's `(1,234.50)` just works. The arrow keys nudge the amount up or down (hold Shift for steps of 10), and an opening balance has a ± button to make it negative, handy on a phone keyboard with no minus key.
 - In the light Bench theme, cards are now a soft grey that stands out from the white page behind them, the same way they do in dark mode.
+- Amount fields in Money and Income are smarter. They only take what can be part of an amount, so stray letters can't get in, and they add the thousands commas as you type. Short forms and sums work: type `20k`, `1.5m` or `2.5k + 800` and the line under the field shows what it comes to, then the field fills it in when you leave it. Pasting `₦20,000.00`, `US$ 1,000` or a statement's `(1,234.50)` just works. The arrow keys nudge the amount up or down (hold Shift for steps of 10), and an opening balance has a ± button to make it negative, handy on a phone keyboard with no minus key.
 
 ### Fixed
 

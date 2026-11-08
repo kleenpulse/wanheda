@@ -12,6 +12,7 @@ import { QueryProvider } from "@/components/providers/query-provider";
 import { NotificationCentre } from "@/components/notifications/notification-centre";
 import { NotificationsProvider, type NoticesSource } from "@/components/notifications/notifications-provider";
 import { PrefsProvider, type PrefsSource } from "@/components/prefs/prefs-provider";
+import { WallpaperMain } from "@/components/prefs/wallpaper";
 import { CommandPalette } from "@/components/shell/command-palette";
 import { Dock } from "@/components/shell/dock";
 import { MobileTabBar } from "@/components/shell/mobile-tab-bar";
@@ -107,7 +108,7 @@ export function ShellFrame({
       >
         <NavRail expanded={expanded} onToggle={toggle} className="hidden md:flex" />
         {/* No bottom padding here: PageFrame clears the floating dock and tab bar inside the sheet. */}
-        <main className="relative min-w-0 flex-1">{children}</main>
+        <WallpaperMain>{children}</WallpaperMain>
         <MobileTabBar />
         <WindowLayer />
         <Dock />
