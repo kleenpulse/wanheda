@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { MAX_VALUE, openPath, trustedSender } from "./bridge";
+import { canTakeCommand, captureNeedsLoad, MAX_CAPTURE, MAX_NOTICE_BODY, MAX_NOTICE_TITLE, MAX_VALUE, openPath, parseAudible, parseCaptureText, parseDesktopChange, parseNotice, parseSecretsAction, trustedSender } from "./bridge";
 
 describe("openPath", () => {
   test("takes allowlisted pages and their keys", () => {
@@ -39,5 +39,87 @@ describe("trustedSender", () => {
     expect(trustedSender({ origin: "http://127.0.0.1:4123", isTop: true }, app)).toBe(false);
     expect(trustedSender(null, app)).toBe(false);
     expect(trustedSender({ origin: app, isTop: true }, null)).toBe(false);
+  });
+});
+
+describe("parseNotice", () => {
+  const ok = { kind: "money", title: "Budget at 80 %", body: "Groceries", path: "/money/budgets" };
+
+  test("a well-formed notice, trimmed", () => {
+    expect(parseNotice(ok)).toEqual(ok);
+    expect(parseNotice({ kind: "timer", title: " Timer done ", body: "Tea ", path: null })).toEqual({ kind: "timer", title: "Timer done", body: "Tea", path: null });
+  });
+
+  test("a path main may not open isn't followed; a path that isn't text drops the notice", () => {
+    for (const path of ["/api/auth/sign-out", "https://evil.test/", "//evil.test", "/money?x=1"]) {
+      expect(parseNotice({ ...ok, path })?.path, path).toBeNull();
+    }
+    expect(parseNotice({ ...ok, path: 5 })).toBeNull();
+  });
+
+  test("bad kinds, blank or long text, extra shapes", () => {
+    expect(parseNotice({ ...ok, kind: "mail" })).toBeNull();
+    expect(parseNotice({ ...ok, title: "  " })).toBeNull();
+    expect(parseNotice({ ...ok, title: "x".repeat(MAX_NOTICE_TITLE + 1) })).toBeNull();
+    expect(parseNotice({ ...ok, body: "x".repeat(MAX_NOTICE_BODY + 1) })).toBeNull();
+    expect(parseNotice({ ...ok, body: null })).toBeNull();
+    expect(parseNotice([ok])).toBeNull();
+    expect(parseNotice(null)).toBeNull();
+  });
+});
+
+describe("parseCaptureText", () => {
+  test("keeps the text as typed; blank, long or not text is refused", () => {
+    expect(parseCaptureText("  buy milk\n- eggs ")).toBe("  buy milk\n- eggs ");
+    expect(parseCaptureText(" \n ")).toBeNull();
+    expect(parseCaptureText("x".repeat(MAX_CAPTURE + 1))).toBeNull();
+    expect(parseCaptureText(["x"])).toBeNull();
+  });
+});
+
+describe("parseDesktopChange", () => {
+  test("keep running", () => {
+    expect(parseDesktopChange({ keepRunning: false })).toEqual({ keepRunning: false });
+    expect(parseDesktopChange({ keepRunning: "no" })).toBeNull();
+    expect(parseDesktopChange({ keepRunning: true, extra: 1 })).toBeNull();
+  });
+
+  test("a shortcut: a valid accelerator, written one way, or null to turn it off", () => {
+    expect(parseDesktopChange({ shortcut: "capture", accelerator: "shift+ctrl+n" })).toEqual({ shortcut: "capture", accelerator: "Ctrl+Shift+N" });
+    expect(parseDesktopChange({ shortcut: "palette", accelerator: null })).toEqual({ shortcut: "palette", accelerator: null });
+    expect(parseDesktopChange({ shortcut: "palette", accelerator: "Shift+P" })).toBeNull();
+    expect(parseDesktopChange({ shortcut: "quit", accelerator: "Ctrl+Q" })).toBeNull();
+    expect(parseDesktopChange({ shortcut: "palette" })).toBeNull();
+    expect(parseDesktopChange({ shortcut: "palette", accelerator: "Alt+P", keepRunning: true })).toBeNull();
+  });
+});
+
+describe("small parsers", () => {
+  test("audible and secrets actions", () => {
+    expect(parseAudible(true)).toBe(true);
+    expect(parseAudible("true")).toBeNull();
+    expect(parseSecretsAction("import")).toBe("import");
+    expect(parseSecretsAction("demo")).toBe("demo");
+    expect(parseSecretsAction("delete")).toBeNull();
+  });
+});
+
+describe("captureNeedsLoad", () => {
+  const app = "http://localhost:4123";
+  test("only the capture page on the app's origin counts as loaded", () => {
+    expect(captureNeedsLoad(`${app}/capture`, app)).toBe(false);
+    expect(captureNeedsLoad(`${app}/login?next=%2Fcapture`, app)).toBe(true);
+    expect(captureNeedsLoad("http://localhost:4999/capture", app)).toBe(true);
+    expect(captureNeedsLoad("", app)).toBe(true);
+    expect(captureNeedsLoad(`${app}/`, app)).toBe(true);
+  });
+});
+
+describe("canTakeCommand", () => {
+  test("an app page, loaded, with its listener up", () => {
+    expect(canTakeCommand({ onApp: true, loading: false, ready: true })).toBe(true);
+    expect(canTakeCommand({ onApp: true, loading: false, ready: false })).toBe(false);
+    expect(canTakeCommand({ onApp: true, loading: true, ready: true })).toBe(false);
+    expect(canTakeCommand({ onApp: false, loading: false, ready: true })).toBe(false);
   });
 });

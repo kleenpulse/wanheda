@@ -51,6 +51,7 @@ export class SessionArbiter {
   private ducked = new WeakMap<SessionClaim, number>();
   /** The owners a speech start paused, still waiting for speech to let go. */
   private heldBySpeech = new Set<SessionOwnerId>();
+  private listeners = new Set<() => void>();
 
   constructor(
     private readonly session: () => SessionLike | null,
@@ -60,6 +61,34 @@ export class SessionArbiter {
 
   get owner(): SessionOwnerId | null {
     return this.claims.at(-1)?.id ?? null;
+  }
+
+  /** Calls `fn` after every claim, state change and release. Returns an unsubscribe. */
+  subscribe(fn: () => void): () => void {
+    this.listeners.add(fn);
+    return () => {
+      this.listeners.delete(fn);
+    };
+  }
+
+  /**
+   * A media key from outside the page (the desktop shell's global shortcuts,
+   * V71): what the OS key would do to the owner. Play-pause follows the
+   * owner's state; stop falls back to pause. False when nothing took it.
+   */
+  command(cmd: "play-pause" | "next" | "previous" | "stop"): boolean {
+    const top = this.claims.at(-1);
+    if (!top) return false;
+    const action: MediaSessionAction =
+      cmd === "play-pause" ? (this.states.get(top.id) === "playing" ? "pause" : "play") : cmd === "next" ? "nexttrack" : cmd === "previous" ? "previoustrack" : "stop";
+    const fn = top.handlers[action] ?? (action === "stop" ? top.handlers.pause : undefined);
+    if (!fn) return false;
+    fn({ action });
+    return true;
+  }
+
+  private changed(): void {
+    for (const fn of this.listeners) fn();
   }
 
   /**
@@ -94,6 +123,7 @@ export class SessionArbiter {
     }
     this.apply();
     this.applyDuck();
+    this.changed();
   }
 
   /** The owner's playing|paused state; written to the OS only for the current owner. */
@@ -103,6 +133,7 @@ export class SessionArbiter {
     const s = this.session();
     if (s && this.owner === id) s.playbackState = state;
     this.applyDuck();
+    this.changed();
   }
 
   release(id: SessionOwnerId): void {
@@ -117,6 +148,7 @@ export class SessionArbiter {
     this.states.delete(id);
     if (was === id) this.apply();
     this.applyDuck();
+    this.changed();
     if (id !== "speech") {
       this.heldBySpeech.delete(id);
       return;
