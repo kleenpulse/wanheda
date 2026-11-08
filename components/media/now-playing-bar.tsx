@@ -168,7 +168,7 @@ export function NowPlayingBar() {
         </span>
         <span className="hidden @3xl:flex">
           {/* No wheel here: the bar floats over a page that scrolls under it. */}
-          <MusicVolume wheel={false} />
+          <MusicVolume />
         </span>
         <MiniProgress />
       </motion.div>
