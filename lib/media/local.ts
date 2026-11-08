@@ -121,6 +121,70 @@ export function fsaPicker(): Picker | null {
   return typeof w.showOpenFilePicker === "function" ? w.showOpenFilePicker.bind(globalThis) : null;
 }
 
+const VIDEO_EXTENSIONS = new Set(VIDEO_ACCEPT.split(",").map((e) => e.slice(1)));
+
+/** A video by its name, for a folder pick (audio belongs to Music's own folder). */
+export function isVideoName(name: string): boolean {
+  const ext = /\.([a-z0-9]{2,5})$/i.exec(name)?.[1]?.toLowerCase() ?? "";
+  return VIDEO_EXTENSIONS.has(ext);
+}
+
+/** Most files one folder pick adds: a pick of a whole drive shouldn't flood the library. */
+export const FOLDER_MAX = 500;
+/** Where the walk stops looking, so a huge tree can't hang the pick; name order is taken from what was found. */
+const WALK_MAX = 5000;
+
+/** A video found in a picked folder: its path inside it, and its handle when File System Access gave one. */
+export type FolderVideo = { path: string; file: File; handle: FileSystemFileHandle | null };
+
+const byPath = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
+
+/** Name order, numbers counted ("Ep 2" before "Ep 10"), capped at FOLDER_MAX. */
+export function orderFolderVideos(found: readonly FolderVideo[]): FolderVideo[] {
+  return [...found].sort((a, b) => byPath.compare(a.path, b.path)).slice(0, FOLDER_MAX);
+}
+
+type DirLike = FileSystemDirectoryHandle & { values: () => AsyncIterable<FileSystemHandle> };
+
+/** Every video under a picked folder, sub-folders too (hidden and unreadable ones skipped), in name order. */
+export async function videosInFolder(dir: FileSystemDirectoryHandle): Promise<FolderVideo[]> {
+  const out: FolderVideo[] = [];
+  const walk = async (d: FileSystemDirectoryHandle, prefix: string): Promise<void> => {
+    for await (const entry of (d as DirLike).values()) {
+      if (out.length >= WALK_MAX) return;
+      const path = prefix ? `${prefix}/${entry.name}` : entry.name;
+      if (entry.kind === "directory") {
+        // A sub-folder the browser won't read (Windows' System Volume Information and the like) is
+        // skipped and the rest goes on; the picked folder itself failing still rejects.
+        if (!entry.name.startsWith(".")) await walk(entry, path).catch(() => undefined);
+      } else if (isVideoName(entry.name)) {
+        const file = await entry.getFile().catch(() => null);
+        if (file) out.push({ path, file, handle: entry });
+      }
+    }
+  };
+  await walk(dir, "");
+  return orderFolderVideos(out);
+}
+
+/** A plain folder input's videos (no handles: this tab only), in name order. */
+export function videosInFiles(files: readonly File[]): FolderVideo[] {
+  return orderFolderVideos(
+    files
+      // The sub-folders between the picked one and the file: hidden ones are skipped, as in the walk.
+      .filter((f) => isVideoName(f.name) && !f.webkitRelativePath.split("/").slice(1, -1).some((part) => part.startsWith(".")))
+      .map((file) => ({ path: file.webkitRelativePath || file.name, file, handle: null })),
+  );
+}
+
+type DirPicker = (o?: { mode?: "read"; id?: string }) => Promise<FileSystemDirectoryHandle>;
+
+/** The FSA folder picker, or null (the caller falls back to a folder <input>). */
+export function fsaFolderPicker(): DirPicker | null {
+  const w = globalThis as unknown as { showDirectoryPicker?: DirPicker };
+  return typeof w.showDirectoryPicker === "function" ? w.showDirectoryPicker.bind(globalThis) : null;
+}
+
 export const PICKER_TYPES = [
   {
     description: "Video and audio",

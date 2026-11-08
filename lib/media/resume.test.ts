@@ -14,6 +14,25 @@ describe("resume rules", () => {
     expect(resumeAt(null, 600)).toBe(0);
   });
 
+  it("a short clip's cut-offs shrink to 10 % of its length", () => {
+    const s = (positionS: number) => ({ positionS, watched: false });
+    // 20 s: (2 s, 18 s)
+    expect(resumeAt(s(2), 20)).toBe(0);
+    expect(resumeAt(s(5), 20)).toBe(5);
+    expect(resumeAt(s(17.9), 20)).toBe(17.9);
+    expect(resumeAt(s(18), 20)).toBe(0);
+    // 52 s: (5.2 s, 46.8 s)
+    expect(resumeAt(s(5), 52)).toBe(0);
+    expect(resumeAt(s(6), 52)).toBe(6);
+    expect(resumeAt(s(46), 52)).toBe(46);
+    expect(resumeAt(s(47), 52)).toBe(0);
+    // 100 s: (10 s, 90 s). The full 30 s tail holds from 300 s.
+    expect(resumeAt(s(9), 100)).toBe(0);
+    expect(resumeAt(s(11), 100)).toBe(11);
+    expect(resumeAt(s(89), 100)).toBe(89);
+    expect(resumeAt(s(90), 100)).toBe(0);
+  });
+
   it("a watched video reopens from 0", () => {
     expect(resumeAt({ positionS: 200, watched: true }, 600)).toBe(0);
   });

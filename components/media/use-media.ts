@@ -8,7 +8,7 @@ import { useAccount } from "@/components/shell/account";
 import { toast } from "@/components/ui/toaster";
 import { useHydrated } from "@/hooks/use-hydrated";
 import { fetchJson } from "@/lib/fetch-json";
-import { forgetFile, keepHandle, rememberFile } from "@/lib/media/local";
+import { forgetFile, keepHandle, rememberFile, type FolderVideo } from "@/lib/media/local";
 import { MEDIA_KEY, TITLE_MAX, upsertItem, type MediaPayload } from "@/lib/media/media";
 import type { MediaItem, MediaItemInput } from "@/lib/media/types";
 import { layProgress } from "@/lib/media/playback";
@@ -83,7 +83,7 @@ export function useMediaApi() {
 
   /** Adds optimistically; resolves with the item the library ends up holding, or null. */
   const save = React.useCallback(
-    async (input: MediaItemInput): Promise<MediaItem | null> => {
+    async (input: MediaItemInput, quiet = false): Promise<MediaItem | null> => {
       const known = qc.getQueryData<MediaPayload>(MEDIA_KEY)?.items.find((i) => i.fp === input.fp);
       if (known) return known;
       const now = new Date().toISOString();
@@ -102,6 +102,7 @@ export function useMediaApi() {
         return r.item;
       }
       drop();
+      if (quiet) return null;
       toast({
         title: `Couldn't add ${item.title}`,
         body: r ? "The server didn't take it. Try again." : "You may be offline. Try again when you're back.",
@@ -111,14 +112,14 @@ export function useMediaApi() {
     [qc, demo, patchCache],
   );
 
-  /** A picked local file joins the library by its fp (V54); the same file again relinks. */
+  /** A picked local file joins the library by its fp (V54); the same file again relinks. `quiet`: the caller reports failures itself. */
   const addFile = React.useCallback(
-    async (file: File, handle: FileSystemFileHandle | null): Promise<MediaItem | null> => {
+    async (file: File, handle: FileSystemFileHandle | null, quiet = false): Promise<MediaItem | null> => {
       let opened: Awaited<ReturnType<typeof identify>>;
       try {
         opened = await identify(file);
       } catch {
-        toast({ title: `Couldn't read ${file.name}`, body: "The media reader stopped. Try the file again." });
+        if (!quiet) toast({ title: `Couldn't read ${file.name}`, body: "The media reader stopped. Try the file again." });
         return null;
       }
       rememberFile(opened.fp, file);
@@ -132,9 +133,44 @@ export function useMediaApi() {
         title: titleFromName(file.name),
         durationS: opened.probe?.durationS ?? null,
         meta: { size: file.size, ...(opened.probe ? { format: opened.probe.format.slice(0, 40) } : {}) },
-      });
+      }, quiet);
     },
     [demo, save],
+  );
+
+  /**
+   * A picked folder's videos, one at a time. Added last first, so the list
+   * (newest on top) reads in the folder's name order and next walks it
+   * forward. Resolves with the top one and the counts: new to the list,
+   * already in it (a re-pick), copies of another file in this pick (same
+   * fp, so listed once), and failed.
+   */
+  const addFolder = React.useCallback(
+    async (
+      videos: readonly FolderVideo[],
+      onProgress: (done: number) => void,
+    ): Promise<{ first: MediaItem | null; added: number; known: number; copies: number; failed: number }> => {
+      const before = new Set(qc.getQueryData<MediaPayload>(MEDIA_KEY)?.items.map((i) => i.id));
+      const added = new Set<string>();
+      let first: MediaItem | null = null;
+      const known = new Set<string>();
+      let copies = 0;
+      let failed = 0;
+      let done = 0;
+      for (const v of [...videos].reverse()) {
+        const item = await addFile(v.file, v.handle, true);
+        if (!item) failed++;
+        else {
+          first = item;
+          if (before.has(item.id)) known.add(item.id);
+          else if (added.has(item.id)) copies++;
+          else added.add(item.id);
+        }
+        onProgress(++done);
+      }
+      return { first, added: added.size, known: known.size, copies, failed };
+    },
+    [qc, addFile],
   );
 
   /** A pasted link: an allowlisted embed or a direct http(s) media URL (V56). */
@@ -223,7 +259,7 @@ export function useMediaApi() {
     [demo, patchCache],
   );
 
-  return { addFile, addLink, remove, setWatchLater };
+  return { addFile, addFolder, addLink, remove, setWatchLater };
 }
 
 export function providerName(p: string): string {

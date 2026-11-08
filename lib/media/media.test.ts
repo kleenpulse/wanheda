@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatDuration, itemCreateSchema, upsertItem } from "./media";
+import { formatDuration, itemCreateSchema, stepItem, upsertItem } from "./media";
 import { seedMedia } from "./seed";
 import type { MediaItem } from "./types";
 
@@ -51,5 +51,30 @@ describe("library helpers", () => {
     expect(formatDuration(null)).toBe("");
     expect(formatDuration(65)).toBe("1:05");
     expect(formatDuration(3723)).toBe("1:02:03");
+  });
+});
+
+describe("stepItem (prev|next media keys on a video)", () => {
+  const at = (id: string, source: MediaItem["source"]): MediaItem =>
+    ({ id, kind: "video", source, fp: id, uri: id, title: id, durationS: null, meta: {}, watchLaterAt: null, progress: null, createdAt: "", updatedAt: "" });
+  const items = [at("a", "local"), at("b", "embed"), at("c", "url"), at("d", "local")];
+
+  it("moves down and up the list, passing over embeds", () => {
+    expect(stepItem(items, "a", 1)?.id).toBe("c");
+    expect(stepItem(items, "c", 1)?.id).toBe("d");
+    expect(stepItem(items, "d", -1)?.id).toBe("c");
+    expect(stepItem(items, "c", -1)?.id).toBe("a");
+  });
+
+  it("is null at either end, past only embeds, or when the item is gone", () => {
+    expect(stepItem(items, "d", 1)).toBeNull();
+    expect(stepItem(items, "a", -1)).toBeNull();
+    expect(stepItem([at("a", "local"), at("b", "embed")], "a", 1)).toBeNull();
+    expect(stepItem(items, "zz", 1)).toBeNull();
+  });
+
+  it("steps off an embed to its neighbour", () => {
+    expect(stepItem(items, "b", 1)?.id).toBe("c");
+    expect(stepItem(items, "b", -1)?.id).toBe("a");
   });
 });

@@ -26,7 +26,15 @@ type PlayerState = {
   subtitles: (file: File) => Promise<boolean>;
   unregister: (el: HTMLVideoElement) => void;
   setTheatre: (on: boolean) => void;
+  /** Opens the next (1) or previous (-1) item in the library list; false at an end. Set by the videos view. */
+  step: ((dir: 1 | -1) => boolean) | null;
+  setStep: (step: ((dir: 1 | -1) => boolean) | null) => void;
+  /** A video opened paused at its saved place, waiting for Resume or Start over (resume mode "ask"). */
+  ask: ResumeAsk | null;
+  setAsk: (ask: ResumeAsk | null) => void;
 };
+
+export type ResumeAsk = { itemId: string; at: number; answer: (choice: "resume" | "start") => void };
 
 function readTheatre(): boolean {
   try {
@@ -71,6 +79,14 @@ export const usePlayer = create<PlayerState>((set, get) => ({
       // Private mode: this tab only.
     }
     set({ theatre: on });
+  },
+  step: null,
+  setStep: (step) => {
+    set({ step });
+  },
+  ask: null,
+  setAsk: (ask) => {
+    set({ ask });
   },
 }));
 

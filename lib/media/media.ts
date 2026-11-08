@@ -90,6 +90,21 @@ export function upsertItem(items: readonly MediaItem[], item: MediaItem): MediaI
   return sortItems([item, ...items.filter((i) => i.id !== item.id && i.fp !== item.fp)]);
 }
 
+/**
+ * The item `dir` rows from `id` in the library list, for the prev|next media
+ * keys. Embeds are passed over: a provider iframe never takes the keys, so
+ * landing on one would end the run. Null at either end, or when `id` is gone.
+ */
+export function stepItem(items: readonly MediaItem[], id: string, dir: 1 | -1): MediaItem | null {
+  const at = items.findIndex((i) => i.id === id);
+  if (at < 0) return null;
+  for (let i = at + dir; i >= 0 && i < items.length; i += dir) {
+    const item = items[i];
+    if (item && item.source !== "embed") return item;
+  }
+  return null;
+}
+
 /** "1:02:03", "4:05", or "" for an unknown duration. */
 export function formatDuration(s: number | null): string {
   if (s === null || !Number.isFinite(s) || s < 0) return "";

@@ -30,8 +30,9 @@ describe("lists", () => {
     ]);
     expect(list.map((i) => i.id)).toEqual([b.id, a.id]);
     expect(continueList([{ ...a, progress: { positionS: 5, watched: false, lastPlayedAt: "2026-11-07T10:00:00.000Z" } }])).toEqual([]);
-    // Inside the last 30 s it would open at 0, so it isn't listed (b is the 52 s trailer).
-    expect(continueList([{ ...b, progress: { positionS: 31, watched: false, lastPlayedAt: "2026-11-07T10:00:00.000Z" } }])).toEqual([]);
+    // b is the 52 s trailer: its tail is 10 % (5.2 s), so 31 s is listed and 47 s (it would open at 0) isn't.
+    expect(continueList([{ ...b, progress: { positionS: 31, watched: false, lastPlayedAt: "2026-11-07T10:00:00.000Z" } }])).toHaveLength(1);
+    expect(continueList([{ ...b, progress: { positionS: 47, watched: false, lastPlayedAt: "2026-11-07T10:00:00.000Z" } }])).toEqual([]);
   });
 
   it("watch later: queued and unwatched, oldest first", () => {

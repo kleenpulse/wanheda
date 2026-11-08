@@ -271,6 +271,8 @@ function LinkPlayer({ item: live }: { item: MediaItem }) {
     el.addEventListener("error", onError);
     setSource(el, parsed.url);
     log(item, { mode: "link" }, null);
+    // Opening plays, as a local file does, so a run of next keys goes on through links.
+    void el.play().catch(() => undefined);
     return () => {
       el.removeEventListener("error", onError);
       setSource(el, null);
