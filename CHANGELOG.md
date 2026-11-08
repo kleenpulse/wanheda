@@ -15,6 +15,8 @@ written after the fact, one per phase, and have no git tags.
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-11-08
+
 ### Added
 
 - Read aloud has its own volume. A volume slider and a mute button sit next to the reading controls, on the island and in the read-aloud window. It's kept on this device and is separate from the music volume, so you can turn the voice down without touching your songs.
