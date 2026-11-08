@@ -1,19 +1,35 @@
 # Latest hand-off
 
-**Newest:** [2026-11-08-phase-7-t65-sound-run.md](2026-11-08-phase-7-t65-sound-run.md). **T65 owner checks: 1–3 pass; check 4 (Sound) failed in pause mode ⇒ B25 + owner refinements; #68–#73 merged, `main` @ `a9f726c` (#72 + #73 merged by the Builder on the owner's word; main check PASS). Next: owner reruns check 4 (pause, duck, mix) and runs 5–7; all pass ⇒ tick T65 + Phase 7 done hand-off with Phase 8 prompts.** No migration.
+**Newest:** [2026-11-08-phase-7-done.md](2026-11-08-phase-7-done.md). **Phase 7 (Media) is done: T65 ticked. Owner checks 4–7 passed on `main` @ `5a09e99` (Sound pause|duck|mix, `meta.folder` reload, lapsed permission ⇒ "Up next" card with no countdown, plays persist, rescan prunes); 7c (unplugged drive keeps history) not run, as there was no removable drive. No code changed, no migration. Next: the owner merges `docs/phase-7-done`; the Phase 7 minor release only on the owner's word; then Phase 8 (Desktop, Electron) planning in a fresh session.**
 
-**Before it:** [2026-11-08-phase-7-media-home-built.md](2026-11-08-phase-7-media-home-built.md). **T73 Media Home: PR #66 is merged (`main` @ `6a965d2`, 2026-11-08 18:09 +0100, no migration). Its tip check on `f45f8b8` PASSED. The Reviewer's (`wanheda-bc`) main check on `6a965d2` PASSED (sent to `wanheda-1e` at the time, repeated in the `e4dd43d` check). `git tidy` looks done (only the stale `phase-7/exit` is left locally, already in `main`).** Owner checks open from T73: with a real music folder, a play persists across a reload, a rescan after deleting a file prunes its history, and an unplugged drive keeps it. Home|Videos|Music tabs in the page header, Home shelves, play history (Dexie v5 `trackStats`), Videos grid, now-playing bar (island drops music while it shows). Two mid-build user fixes: the tabs moved to the top bar (as Money's), and the chrome's Theatre now stays on a narrow player while Fit/Fill steps aside. No SQL migration.
+**Before it:** [2026-11-08-phase-7-t65-sound-run.md](2026-11-08-phase-7-t65-sound-run.md). T65 checks 1–3 passed; check 4 failed in pause mode ⇒ B25, fades, speech pause lets go, wheel tunes every slider; #68–#73 merged.
 
-**Before it:** [2026-11-08-phase-7-media-player-built.md](2026-11-08-phase-7-media-player-built.md) (steps: [a](2026-11-08-phase-7-media-player-chrome.md), [b](2026-11-08-phase-7-media-player-up-next.md)). **PR #65 (T72 Cinema player) is merged: `main` @ `d5f465a`, no migration. Reviewer (`wanheda-bc`) tip check and main check on `d5f465a` both passed. `git tidy` run. Next: T73 Media Home on `feat/media-home` in a fresh session, per the plan file's PR 2 section (`C:\Users\skyep\.claude\plans\your-the-expert-ui-ux-snappy-iverson.md`) and SPEC T73 (add V66, amend V61).** Owner checks still open from T72: `meta.folder` survives a reload against Neon; a lapsed folder permission shows the Play card (no countdown). Open product question (Reviewer nit 2): PiP can't outlive /media (apps unmount on a hop). Note: video keys for T65 now come from the new chrome (player-keys.ts).
+**Earlier:** [2026-11-08-phase-7-media-home-built.md](2026-11-08-phase-7-media-home-built.md) (T73, #66), [2026-11-08-phase-7-media-player-built.md](2026-11-08-phase-7-media-player-built.md) (T72, #65), [2026-11-07-phase-7-exit-machine.md](2026-11-07-phase-7-exit-machine.md) (T65 machine run).
 
-**Earlier:** [2026-11-08-aurora-edge.md](2026-11-08-aurora-edge.md). **#62 (T71 Aurora from top|bottom) and #63 (Money/Income tabs at the right edge, closer to the sheet) are merged; `main` is at `7cdccbb`. Migration 0012 is applied (`user_prefs.aurora_edge`, 13 rows in `__drizzle_migrations`).** Reviewer's main check on `7cdccbb` passed; `git tidy` run (only `phase-7/exit` left, never pushed). **PR #64 `fix/money-stat-overflow` (tip `53b04cf`, Reviewer LGTM) is open:** Money totals one per row until `@4xl`, amounts `min(30px, 2.6cqi)` across; plus SPEC T69/T71 → x. No migration. The user merges it.
-
-**Also today:** [2026-11-08-video-folder.md](2026-11-08-video-folder.md). **PR #61 `phase-7/video-folder` (T70: video next/prev walk the list, Open a folder, Music-style scrolling, resume Ask | Resume | Start over) is merged (`da3c9e3`).**
-
-**Before that:** [2026-11-08-page-wallpapers.md](2026-11-08-page-wallpapers.md) (T69, #60 merged at `fa53701`, migration 0011 applied) and [2026-11-07-music-polish.md](2026-11-07-music-polish.md) (#58, #59; the T65 check list is in [2026-11-07-phase-7-exit-machine.md](2026-11-07-phase-7-exit-machine.md)).
-
-- T65 owner checks: the ear test **passed**, music keys **passed**. Still to run: video keys (new behaviour), read-aloud keys, the island, and Sound mode. All pass ⇒ tick T65 and write the Phase 7 done hand-off with the Phase 8 prompts. Any fail ⇒ a fix branch.
-- After each merge: `git tidy` (local alias), and ask the Reviewer (`wanheda-bc` this run) for the main check.
+- After each merge: `git tidy` (local alias).
 - The checkout may be shared with another session: check the branch before staging.
 
 Read the hand-off first, then verify it against the repo before trusting it (git, tripwire, typecheck, tests).
+
+### Builder prompt (Phase 8)
+
+```text
+You are the BUILDER for Wanheda (D:\Vxrcel\wanheda), lean mode, no worktrees.
+Start: git switch main, git fetch + incoming-commit check, pull, then tripwire, typecheck, tests. Run git tidy.
+Read docs/handoff/LATEST.md → 2026-11-08-phase-7-done.md, then FRD §Phase 8 and the files it lists.
+Phase 8 = Desktop (Electron), ported from Raven's desktop/. First plan it with the spec skill:
+§T tasks with checkpoints and the exit task (FRD exit criteria), plus §V invariants; get the owner's OK.
+Every package and binary (Electron, electron-builder, ffmpeg, mpv, sherpa-onnx): pinned exact, ≥ 7 days old,
+supply chain read before install. No tracked .js/.cjs/.mjs (tripwire). The checkout may be shared: check the branch.
+```
+
+### Reviewer prompt (Phase 8)
+
+```text
+You are the REVIEWER for Wanheda (D:\Vxrcel\wanheda). Use the diff-reviewer skill; read-only.
+One pass per PR, bugs and edge cases only, verdict LGTM / LGTM with nits / FIX, sent to the Builder.
+Read docs/handoff/LATEST.md → 2026-11-08-phase-7-done.md. Nothing pending: wait for the Builder's request.
+Phase 8 = Electron. Weigh hardest: preload bridge surface, IPC input checks, CSP, deep-link allow-list,
+safeStorage secrets, utility-process server, auto-update source, bundled binaries, and boot-time configs
+(*.config.*, package.json scripts, .vscode/) against the worm rules in CLAUDE.md.
+```
