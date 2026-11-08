@@ -54,6 +54,7 @@ written after the fact, one per phase, and have no git tags.
 
 ### Changed
 
+- On Money and Income, the tabs at the top now sit closer to the page they switch.
 - In the light Bench theme, cards are now a soft grey that stands out from the white page behind them, the same way they do in dark mode.
 - Amount fields in Money and Income are smarter. They only take what can be part of an amount, so stray letters can't get in, and they add the thousands commas as you type. Short forms and sums work: type `20k`, `1.5m` or `2.5k + 800` and the line under the field shows what it comes to, then the field fills it in when you leave it. Pasting `₦20,000.00`, `US$ 1,000` or a statement's `(1,234.50)` just works. The arrow keys nudge the amount up or down (hold Shift for steps of 10), and an opening balance has a ± button to make it negative, handy on a phone keyboard with no minus key.
 
