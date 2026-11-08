@@ -70,6 +70,7 @@ written after the fact, one per phase, and have no git tags.
 
 ### Changed
 
+- The mouse wheel now turns every slider: the volume on the now-playing bar and in the read-aloud window, the music and video seek bars (5 seconds a notch), and the auto-scroll speed in Settings → Reader. Scrolling the page past a slider still scrolls the page.
 - When read-aloud (or another video or song) pauses your music or a video, the sound now fades out instead of cutting off. When the reading stops, it fades back in to your volume.
 - While the Reader is reading aloud, clicking Reader in the dock brings back the floating read-aloud card (or brings it to the front) instead of leaving your book for the library.
 - On Media Home, Recently played albums now show their cover edge to edge, the same as Most played songs, instead of a smaller cover inside a blurred frame.

@@ -53,7 +53,7 @@ export function SpeechWindow() {
         </div>
       )}
       <div className="mt-auto flex flex-col gap-3">
-        <SpeechTransport tone="surface" wheel={false} />
+        <SpeechTransport tone="surface" />
         <SpeechOptions tone="surface" now={now ?? 0} />
       </div>
     </div>

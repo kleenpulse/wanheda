@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useWheelSteps } from "@/hooks/use-wheel-steps";
 import { BookOpen, ChevronDown, ChevronUp, ChevronsDown, Columns2, Eye, Pause, RectangleVertical, ScrollText, Search, X } from "lucide-react";
 import { motion } from "motion/react";
 import { Tip } from "@/components/ui/tooltip";
@@ -324,8 +325,13 @@ export function AutoScrollControl({ on, speed, onToggle, onSpeed }: { on: boolea
 export function AutoScrollSpeed({ labelledBy }: { labelledBy: string }) {
   const position = autoSpeedPref.use();
   const speed = Math.round(autoScrollSpeed(position));
+  // The wheel tunes it, as every slider: a notch moves it as far as in the book (2 of 100).
+  const box = React.useRef<HTMLSpanElement>(null);
+  useWheelSteps(box, (steps) => {
+    autoSpeedPref.set(Math.min(100, Math.max(0, autoSpeedPref.get() + steps * 2)));
+  });
   return (
-    <span className="flex items-center gap-3">
+    <span ref={box} className="flex items-center gap-3">
       <input
         type="range"
         min={0}

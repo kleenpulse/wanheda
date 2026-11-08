@@ -3,7 +3,8 @@
 import * as React from "react";
 import { Volume1, Volume2, VolumeX } from "lucide-react";
 import type { DevicePref } from "@/hooks/device-pref";
-import { WHEEL_STEP, wheelSteps, type Volume } from "@/lib/media/volume";
+import { useWheelSteps } from "@/hooks/use-wheel-steps";
+import { WHEEL_STEP, type Volume } from "@/lib/media/volume";
 import { cn } from "@/lib/utils";
 
 // The volume rocker (T64), shared by music and read-aloud: mute, and a slider
@@ -37,51 +38,18 @@ const TONES = {
 } as const;
 
 const VOLUME_ICONS = { off: VolumeX, low: Volume1, high: Volume2 } as const;
-/** A wheel this soon after any scroll belongs to that scroll, not to the volume. */
-const SCROLL_GLIDE_MS = 300;
 
-/**
- * `wheel={false}` where the rocker floats over a page that scrolls (the
- * now-playing bar, T73): a scroll passing over it must move the page, never
- * the volume.
- */
-export function VolumeRocker({ target, tone = "island", wheel = true }: { target: VolumeTarget; tone?: RockerTone; wheel?: boolean }) {
+/** The mouse wheel anywhere over it turns it, a notch a step (owner rule: every slider takes the wheel). */
+export function VolumeRocker({ target, tone = "island" }: { target: VolumeTarget; tone?: RockerTone }) {
   const v = target.pref.use();
   const level = v.muted ? 0 : v.level;
   const Icon = VOLUME_ICONS[level === 0 ? "off" : level < 0.5 ? "low" : "high"];
   const pct = `${String(level * 100)}%`;
   const t = TONES[tone];
-
-  // React's onWheel is passive, so it can't keep the page behind from scrolling: a native listener can.
   const rocker = React.useRef<HTMLDivElement>(null);
-  const { nudge } = target;
-  React.useEffect(() => {
-    const el = rocker.current;
-    if (!el || !wheel) return;
-    let carry = 0;
-    // A page scroll that's already moving (Home's widget sits in a scrolling page)
-    // glides over the rocker instead of stopping on it and changing the volume.
-    let lastScroll = -Infinity;
-    const onScroll = () => {
-      lastScroll = performance.now();
-    };
-    const onWheel = (e: WheelEvent) => {
-      if (e.ctrlKey) return; // pinch or Ctrl+wheel is the browser's zoom
-      if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) return; // a sideways swipe is back/forward
-      if (performance.now() - lastScroll < SCROLL_GLIDE_MS) return;
-      e.preventDefault();
-      const turned = wheelSteps(carry, e.deltaY, e.deltaMode);
-      carry = turned.carry;
-      if (turned.steps !== 0) nudge(turned.steps * WHEEL_STEP);
-    };
-    el.addEventListener("wheel", onWheel, { passive: false });
-    // Scroll doesn't bubble; capturing on window hears every scroller's.
-    window.addEventListener("scroll", onScroll, { capture: true, passive: true });
-    return () => {
-      el.removeEventListener("wheel", onWheel);
-      window.removeEventListener("scroll", onScroll, { capture: true });
-    };
-  }, [wheel, nudge]);
+  useWheelSteps(rocker, (steps) => {
+    target.nudge(steps * WHEEL_STEP);
+  });
 
   return (
     <div ref={rocker} className="flex shrink-0 items-center gap-1">

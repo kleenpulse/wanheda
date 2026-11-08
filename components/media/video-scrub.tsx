@@ -3,6 +3,7 @@
 import * as React from "react";
 import { playerClock } from "@/lib/media/cinema";
 import { cn } from "@/lib/utils";
+import { WHEEL_SEEK_S, useWheelSteps } from "@/hooks/use-wheel-steps";
 import { seekElement, usePlayer } from "./player-store";
 
 // The video's progress bar (T72, V65): signal fill, a buffered tint, a round
@@ -194,6 +195,10 @@ export function VideoScrub({
     seekElement(el, t);
     paint(el.currentTime);
   };
+  // The wheel over the bar seeks, a notch at a time (every slider takes the wheel).
+  useWheelSteps(bar, (steps) => {
+    seekTo(Math.min(duration(), Math.max(0, el.currentTime + steps * WHEEL_SEEK_S)));
+  });
 
   return (
     <div className="flex items-center gap-3">

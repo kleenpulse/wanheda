@@ -87,12 +87,8 @@ const SPEECH_VOLUME: VolumeTarget = {
   toggleMute: toggleSpeechMute,
 };
 
-/**
- * Prev, play|pause, next and stop, and read-aloud's own volume. `wheel={false}`
- * where the controls float over a page that scrolls (the mini window): a scroll
- * passing over the rocker must move the page, never the volume (T73).
- */
-export function SpeechTransport({ tone, wheel = true }: { tone: ControlTone; wheel?: boolean }) {
+/** Prev, play|pause, next and stop, and read-aloud's own volume. */
+export function SpeechTransport({ tone }: { tone: ControlTone }) {
   const status = useSpeech((s) => s.status);
   const waiting = useSpeech((s) => s.waiting);
   const sentence = useSpeech((s) => s.sentence);
@@ -122,7 +118,7 @@ export function SpeechTransport({ tone, wheel = true }: { tone: ControlTone; whe
         <Square aria-hidden className="fill-current" />
       </Round>
       <div className="ml-auto">
-        <VolumeRocker target={SPEECH_VOLUME} tone={tone} wheel={wheel} />
+        <VolumeRocker target={SPEECH_VOLUME} tone={tone} />
       </div>
     </div>
   );

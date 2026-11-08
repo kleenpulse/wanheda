@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { useCoverUrl } from "./cover";
 import { useMusicLibrary } from "./music-library";
 import { musicLevels, musicPosition, useMusicPlayer } from "./music-player";
+import { WHEEL_SEEK_S, useWheelSteps } from "@/hooks/use-wheel-steps";
 import { SoundGlow } from "./sound-glow";
 import { VolumeRocker, type VolumeTarget } from "./volume-rocker";
 
@@ -131,12 +132,17 @@ const MUSIC_VOLUME: VolumeTarget = {
 };
 
 /** The music's volume rocker (kept on this device). */
-export function MusicVolume({ wheel = true }: { wheel?: boolean }) {
-  return <VolumeRocker target={MUSIC_VOLUME} wheel={wheel} />;
+export function MusicVolume() {
+  return <VolumeRocker target={MUSIC_VOLUME} />;
 }
 
 /** The wave progress bar, seekable: drag or arrow keys, the seek lands on release. */
 export function WaveScrub() {
+  // The wheel over the bar seeks, a notch at a time (every slider takes the wheel).
+  const scrub = React.useRef<HTMLDivElement>(null);
+  useWheelSteps(scrub, (steps) => {
+    useMusicPlayer.getState().seekBy(steps * WHEEL_SEEK_S);
+  });
   const position = useMusicPlayer((s) => s.position);
   const duration = useMusicPlayer((s) => s.duration);
   const playing = useMusicPlayer((s) => s.status === "playing" && !s.loading);
@@ -189,7 +195,7 @@ export function WaveScrub() {
   };
   return (
     <div>
-      <div className="group/scrub relative h-3.5 rounded-full has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-island-foreground/70">
+      <div ref={scrub} className="group/scrub relative h-3.5 rounded-full has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-island-foreground/70">
         {tip ? (
           <span
             aria-hidden
