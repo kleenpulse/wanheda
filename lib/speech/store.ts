@@ -52,13 +52,16 @@ interface SpeechState {
   chapters: readonly number[];
   /** The sleep timer, or null. It pauses the speech. */
   sleep: Sleep | null;
+  /** The current pause came from the sleep timer, not the owner. */
+  slept: boolean;
 
   /**
    * `voice` overrides the voice pref for this play only (a sample in Settings). `pressAt` is the press's
    * performance.now() when it came before this call (read-along awaits the text first): the exit log's clock.
    */
   play: (source: SpeechSource, sentences: readonly string[], from?: number, opts?: { voice?: string; pressAt?: number }) => void;
-  pause: () => void;
+  /** `sleep`: the sleep timer paused it, so what speech paused stays paused (V60). */
+  pause: (opts?: { sleep?: boolean }) => void;
   resume: () => void;
   toggle: () => void;
   stop: () => void;
@@ -299,7 +302,7 @@ export const useSpeech = create<SpeechState>()((set, get) => {
       // End of chapter: the next chapter's first sentence is where the voice stops, ready to go on.
       if (sleep?.kind === "chapter" && i >= sleep.end) {
         set({ sleep: null });
-        get().pause();
+        get().pause({ sleep: true });
       }
     },
     onEnd: () => {
@@ -340,7 +343,7 @@ export const useSpeech = create<SpeechState>()((set, get) => {
       () => {
         if (get().sleep !== sleep) return;
         set({ sleep: null });
-        get().pause();
+        get().pause({ sleep: true });
       },
       Math.max(0, sleep.at - Date.now()),
     );
@@ -365,6 +368,7 @@ export const useSpeech = create<SpeechState>()((set, get) => {
     startedAt: 0,
     chapters: [],
     sleep: null,
+    slept: false,
 
     play: (source, list, from = 0, opts) => {
       const playAt = performance.now();
@@ -383,6 +387,7 @@ export const useSpeech = create<SpeechState>()((set, get) => {
       player.unlock();
       set({
         status: "playing",
+        slept: false,
         waiting: true,
         source,
         sentence: start,
@@ -419,15 +424,15 @@ export const useSpeech = create<SpeechState>()((set, get) => {
         });
     },
 
-    pause: () => {
+    pause: (opts) => {
       if (get().status !== "playing") return;
-      set({ status: "paused" });
+      set({ status: "paused", slept: opts?.sleep === true });
       driver?.pause();
     },
 
     resume: () => {
       if (get().status !== "paused") return;
-      set({ status: "playing" });
+      set({ status: "playing", slept: false });
       player.unlock();
       driver?.resume();
     },

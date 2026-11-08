@@ -49,6 +49,7 @@ export function SpeechMediaSession() {
   const title = useSpeech((s) => s.source?.title ?? null);
   const kind = useSpeech((s) => s.source?.kind ?? null);
   const status = useSpeech((s) => s.status);
+  const slept = useSpeech((s) => s.slept);
   const was = React.useRef(status);
 
   // Held while speech is live, not per title: a release plays again what speech
@@ -71,9 +72,12 @@ export function SpeechMediaSession() {
   React.useEffect(() => {
     if (!live || title === null) return;
     if (status === "playing" && was.current !== "playing") mediaSession.claim(speechClaim(title, kind), true);
+    const paused = status === "paused" && was.current === "playing";
     was.current = status;
     mediaSession.setState("speech", status === "playing" ? "playing" : "paused");
-  }, [live, status, title, kind]);
+    // The owner paused the reading: what it paused plays again (V60). The sleep timer's pause lets nothing go.
+    if (paused && !slept) mediaSession.endInterruption();
+  }, [live, status, title, kind, slept]);
 
   return null;
 }
