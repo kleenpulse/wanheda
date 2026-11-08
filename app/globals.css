@@ -497,7 +497,7 @@
 
 	/* Bench light stickies: deeper tints than Ember's papers (user
 	   2026-11-05: darker on Bench). Ink >= 13.9:1, ink-2 >= 5.4:1; marks
-	   inherited from :root, still >= 3:1 on Bench's white card. */
+	   inherited from :root, still >= 3:1 on Bench's floor-grey card. */
 	--sticky-plain: #e8e8e8;
 	--sticky-amber: #ffe2bd;
 	--sticky-rose: #ffdce4;
@@ -511,7 +511,9 @@
 
 	--background: #f9f9fb;
 	--foreground: #16191d;
-	--card: #ffffff;
+	/* The floor grey, not the sheet's white: cards stand off the sheet the
+	   way dark Bench's cards do (user 2026-11-08). */
+	--card: #f9f9fb;
 	--card-foreground: #16191d;
 	--popover: #ffffff;
 	--popover-foreground: #16191d;
