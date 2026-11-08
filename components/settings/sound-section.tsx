@@ -19,7 +19,7 @@ const RESUME_HELP = {
 } as const;
 
 const MODE_HELP = {
-  pause: "Starting one pauses the other. Music or a video that read-aloud paused plays again when the reading stops.",
+  pause: "Starting one pauses the other. Music or a video that read-aloud paused plays again when you pause or stop the reading.",
   duck: "Music or a video gets quieter while speech plays, and comes back when it stops or pauses.",
   mix: "Both play at full volume.",
 } as const;

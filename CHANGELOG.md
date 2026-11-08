@@ -70,6 +70,7 @@ written after the fact, one per phase, and have no git tags.
 
 ### Changed
 
+- When read-aloud (or another video or song) pauses your music or a video, the sound now fades out instead of cutting off. When the reading stops, it fades back in to your volume.
 - While the Reader is reading aloud, clicking Reader in the dock brings back the floating read-aloud card (or brings it to the front) instead of leaving your book for the library.
 - On Media Home, Recently played albums now show their cover edge to edge, the same as Most played songs, instead of a smaller cover inside a blurred frame.
 - The "you stopped at" question over a video is now frosted glass, so the picture behind it no longer shows through the words.
@@ -79,7 +80,7 @@ written after the fact, one per phase, and have no git tags.
 
 ### Fixed
 
-- With Settings → Sound on "Pause the other", music or a video that read-aloud paused now plays again when you stop the reading or it reaches the end. Before, it stayed paused. Pausing the reading keeps it paused, and if you play or stop the music yourself in the meantime, your choice wins.
+- With Settings → Sound on "Pause the other", music or a video that read-aloud paused now plays again when you pause or stop the reading, or it reaches the end. Before, it stayed paused. When the sleep timer pauses the reading, the music stays paused, and if you play or stop the music yourself in the meantime, your choice wins.
 - Settings → Sound's cards have room between them again, like every other settings page, instead of being stacked edge to edge.
 - Money's Spent, Received and Net totals no longer spill out of their cards in a narrower window. They stay one per row until there's room for three across, and then the amounts size themselves to fit.
 - Short videos now pick up where you left off. Before, a clip under about 40 seconds always started from the beginning even though its row showed a progress bar, and a row now only shows a bar when the video will really continue from there.

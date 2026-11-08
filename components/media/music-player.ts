@@ -4,6 +4,7 @@ import { create } from "zustand";
 import { toast } from "@/components/ui/toaster";
 import type { Track } from "@/lib/media/library";
 import type { MusicEngine } from "@/lib/media/music-engine";
+import { SOUND_FADE } from "@/lib/motion";
 import { mediaSession, type SessionClaim } from "@/lib/media/session-owner";
 import { accrue, shouldCount, type Accrual } from "@/lib/media/stats";
 import { isTonePath } from "@/lib/media/tones";
@@ -63,8 +64,10 @@ type State = {
   /** Plays the queue's item `index` (a pick from Up next). */
   jump: (index: number) => void;
   toggle: () => void;
-  pause: () => void;
-  resume: () => void;
+  /** `fade`: another sound is taking over, so the music fades out before it stops (V60). */
+  pause: (opts?: { fade?: boolean }) => void;
+  /** `fade`: the sound that took over let go, so the music fades back in. */
+  resume: (opts?: { fade?: boolean }) => void;
   next: () => void;
   prev: () => void;
   seek: (seconds: number) => void;
@@ -228,10 +231,10 @@ function musicClaim(t: Track): SessionClaim {
       },
     },
     pause: () => {
-      if (player().status === "playing") player().pause();
+      if (player().status === "playing") player().pause({ fade: true });
     },
     resume: () => {
-      if (player().status === "paused") player().resume();
+      if (player().status === "paused") player().resume({ fade: true });
     },
     duck: (gain) => {
       engine?.duck(gain);
@@ -293,15 +296,15 @@ export const useMusicPlayer = create<State>((set, get) => {
       else get().resume();
     },
 
-    pause: () => {
+    pause: (opts) => {
       if (get().status !== "playing") return;
       set({ status: "paused" });
-      engine?.pause();
+      engine?.pause(opts?.fade ? SOUND_FADE.out : 0);
       stopTicker();
       mediaSession.setState("music", "paused");
     },
 
-    resume: () => {
+    resume: (opts) => {
       const s = get();
       if (s.status === "playing" || !s.queue || !s.track) return;
       // Nothing scheduled (the queue ended, or the engine never started): play from where it shows.
@@ -314,7 +317,7 @@ export const useMusicPlayer = create<State>((set, get) => {
       set({ status: "playing", startedAt: Date.now() });
       mediaSession.claim(musicClaim(s.track), true);
       mediaSession.setState("music", "playing");
-      engine?.resume();
+      engine?.resume(opts?.fade ? SOUND_FADE.in : 0);
       startTicker();
     },
 

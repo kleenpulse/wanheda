@@ -274,7 +274,23 @@ describe("SessionArbiter: speech is an interruption (V60, B25)", () => {
     expect(music.resume).toHaveBeenCalledOnce();
   });
 
-  it("pause: a pause of speech keeps it held (the keys can resume speech)", () => {
+  it("pause: the owner pausing speech lets it go; speech playing again pauses and holds it again", () => {
+    const { arb, music } = speechOverMusic("pause");
+    arb.setState("speech", "paused");
+    arb.endInterruption();
+    expect(music.resume).toHaveBeenCalledOnce();
+    // The resume plays the music again (the store claims it).
+    arb.claim(music.c, true);
+    arb.setState("music", "playing");
+    arb.claim(claim("speech").c, true);
+    arb.setState("speech", "playing");
+    expect(music.pause).toHaveBeenCalledTimes(2);
+    arb.setState("music", "paused");
+    arb.release("speech");
+    expect(music.resume).toHaveBeenCalledTimes(2);
+  });
+
+  it("pause: a speech pause alone (the sleep timer's) keeps it held until speech stops", () => {
     const { arb, music } = speechOverMusic("pause");
     arb.setState("speech", "paused");
     expect(music.resume).not.toHaveBeenCalled();

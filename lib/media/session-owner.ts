@@ -7,7 +7,8 @@ import { DEFAULT_SOUND_MIX, duckGain, soundMixPref, startPauses, type SoundMix, 
 // video while speech plays, `mix` leaves them; video and music always pause
 // each other. Releasing the owner hands the keys back to the newest claim still held.
 // Speech is an interruption: what a speech start paused plays again when speech
-// lets go (stop, or the end), unless it was played or stopped in the meantime.
+// lets go (the owner's pause, a stop, the end), unless it was played or stopped
+// in the meantime. The sleep timer's pause lets nothing go.
 
 export type SessionOwnerId = SoundOwner;
 
@@ -121,6 +122,14 @@ export class SessionArbiter {
       return;
     }
     // Last, once the arbiter is settled: a resume claims the session again.
+    this.endInterruption();
+  }
+
+  /**
+   * Speech let go (the owner paused it, or it stopped): what a speech start
+   * paused plays again, if it's still paused. A speech start pauses it again.
+   */
+  endInterruption(): void {
     const held = this.claims.filter((c) => this.heldBySpeech.has(c.id) && this.states.get(c.id) === "paused");
     this.heldBySpeech.clear();
     for (const c of held) c.resume?.();
