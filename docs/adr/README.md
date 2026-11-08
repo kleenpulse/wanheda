@@ -15,3 +15,4 @@ One file per decision. Each records the context, the decision, its effects in 6 
 - [ADR-0011](0011-public-repo-and-branch-rules.md): Public repo with the `protect-default-branch` ruleset, gitleaks, and the forged-commit check over every commit.
 - [ADR-0012](0012-tts-web-engine-onnxruntime-web.md): Piper on the web = raw onnxruntime-web + espeak-ng `phonemizer`, pre-warmed on reader open, single-threaded until the app is cross-origin isolated (Phase 6 spike).
 - [ADR-0013](0013-media-engines.md): Media engines: Video.js v10, Mediabunny streaming into MSE from a worker for remux, Mediabunny streaming clipped to exact duration for gapless music, `music-metadata` in a worker (Phase 7 spike).
+- [ADR-0014](0014-desktop-build-and-runtime.md): Desktop build and runtime: Electron 45 with the standalone server on `localhost` (passkeys), sherpa-onnx Piper in a utility process, own Electron fetch script, pinned toolchain and LGPL ffmpeg (Phase 8 spike).
