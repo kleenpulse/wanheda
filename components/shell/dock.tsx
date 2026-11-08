@@ -76,15 +76,27 @@ export function Dock() {
       }}
       className="glass fixed bottom-5 left-[calc(50%+var(--rail-w)/2)] z-30 hidden h-14 -translate-x-1/2 items-end gap-2 rounded-[22px] px-2 pb-2 shadow-dock md:flex dark:border-rail-border"
     >
-      {apps.map((e) => (
-        <DockItem
-          key={e.id}
-          entry={e}
-          cursor={cursor}
-          reduced={reduced}
-          current={e.target.kind === "route" && isActive(pathname, e.target.route)}
-        />
-      ))}
+      {apps.map((e) => {
+        const current = e.target.kind === "route" && isActive(pathname, e.target.route);
+        return (
+          <DockItem
+            key={e.id}
+            entry={e}
+            cursor={cursor}
+            reduced={reduced}
+            current={current}
+            // Already in the Reader while it reads aloud: the click brings the read-aloud window up
+            // (it fades in, or comes to the front) instead of leaving the open document for the library.
+            intercept={
+              current && e.id === "reader" && speaking
+                ? () => {
+                    openWindow("reader.speech");
+                  }
+                : undefined
+            }
+          />
+        );
+      })}
       {tools.length > 0 && <Divider />}
       {tools.map((e) => (
         <DockItem
@@ -125,12 +137,15 @@ function DockItem({
   reduced,
   current,
   onSelect,
+  intercept,
 }: {
   entry: DockEntry;
   cursor: MotionValue<number>;
   reduced: boolean;
   current: boolean;
   onSelect?: () => void;
+  /** For an app's link: runs instead of following it. */
+  intercept?: (() => void) | undefined;
 }) {
   const ref = React.useRef<HTMLElement>(null);
 
@@ -175,7 +190,16 @@ function DockItem({
           href={entry.target.route}
           aria-label={name}
           aria-current={current ? "page" : undefined}
+          // Intercepting, the link opens a window: say so.
+          aria-haspopup={intercept ? "dialog" : undefined}
+          title={intercept ? "Open read-aloud controls" : undefined}
           onFocus={onFocus}
+          onClick={(ev) => {
+            // A modified click (new tab, new window) still follows the link.
+            if (!intercept || ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.altKey || ev.button !== 0) return;
+            ev.preventDefault();
+            intercept();
+          }}
           style={style}
           className={className}
         >
