@@ -12,7 +12,7 @@ import { fillTone, toneSpec } from "./tones";
 // the context clock, so an album plays without a gap. At most LOOKAHEAD_S of
 // sound is scheduled ahead, so memory stays flat for an hour-long mix.
 //
-//   chunk sources → volume → duck (ramped under speech, V60) → analyser → destination
+//   chunk sources → volume → duck (ramped under speech, V60) → fade (another sound taking over) → analyser → destination
 //
 // The analyser feeds the island's equalizer the sound as heard.
 //
@@ -141,6 +141,9 @@ export class MusicEngine {
   private ctx: AudioContext | null = null;
   private volume: GainNode | null = null;
   private ducker: GainNode | null = null;
+  private fader: GainNode | null = null;
+  /** The suspend at the end of a fade-out; a resume or a play before it cancels it. */
+  private fadeTimer: ReturnType<typeof setTimeout> | undefined;
   private analyser: AnalyserNode | null = null;
   private duckTarget = 1;
   /** The volume's gain, kept for the next graph. */
@@ -170,13 +173,16 @@ export class MusicEngine {
     analyser.fftSize = 64;
     // Little smoothing: the bars do their own easing, and a beat should land at once.
     analyser.smoothingTimeConstant = 0.2;
+    const fader = ctx.createGain();
     volume.connect(ducker);
-    ducker.connect(analyser);
+    ducker.connect(fader);
+    fader.connect(analyser);
     // The analyser must chain on to the destination, or the music goes silent.
     analyser.connect(ctx.destination);
     this.ctx = ctx;
     this.volume = volume;
     this.ducker = ducker;
+    this.fader = fader;
     this.analyser = analyser;
     return ctx;
   }
@@ -199,18 +205,55 @@ export class MusicEngine {
     this.clear();
     const gen = ++this.gen;
     this.failures = 0;
+    this.fadeTo(1, 0);
     void ctx.resume();
     void this.pump(gen, key, Math.max(0, from), null);
     this.startTicker();
   }
 
-  // Suspending the context stops its clock: every scheduled chunk waits and resumes in step.
-  pause(): void {
-    if (this.ctx && this.ctx.state !== "closed") void this.ctx.suspend();
+  /**
+   * Suspending the context stops its clock: every scheduled chunk waits and
+   * resumes in step. With `fadeS`, the sound fades to silence first and the
+   * context suspends at the end of the fade.
+   */
+  pause(fadeS = 0): void {
+    const ctx = this.ctx;
+    if (!ctx || ctx.state === "closed") return;
+    if (fadeS <= 0 || ctx.state !== "running") {
+      this.fadeTo(1, 0);
+      void ctx.suspend();
+      return;
+    }
+    this.fadeTo(0, fadeS);
+    this.fadeTimer = setTimeout(() => {
+      if (ctx.state !== "closed") void ctx.suspend();
+    }, fadeS * 1000);
   }
 
-  resume(): void {
-    if (this.ctx && this.ctx.state !== "closed") void this.ctx.resume();
+  /** With `fadeS`, the sound fades in from silence (or from where a fade-out had got to); without, it's at full at once. */
+  resume(fadeS = 0): void {
+    const ctx = this.ctx;
+    if (!ctx || ctx.state === "closed") return;
+    // Suspended: the fade starts from silence. Mid fade-out: from where it got to.
+    this.fadeTo(1, fadeS, ctx.state === "running" ? undefined : 0);
+    void ctx.resume();
+  }
+
+  /** Ramps the fade gain to `to` over `seconds` (0 = at once) from `from` (default: where it is), dropping a pending fade-out's suspend. */
+  private fadeTo(to: number, seconds: number, from?: number): void {
+    clearTimeout(this.fadeTimer);
+    this.fadeTimer = undefined;
+    const ctx = this.ctx;
+    const p = this.fader?.gain;
+    if (!ctx || !p) return;
+    const now = ctx.currentTime;
+    p.cancelScheduledValues(now);
+    if (seconds <= 0) {
+      p.setValueAtTime(to, now);
+      return;
+    }
+    p.setValueAtTime(from ?? p.value, now);
+    p.linearRampToValueAtTime(to, now + seconds);
   }
 
   /** Where the audible track is: its key and seconds in. */
@@ -258,10 +301,13 @@ export class MusicEngine {
     this.gen++;
     this.clear();
     this.stopTicker();
+    clearTimeout(this.fadeTimer);
+    this.fadeTimer = undefined;
     const ctx = this.ctx;
     this.ctx = null;
     this.volume = null;
     this.ducker = null;
+    this.fader = null;
     this.analyser = null;
     if (ctx && ctx.state !== "closed") void ctx.close();
   }

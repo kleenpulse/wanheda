@@ -28,6 +28,9 @@ export const FOLLOW_SPRING = { stiffness: 140, damping: 18, mass: 0.6 } as const
 /** Sound ducking under speech (V60): seconds to drop to the duck level, and to come back. Audio, so reduced motion doesn't apply. */
 export const DUCK_RAMP = { down: 0.25, up: 0.6 } as const;
 
+/** Another sound taking over (V60): seconds to fade to silence before the pause, and to fade back in on the resume. Audio, so reduced motion doesn't apply. */
+export const SOUND_FADE = { out: 0.3, in: 0.6 } as const;
+
 /**
  * The island's morph between pill and card (user 2026-11-07: smooth, springy, closing a bit quicker
  * than opening). `visualDuration` is when it looks landed; `bounce` keeps the overshoot. `close`
