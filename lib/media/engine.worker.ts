@@ -5,9 +5,11 @@
 //   MediaSource that lives here; the page plays it through `MediaSource.handle`.
 //   Memory stays bounded: ≤ 30 s ahead of the clock, > 20 s behind removed.
 //   A seek past what's buffered restarts from the keyframe at or before it.
+// - thumb: one frame (at a share of the length) decoded with WebCodecs onto
+//   an OffscreenCanvas, sent back as an image for the library's cards (T72).
 // Nothing remuxed is stored.
 
-import { ALL_FORMATS, BlobSource, Conversion, EncodedPacketSink, Input, Mp4OutputFormat, Output, StreamTarget, type InputTrack, type StreamTargetChunk } from "mediabunny";
+import { ALL_FORMATS, BlobSource, CanvasSink, Conversion, EncodedPacketSink, Input, Mp4OutputFormat, Output, StreamTarget, type InputTrack, type StreamTargetChunk } from "mediabunny";
 import { AHEAD_S, BEHIND_S, type EngineRequest, type EngineResponse } from "./engine-protocol";
 import { quickFingerprint } from "./fingerprint";
 import { JobSlot, needsRestart, rangeAt, restartFrom, toRanges, type Range, type RemuxJob } from "./remux-plan";
@@ -272,6 +274,32 @@ async function seek(t: number): Promise<void> {
   await startAt(restartFrom(now, t));
 }
 
+// --- thumb -------------------------------------------------------------
+
+/** One frame at `at` (0..1 of the length), `width` px wide; null when there is no decodable picture. */
+async function thumb(at: number, width: number): Promise<void> {
+  try {
+    const track = input ? await input.getPrimaryVideoTrack() : null;
+    if (!track || !(await track.canDecode())) {
+      post({ type: "thumb", blob: null });
+      return;
+    }
+    const first = await track.getFirstTimestamp();
+    const length = durationS ?? (await track.computeDuration());
+    const sink = new CanvasSink(track, { width: Math.min(width, (await track.getDisplayWidth()) || width) });
+    const frame = (await sink.getCanvas(first + Math.max(0, Math.min(1, at)) * length)) ?? (await sink.getCanvas(first));
+    const canvas = frame?.canvas;
+    if (!canvas || !("convertToBlob" in canvas)) {
+      post({ type: "thumb", blob: null });
+      return;
+    }
+    // Safari answers a WebP request with a PNG: the page keeps whatever type comes back.
+    post({ type: "thumb", blob: await canvas.convertToBlob({ type: "image/webp", quality: 0.8 }) });
+  } catch {
+    post({ type: "thumb", blob: null });
+  }
+}
+
 scope.onmessage = (event) => {
   const m = event.data;
   switch (m.type) {
@@ -287,6 +315,9 @@ scope.onmessage = (event) => {
       break;
     case "seek":
       void seek(m.t);
+      break;
+    case "thumb":
+      void thumb(m.at, m.width);
       break;
     case "close":
       tick?.();

@@ -2,8 +2,8 @@ import "server-only";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { mediaItem, playbackState } from "@/lib/db/schema";
-import { LIBRARY_LIMIT, type ItemCreate, type PlaybackWrite } from "./media";
-import type { MediaItem, MediaKind, MediaMeta, MediaProgress, MediaSourceKind } from "./types";
+import { LIBRARY_LIMIT, toMeta, type ItemCreate, type PlaybackWrite } from "./media";
+import type { MediaItem, MediaKind, MediaProgress, MediaSourceKind } from "./types";
 
 // Media persistence (T61). Callers pass the owner's id from requireOwner(),
 // never a client-sent one (SPEC V7). Metadata only: a local file's bytes never
@@ -38,16 +38,6 @@ type Row = {
   createdAt: Date;
   updatedAt: Date;
 };
-
-function toMeta(raw: unknown): MediaMeta {
-  if (typeof raw !== "object" || raw === null) return {};
-  const r = raw as Record<string, unknown>;
-  return {
-    ...(typeof r.size === "number" ? { size: r.size } : {}),
-    ...(typeof r.format === "string" ? { format: r.format } : {}),
-    ...(typeof r.provider === "string" ? { provider: r.provider } : {}),
-  };
-}
 
 type ProgressRow = { itemId: string; positionS: number; watched: boolean; lastPlayedAt: Date };
 

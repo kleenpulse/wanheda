@@ -50,6 +50,13 @@ function track(el: HTMLVideoElement, itemId: string, opening: MediaProgress | nu
     usePlayback.getState().record(itemId, { positionS: el.currentTime, watched: state.watched }, due.server ? (beacon ? "beacon" : "fetch") : "none", demo);
   };
 
+  // Autoplay and Play now move on before the end: the item still counts as watched (T72).
+  const finish = () => {
+    state.watched = true;
+    write("ended");
+  };
+  usePlayer.getState().setFinish(finish);
+
   const onMeta = () => {
     if (state.resumed) return;
     state.resumed = true;
@@ -108,6 +115,7 @@ function track(el: HTMLVideoElement, itemId: string, opening: MediaProgress | nu
     // Leaving the item (another one, or another app) counts as a pause.
     if (!el.paused) write("pause");
     stopAsking();
+    if (usePlayer.getState().finish === finish) usePlayer.getState().setFinish(null);
     el.removeEventListener("loadedmetadata", onMeta);
     el.removeEventListener("emptied", onEmptied);
     el.removeEventListener("timeupdate", onTime);

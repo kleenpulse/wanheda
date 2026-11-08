@@ -46,6 +46,9 @@ export type Opened = { fp: string; probe: Probe | null; probeError: string | nul
 
 type Listener = (m: EngineResponse) => void;
 
+/** How long a thumbnail grab may take before it's given up. */
+export const THUMB_TIMEOUT_MS = 15_000;
+
 /**
  * One media worker per opened local file. `open` fingerprints and probes;
  * `remux` hands back the MSE handle for the element's `srcObject`. `close`
@@ -103,6 +106,30 @@ export class MediaEngine {
         }
       });
       this.send({ type: "remux", video, audio });
+    });
+  }
+
+  /** One frame of the opened file at `at` (0..1 of its length) as an image, or null (T72). Never on the engine that plays. */
+  thumb(at = 0.1, width = 480, timeoutMs = THUMB_TIMEOUT_MS): Promise<Blob | null> {
+    if (!this.worker) return Promise.resolve(null);
+    return new Promise((resolve) => {
+      // A decode that hangs mustn't hold the thumbnail queue forever: give up (the caller closes the engine).
+      const timer = setTimeout(() => {
+        off();
+        resolve(null);
+      }, timeoutMs);
+      const off = this.on((m) => {
+        if (m.type === "thumb") {
+          clearTimeout(timer);
+          off();
+          resolve(m.blob);
+        } else if (m.type === "remux-failed") {
+          clearTimeout(timer);
+          off();
+          resolve(null);
+        }
+      });
+      this.send({ type: "thumb", at, width });
     });
   }
 

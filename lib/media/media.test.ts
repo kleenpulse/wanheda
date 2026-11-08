@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatDuration, itemCreateSchema, stepItem, upsertItem } from "./media";
+import { formatDuration, itemCreateSchema, stepItem, toMeta, upsertItem } from "./media";
 import { seedMedia } from "./seed";
 import type { MediaItem } from "./types";
 
@@ -76,5 +76,32 @@ describe("stepItem (prev|next media keys on a video)", () => {
   it("steps off an embed to its neighbour", () => {
     expect(stepItem(items, "b", 1)?.id).toBe("c");
     expect(stepItem(items, "b", -1)?.id).toBe("a");
+  });
+});
+
+describe("meta.folder (T72)", () => {
+  it("is accepted on create, capped at 200, and survives the store's read", () => {
+    const input = { ...base, source: "local", fp: "a".repeat(64), uri: "Episode 11.mkv", meta: { size: 10, folder: "Hometown/Season 1" } };
+    const parsed = itemCreateSchema.safeParse(input);
+    expect(parsed.success).toBe(true);
+    // Through the jsonb column and back: the store keeps only whitelisted keys.
+    const stored: unknown = JSON.parse(JSON.stringify(parsed.success ? parsed.data.meta : null));
+    expect(toMeta(stored)).toEqual({ size: 10, folder: "Hometown/Season 1" });
+    expect(itemCreateSchema.safeParse({ ...input, meta: { folder: "x".repeat(201) } }).success).toBe(false);
+    expect(toMeta({ folder: "y".repeat(300), evil: 1 })).toEqual({ folder: "y".repeat(200) });
+  });
+});
+
+describe("stepItem follows a show's episode order", () => {
+  const ep = (id: string, uri: string): MediaItem =>
+    ({ id, kind: "video", source: "local", fp: id, uri, title: uri, durationS: null, meta: {}, watchLaterAt: null, progress: null, createdAt: "", updatedAt: "" });
+  // Newest first in the library: E02 was added before E01.
+  const items = [ep("e1", "Show.S01E01.mkv"), ep("x", "Holiday.mp4"), ep("e2", "Show.S01E02.mkv")];
+
+  it("goes to the next episode, not the next row", () => {
+    expect(stepItem(items, "e1", 1)?.id).toBe("e2");
+    expect(stepItem(items, "e2", -1)?.id).toBe("e1");
+    expect(stepItem(items, "e2", 1)).toBeNull();
+    expect(stepItem(items, "x", 1)?.id).toBe("e2");
   });
 });

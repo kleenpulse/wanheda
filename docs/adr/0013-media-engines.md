@@ -85,3 +85,7 @@ The Video.js 10.2.0 docs also say Vidstack is now in security-only maintenance.
 - Video.js ships a breaking 11.x, or a provider package is first needed (YouTube, Vimeo, hls.js).
 - Chrome changes how it handles MKV, or adds AC3, E-AC3 or DTS.
 - A gapless album sounds wrong in the exit run (the trims are checked on test files, not real albums).
+
+## Amendment (2026-11-08, T72)
+
+The video player's controls are now the app's own chrome (`components/media/video-chrome.tsx`), not Video.js's stock skin. The skin couldn't hold what the redesign needed inside full screen: the resume question, menus, an episode rail, an autoplay card and captions that move above the controls. Video.js stays as the host of the `<video>` element (`VideoPlayer` + `Video` in `media-surface.tsx`, still the only file that imports it), so going back to its skin, or adding its HLS/DASH providers later, is still a change to that one file. SPEC V51 and V65 carry the details.

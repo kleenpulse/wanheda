@@ -14,6 +14,8 @@ export type MediaMeta = {
   format?: string;
   /** Embed provider ("youtube", …). The iframe src is never stored: it is rebuilt from `uri` (V56). */
   provider?: string;
+  /** Folder adds: the folder it came from, under the picked folder's name ("Hometown/Season 1"), at most 200 chars. Names a series when the file says only "Episode 11" (T72). */
+  folder?: string;
 };
 
 /** One item in the media library. `fp` is the identity key for every source (V54). */

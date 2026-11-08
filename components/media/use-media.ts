@@ -8,12 +8,14 @@ import { useAccount } from "@/components/shell/account";
 import { toast } from "@/components/ui/toaster";
 import { useHydrated } from "@/hooks/use-hydrated";
 import { fetchJson } from "@/lib/fetch-json";
+import { folderFor } from "@/lib/media/episodes";
 import { forgetFile, keepHandle, rememberFile, type FolderVideo } from "@/lib/media/local";
 import { MEDIA_KEY, TITLE_MAX, upsertItem, type MediaPayload } from "@/lib/media/media";
 import type { MediaItem, MediaItemInput } from "@/lib/media/types";
 import { layProgress } from "@/lib/media/playback";
 import { parseMediaUrl } from "@/lib/media/url";
 import { usePlayback } from "./playback-store";
+import { dropThumb, grabbingThumb, retryThumb, saveThumb } from "./thumb-queue";
 
 // The media cache (V24): /media reads one TanStack Query entry, filled by the
 // page's Prefetch or /api/media. Writes show at once and are sent after; a
@@ -58,15 +60,19 @@ export function titleFromName(name: string): string {
   return (base || name).slice(0, TITLE_MAX);
 }
 
-/** Fingerprint + probe in a short-lived worker; the player opens its own. */
+/**
+ * Fingerprint + probe in a short-lived worker (the player opens its own). The
+ * caller closes the engine: a single file's thumbnail is grabbed on it first.
+ */
 async function identify(file: File) {
   // Loaded on use, so the palette (in the shell) never carries the engine (V62).
   const { MediaEngine } = await import("@/lib/platform/media");
   const engine = new MediaEngine();
   try {
-    return await engine.open(file);
-  } finally {
+    return { opened: await engine.open(file), engine };
+  } catch (e) {
     engine.close();
+    throw e;
   }
 }
 
@@ -114,26 +120,52 @@ export function useMediaApi() {
 
   /** A picked local file joins the library by its fp (V54); the same file again relinks. `quiet`: the caller reports failures itself. */
   const addFile = React.useCallback(
-    async (file: File, handle: FileSystemFileHandle | null, quiet = false): Promise<MediaItem | null> => {
-      let opened: Awaited<ReturnType<typeof identify>>;
+    async (file: File, handle: FileSystemFileHandle | null, quiet = false, folder?: string): Promise<MediaItem | null> => {
+      let found: Awaited<ReturnType<typeof identify>>;
       try {
-        opened = await identify(file);
+        found = await identify(file);
       } catch {
         if (!quiet) toast({ title: `Couldn't read ${file.name}`, body: "The media reader stopped. Try the file again." });
         return null;
       }
+      const { opened, engine } = found;
       rememberFile(opened.fp, file);
+      retryThumb(opened.fp);
       if (handle && !demo) void keepHandle(opened.fp, handle, file);
       const hasVideo = opened.probe ? opened.probe.tracks.some((t) => t.kind === "video") : !file.type.startsWith("audio/");
-      return save({
-        kind: hasVideo ? "video" : "audio",
-        source: "local",
-        fp: opened.fp,
-        uri: file.name.slice(0, 255),
-        title: titleFromName(file.name),
-        durationS: opened.probe?.durationS ?? null,
-        meta: { size: file.size, ...(opened.probe ? { format: opened.probe.format.slice(0, 40) } : {}) },
-      }, quiet);
+      // One file on its own: its frame comes off this engine once the row shows. Marked before the
+      // save, so the row the save draws doesn't queue the same file on a second worker. A folder's
+      // files go to the thumbnail queue instead, so a big folder isn't held up (T72).
+      const inline = hasVideo && !quiet;
+      const done = inline ? grabbingThumb(opened.fp) : () => undefined;
+      let item: MediaItem | null = null;
+      try {
+        item = await save({
+          kind: hasVideo ? "video" : "audio",
+          source: "local",
+          fp: opened.fp,
+          uri: file.name.slice(0, 255),
+          title: titleFromName(file.name),
+          durationS: opened.probe?.durationS ?? null,
+          meta: { size: file.size, ...(opened.probe ? { format: opened.probe.format.slice(0, 40) } : {}), ...(folder ? { folder } : {}) },
+        }, quiet);
+      } finally {
+        if (item && inline) {
+          const fp = item.fp;
+          void engine
+            .thumb()
+            .then((blob) => (blob ? saveThumb(fp, blob) : undefined))
+            .catch(() => undefined)
+            .finally(() => {
+              done();
+              engine.close();
+            });
+        } else {
+          done();
+          engine.close();
+        }
+      }
+      return item;
     },
     [demo, save],
   );
@@ -149,6 +181,8 @@ export function useMediaApi() {
     async (
       videos: readonly FolderVideo[],
       onProgress: (done: number) => void,
+      /** The picked folder's name: each video keeps the folder it came from (meta.folder, T72). */
+      root: string,
     ): Promise<{ first: MediaItem | null; added: number; known: number; copies: number; failed: number }> => {
       const before = new Set(qc.getQueryData<MediaPayload>(MEDIA_KEY)?.items.map((i) => i.id));
       const added = new Set<string>();
@@ -158,7 +192,7 @@ export function useMediaApi() {
       let failed = 0;
       let done = 0;
       for (const v of [...videos].reverse()) {
-        const item = await addFile(v.file, v.handle, true);
+        const item = await addFile(v.file, v.handle, true, folderFor(v.path, root));
         if (!item) failed++;
         else {
           first = item;
@@ -208,6 +242,7 @@ export function useMediaApi() {
             patchCache((p) => ({ ...p, items: p.items.filter((i) => i.id !== item.id) }));
             show(item.id);
             if (item.source === "local") forgetFile(item.fp);
+            void dropThumb(item.fp).catch(() => undefined);
             onGone?.();
           };
           if (demo) {

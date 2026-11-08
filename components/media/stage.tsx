@@ -15,6 +15,7 @@ import { slowRemuxNotice } from "./remux-status";
 import { providerName, useMediaApi } from "./use-media";
 import { useFilePick } from "./use-file-pick";
 import { usePlayer } from "./player-store";
+import { retryThumb } from "./thumb-queue";
 import { usePlayerWiring } from "./use-player";
 
 // The player area (T61). Embeds get an allowlisted iframe rebuilt from the
@@ -22,7 +23,9 @@ import { usePlayerWiring } from "./use-player";
 // (V52): native, else a streamed remux in the media worker (V53), else a
 // sentence that names the codec and the track.
 
-const STAGE = "relative aspect-video w-full overflow-hidden rounded-card bg-stage";
+/** In the player's full-screen frame (`group/cinema` with data-fullscreen) the stage fills it, square and black. */
+const STAGE =
+  "relative aspect-video w-full overflow-hidden rounded-card bg-stage group-data-[fullscreen]/cinema:aspect-auto group-data-[fullscreen]/cinema:h-full group-data-[fullscreen]/cinema:rounded-none group-data-[fullscreen]/cinema:bg-island";
 
 function StageShell() {
   return <div aria-busy aria-label="Opening" className={STAGE} />;
@@ -90,6 +93,11 @@ function LocalPlayer({ item: live, file }: { item: MediaItem; file: File }) {
   const { mounted } = video;
   // Before the source effect: its cleanups (last position, session release) run first.
   usePlayerWiring(video.ref, mounted, item);
+  // The chrome stays off a file that can't play: the notice says why.
+  const cannot = phase.kind === "cannot";
+  React.useEffect(() => {
+    usePlayer.getState().setFailed(cannot);
+  }, [cannot]);
 
   React.useEffect(() => {
     const el = video.ref.current;
@@ -239,9 +247,9 @@ function LocalPlayer({ item: live, file }: { item: MediaItem; file: File }) {
   }, [mounted, file, item]);
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-3 group-data-[fullscreen]/cinema:h-full">
       <div className={cn(STAGE, phase.kind === "cannot" && "hidden")}>
-        <MediaSurface title={item.title} onElement={video.onElement} onControls={usePlayer.getState().setControls} />
+        <MediaSurface title={item.title} onElement={video.onElement} />
       </div>
       {phase.kind === "cannot" ? (
         <Notice icon={TriangleAlert} title="Can't play this file">
@@ -290,7 +298,7 @@ function LinkPlayer({ item: live }: { item: MediaItem }) {
   }
   return (
     <div className={STAGE}>
-      <MediaSurface title={item.title} onElement={video.onElement} onControls={usePlayer.getState().setControls} />
+      <MediaSurface title={item.title} onElement={video.onElement} />
     </div>
   );
 }
@@ -394,6 +402,8 @@ function LocalItem({ item }: { item: MediaItem }) {
       located={located}
       onFile={(file) => {
         setLocated({ kind: "file", file });
+        // On this device again: its thumbnail may be made now.
+        retryThumb(item.fp);
       }}
     />
   );

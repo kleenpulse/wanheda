@@ -5,16 +5,11 @@ import Link from "next/link";
 import {
   BookmarkCheck,
   BookmarkPlus,
-  Captions,
   Clapperboard,
   FileVideo,
   FolderOpen,
-  HardDrive,
-  Link2,
-  Music,
   Play,
   Plus,
-  RectangleHorizontal,
   RotateCcw,
   Trash2,
   TriangleAlert,
@@ -23,6 +18,7 @@ import { buttonClass } from "@/components/ui/button";
 import { Segmented } from "@/components/ui/segmented";
 import { toast } from "@/components/ui/toaster";
 import { pushUrl, replaceUrlParams, useUrlParam } from "@/hooks/use-url-param";
+import { displayTitle } from "@/lib/media/episodes";
 import { fsaFolderPicker, videosInFiles, videosInFolder, type FolderVideo } from "@/lib/media/local";
 import { formatDuration, mediaHref, stepItem } from "@/lib/media/media";
 import { continueList, watchLaterList } from "@/lib/media/playback";
@@ -30,10 +26,12 @@ import { resumeAt } from "@/lib/media/resume";
 import type { MediaItem } from "@/lib/media/types";
 import { cn } from "@/lib/utils";
 import { MusicView } from "./music-view";
-import { SUBTITLE_ACCEPT, usePlayer } from "./player-store";
+import { usePlayer } from "./player-store";
 import { Stage, preloadSurface } from "./stage";
 import { useFilePick } from "./use-file-pick";
 import { providerName, useMedia, useMediaApi } from "./use-media";
+import { Thumb } from "./thumb";
+import { CinemaFrame } from "./video-chrome";
 
 // /media (T61, T62): one player, the library beside it (or below it in
 // theatre mode). `?m=` is the item playing, so a reload or a link reopens it.
@@ -47,10 +45,6 @@ function sourceLabel(item: MediaItem): string {
   return "Link";
 }
 
-function ItemIcon({ item }: { item: MediaItem }) {
-  const Icon = item.source === "local" ? HardDrive : item.source === "embed" ? Link2 : item.kind === "audio" ? Music : Clapperboard;
-  return <Icon aria-hidden className="size-4" />;
-}
 
 function AddBar({ onAdded }: { onAdded: (item: MediaItem) => void }) {
   const api = useMediaApi();
@@ -82,7 +76,7 @@ function AddBar({ onAdded }: { onAdded: (item: MediaItem) => void }) {
       setAdding({ done: 0, of: videos.length });
       const { first, added, known, copies, failed } = await api.addFolder(videos, (done) => {
         setAdding({ done, of: videos.length });
-      });
+      }, name);
       const notes = [
         known > 0 ? `${plural(known, "video")} ${known === 1 ? "was" : "were"} already in your list.` : null,
         copies > 0 ? `${plural(copies, "file")} ${copies === 1 ? "is a copy" : "are copies"} of another, so ${copies === 1 ? "it's" : "they're"} listed once.` : null,
@@ -235,6 +229,7 @@ function Row({
   // A bar only where opening it picks up there (resumeAt), so the row never promises a place the player skips.
   const share = item.progress && item.durationS && resumeAt(item.progress, item.durationS) > 0 ? Math.min(1, item.progress.positionS / item.durationS) : 0;
   const queued = item.watchLaterAt !== null;
+  const named = displayTitle(item);
   return (
     <li ref={ref} className="group relative">
       <button
@@ -245,35 +240,30 @@ function Row({
           pushUrl(mediaHref(item.id));
         }}
         className={cn(
-          "flex w-full items-center gap-3 rounded-[12px] py-2.5 pr-20 pl-3 text-left transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring",
+          "flex w-full items-center gap-3 rounded-[14px] py-2 pr-20 pl-2 text-left transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring",
           active ? "bg-signal-soft text-foreground dark:bg-signal/15" : "hover:bg-foreground/5 dark:hover:bg-card-nested",
         )}
       >
-        <span
-          className={cn(
-            "flex size-8 shrink-0 items-center justify-center rounded-full",
-            active ? "bg-signal text-stage" : "bg-foreground/6 text-ink-2 dark:bg-card-nested",
-          )}
-        >
-          <ItemIcon item={item} />
-        </span>
-        <span className="flex min-w-0 flex-1 flex-col gap-1">
-          <span className="truncate text-sm font-medium">{item.title}</span>
-          <span className="truncate text-xs text-ink-2">
-            {sourceLabel(item)}
-            {watched ? " · Watched" : null}
-            {duration ? (
-              <>
-                {" · "}
-                <span className="tabular">{duration}</span>
-              </>
-            ) : null}
-          </span>
+        {/* The picture, with where it was left along its foot (T72). */}
+        <Thumb item={item} className="w-24 shrink-0 rounded-[10px]">
+          {active ? (
+            <span aria-hidden className="absolute inset-0 grid place-items-center bg-island/45 text-island-foreground">
+              <Play className="size-4 translate-x-px fill-current" />
+            </span>
+          ) : null}
           {share > 0 && !watched ? (
-            <span aria-hidden className="h-1 w-full overflow-hidden rounded-pill bg-foreground/8">
+            <span aria-hidden className="absolute inset-x-1.5 bottom-1.5 h-0.75 overflow-hidden rounded-pill bg-island/50">
               <span className="block h-full rounded-pill bg-signal" style={{ width: `${String(Math.round(share * 100))}%` }} />
             </span>
           ) : null}
+        </Thumb>
+        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <span className="truncate text-sm font-medium">{named.title}</span>
+          <span className="truncate text-xs text-ink-2">
+            {named.show && named.line ? `${named.show} · ${named.line.replace("Season ", "S").replace(" · Episode ", " E")} · ` : `${sourceLabel(item)} · `}
+            {watched ? "Watched · " : null}
+            {duration ? <span className="tabular">{duration}</span> : null}
+          </span>
         </span>
       </button>
       <span className="absolute top-1/2 right-1.5 flex -translate-y-1/2 items-center">
@@ -357,13 +347,9 @@ const isSubtitleFile = (f: File) => /\.(srt|vtt)$/i.test(f.name);
 const chip = (on: boolean) =>
   buttonClass("ghost", "pill-sm", on ? "bg-signal-soft text-signal-ink dark:bg-signal/15" : "bg-foreground/6 text-foreground dark:bg-card-nested");
 
-/** Watch later, sidecar subtitles and theatre, under the stage. */
+/** Watch later, under the stage (subtitles and theatre live in the player's own controls, T72). */
 function NowPlayingBar({ item }: { item: MediaItem }) {
   const api = useMediaApi();
-  const theatre = usePlayer((s) => s.theatre);
-  const setTheatre = usePlayer((s) => s.setTheatre);
-  const playable = usePlayer((s) => s.el !== null);
-  const pickRef = React.useRef<HTMLInputElement>(null);
   const queued = item.watchLaterAt !== null;
   return (
     <div className="flex flex-wrap items-center gap-2 px-1">
@@ -378,38 +364,6 @@ function NowPlayingBar({ item }: { item: MediaItem }) {
         {queued ? <BookmarkCheck aria-hidden /> : <BookmarkPlus aria-hidden />}
         Watch later
       </button>
-      {playable ? (
-        <>
-          <input
-            ref={pickRef}
-            type="file"
-            name="subtitles"
-            accept={SUBTITLE_ACCEPT}
-            hidden
-            onChange={(e) => {
-              const file = e.currentTarget.files?.[0];
-              e.currentTarget.value = "";
-              if (file) void usePlayer.getState().subtitles(file);
-            }}
-          />
-          <button type="button" className={chip(false)} onClick={() => pickRef.current?.click()}>
-            <Captions aria-hidden />
-            Add subtitles
-          </button>
-        </>
-      ) : null}
-      <button
-        type="button"
-        aria-pressed={theatre}
-        aria-keyshortcuts="t"
-        className={chip(theatre)}
-        onClick={() => {
-          setTheatre(!theatre);
-        }}
-      >
-        <RectangleHorizontal aria-hidden />
-        Theatre
-      </button>
     </div>
   );
 }
@@ -421,11 +375,11 @@ function ResumePrompt({ itemId }: { itemId: string }) {
   // Floored, as the player's own clock shows it (formatDuration rounds).
   const at = formatDuration(Math.floor(ask.at));
   return (
-    <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-4">
+    <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center p-4">
       <div
         role="group"
         aria-label="Saved place"
-        className="pointer-events-auto flex max-w-sm flex-col items-center gap-3 rounded-card bg-sheet/95 px-5 py-4 text-center text-foreground shadow-lg"
+        className="pointer-events-auto flex max-w-sm flex-col items-center gap-3 rounded-card glass-window px-5 py-4 text-center text-foreground shadow-lg"
       >
         <p className="text-sm text-ink-2">
           You stopped at <span className="tabular font-medium text-foreground">{at}</span>.
@@ -498,6 +452,7 @@ function VideosView() {
   const selected = useUrlParam("m");
   const items = data?.items ?? null;
   const current = items?.find((i) => i.id === selected) ?? null;
+  const currentName = current ? displayTitle(current) : null;
   const [dragging, setDragging] = React.useState(false);
   const theatre = usePlayer((s) => s.theatre);
   const going = items ? continueList(items) : [];
@@ -544,15 +499,6 @@ function VideosView() {
       // scrolls. Side by side, only the library list scrolls; stacked, the view scrolls as one.
       data-page-fill={theatre ? undefined : ""}
       className={cn("grid gap-6", !theatre && FILL_VIEW)}
-      onKeyDown={(e) => {
-        // `t` toggles theatre while focus is in the player; Video.js keeps its own keys.
-        if (e.key !== "t" || e.ctrlKey || e.metaKey || e.altKey) return;
-        const target = e.target as HTMLElement;
-        if (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
-        if (!target.closest("[aria-label=Player]")) return;
-        e.preventDefault();
-        usePlayer.getState().setTheatre(!usePlayer.getState().theatre);
-      }}
       onDragOver={(e) => {
         if (!e.dataTransfer.types.includes("Files")) return;
         e.preventDefault();
@@ -588,13 +534,15 @@ function VideosView() {
       >
         {current ? (
           <>
-            <div className={cn("relative", !theatre && FILL_STAGE)}>
+            {/* The player's frame (V65): it goes full screen with the stage, the resume question and the chrome in it. */}
+            <CinemaFrame item={current} items={items ?? []} className={cn(!theatre && FILL_STAGE)}>
               <Stage item={current} />
               <ResumePrompt itemId={current.id} />
-            </div>
+            </CinemaFrame>
             <div className="flex min-w-0 flex-col gap-0.5 px-1">
-              <h2 className="truncate font-display text-xl leading-tight tracking-[-0.01em] text-foreground">{current.title}</h2>
+              <h2 className="truncate font-display text-xl leading-tight tracking-[-0.01em] text-foreground">{currentName?.show ? `${currentName.show}: ${currentName.title}` : currentName?.title}</h2>
               <p className="truncate text-xs text-ink-2">
+                {currentName?.line ? `${currentName.line} · ` : ""}
                 {sourceLabel(current)}
                 {current.source === "local" ? ` · ${current.uri}` : ""}
               </p>
