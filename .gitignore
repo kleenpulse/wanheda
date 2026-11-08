@@ -37,3 +37,10 @@ bun-debug.log*
 /brag-output*/
 FRD.md
 .impeccable/config.json
+
+# desktop shell (Phase 8): dependencies, bundles and build output
+/desktop/node_modules/
+/desktop/.dev/
+/desktop/.stage/
+/desktop/.out/
+/desktop/.electron-zip/

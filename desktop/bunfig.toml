@@ -1,0 +1,4 @@
+[install]
+# Only install releases at least 7 days old (seconds). Fresh publishes are where hijacked
+# packages land first (same rule as Mita).
+minimumReleaseAge = 604800

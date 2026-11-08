@@ -11,6 +11,9 @@ export default defineConfig(
     "**/playwright-report/",
     "**/test-results/",
     "**/next-env.d.ts",
+    "desktop/.dev/",
+    "desktop/.stage/",
+    "desktop/.out/",
   ]),
   tseslint.configs.strictTypeChecked,
   {

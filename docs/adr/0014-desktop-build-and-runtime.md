@@ -130,3 +130,15 @@ The owner's global ffmpeg (Gyan 9.0 `full_build`) is GPL v3 (`--enable-gpl --ena
 - **The sherpa CLI as a child process.** No Node in the speech process, but the 2.x CLI would still need our phonemes, and a CLI per sentence costs a model load each time.
 - **`forward: true` for island hover.** Delivered nothing on this machine.
 - **The shared ffmpeg build.** More files and more bytes than the static `ffmpeg.exe` for what Wanheda needs.
+
+## Amendments
+
+### T75 (2026-11-08): desktop shell built
+
+- **Electron is pinned to 45.2.0, not 45.2.1.** The owner chose this to keep the metered link free: 45.2.0 is the zip already in the local `@electron/get` cache, and `scripts/fetch-electron.ts` checks it against both `checksums.json` and `SHASUMS256.txt` before use. Move to the newest 45.x in T81, when CI does the download. `electron-builder.yml` points `electronDist` at the fetched Electron, so electron-builder never downloads its own.
+- **The CSP has one source.** `lib/security/csp.ts` builds it, and `next.config.ts` sends it from `headers()` on every production response. The desktop runs that same server, so main adds no copy of its own (two policies would intersect, and a desktop-only entry would have to be added to both). Workers get it too: their scripts are responses like any other.
+- **Installer: 127.7 MB, not about 102 MB.** electron-builder packs the NSIS payload as a differential-aware 7z (a pinned LZMA2 block size), so an update downloads only the blocks that changed. That compresses worse than the solid archive the spike measured. `compression: maximum` changes nothing, because 7z already gets `-mx=9`. Installed size is 377 MB.
+- **The server bootstrap is `wanheda-server.cjs`.** The root `package.json` says `"type": "module"`, and standalone copies it, so a `.js` CommonJS bundle would load as ESM and fail.
+- **sharp ships.** Wanheda uses `next/image` (the money logos), so the server folder keeps the one native binary `@img/sharp-win32-x64`. That's fine because the installer targets Windows x64 only, and `verify.ts` allows that exact file and no other `.node`.
+- **The desktop `next build` runs in demo mode.** Every `.env.example` name is set to an empty string. Next still reads `.env.local`, but it fills only names that are unset (`@next/env` `processEnv`), so the owner's values never reach the build.
+- **Start time:** the first start after install took 10 s from the demo choice to server ready (Windows scanning about 2,800 new files on first read). Later starts take 1.4 s from launch to server ready.

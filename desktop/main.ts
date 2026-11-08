@@ -1,0 +1,751 @@
+import { app, BrowserWindow, dialog, Menu, type MessageBoxOptions, type MessageBoxReturnValue, nativeTheme, Notification, screen, session, shell, type MenuItemConstructorOptions, type Session, type WebContents } from "electron";
+import { randomBytes } from "node:crypto";
+import { readFileSync, statSync } from "node:fs";
+import { join } from "node:path";
+import { CHANNELS, openPath } from "./bridge";
+import { MAX_ENV_FILE, parseEnvFile, type Imported } from "./env-file";
+import { serverEnv } from "./env";
+import { hasTray, onAllWindowsClosed, onWindowClose, showTrayHint, type Lifecycle } from "./lifecycle";
+import { linkArg, linkPath, WANHEDA_SCHEME } from "./links";
+import { createLog } from "./log";
+import { classifyAuthUrl, classifyUrl, navigationStep, permissionAllowed } from "./policy";
+import { freePort, isPortFree, savePort, savedPort } from "./ports";
+import { electronSealer } from "./sealer";
+import { fileStore, loadSecrets, NoKeychainError, saveSecrets, type Sealer, type SecretStore } from "./secrets";
+import { delay, ServerStartError, startDevServer, startStandaloneServer, type ServerHandle } from "./server-process";
+import { loadSettings, saveSettings, type DesktopSettings } from "./settings";
+import { TOKEN_HEADER } from "./shared";
+import { createTray, KEEP_RUNNING_LABEL, type WanhedaTray } from "./tray";
+import { loadWindowState, MIN_SIZE, placeWindow, saveWindowState, type Rect } from "./window-state";
+
+/*
+ * Wanheda's desktop shell (Phase 8, ported from Raven's desktop/). The Next.js
+ * standalone server runs in a utility process on 127.0.0.1, and the window
+ * loads it as http://localhost:<port>. This main process owns the window, the
+ * session, the sealed `.env` values and the server's lifetime. Requests to the
+ * server carry a per-launch token only this process knows (desktop/README.md).
+ */
+
+type Mode = "dev" | "preview" | "packaged";
+
+// A link that starts an unpackaged build has no env from the dev script, so its registered command names the mode.
+const unpackagedMode = process.env.WANHEDA_DESKTOP_MODE ?? app.commandLine.getSwitchValue("wanheda-mode");
+const mode: Mode = app.isPackaged ? "packaged" : unpackagedMode === "preview" ? "preview" : "dev";
+const USER_DATA: Record<Mode, string> = { dev: "Wanheda Dev", preview: "Wanheda Preview", packaged: "Wanheda" };
+// The installer's appId. Dev and preview get their own: Windows draws the taskbar
+// icon from a Start menu shortcut with the same ID, and Electron adds one for
+// electron.exe the first time it shows a notification.
+const APP_ID: Record<Mode, string> = { dev: "io.github.kleenpulse.wanheda.dev", preview: "io.github.kleenpulse.wanheda.preview", packaged: "io.github.kleenpulse.wanheda" };
+const START_PATH = "/";
+
+// Set before the single-instance lock: the lock lives in userData.
+app.setName("Wanheda");
+app.setPath("userData", join(app.getPath("appData"), USER_DATA[mode]));
+if (!app.isPackaged && process.env.WANHEDA_DEBUG_PORT) {
+  app.commandLine.appendSwitch("remote-debugging-port", process.env.WANHEDA_DEBUG_PORT);
+}
+
+if (app.isPackaged && (app.commandLine.hasSwitch("remote-debugging-port") || app.commandLine.hasSwitch("remote-debugging-pipe"))) {
+  // A debugging port would let any local program drive the signed-in window.
+  app.exit(1);
+} else if (!app.requestSingleInstanceLock()) {
+  app.exit(0);
+} else {
+  boot();
+}
+
+function boot(): void {
+  app.enableSandbox();
+  if (process.platform === "win32") app.setAppUserModelId(APP_ID[mode]);
+
+  const userData = app.getPath("userData");
+  const logs = join(userData, "logs");
+  const log = createLog(logs, "main.log", !app.isPackaged);
+  const token = randomBytes(32).toString("base64url");
+  const inFlight = new Set<number>();
+  const secretStore = fileStore(join(userData, "secrets.json"));
+
+  let server: ServerHandle | null = null;
+  let secrets: Imported = {};
+  let sealer: Sealer | null = null;
+  let appOrigin: string | null = null;
+  let mainWindow: BrowserWindow | null = null;
+  // GitHub sign-in's own window (no preload), and the contents it owns.
+  let authWindow: BrowserWindow | null = null;
+  const authContents = new Set<number>();
+  let quitting: "no" | "closing" | "done" = "no";
+  // Windows is logging off or shutting down: windows must close, not hide.
+  let sessionEnding = false;
+  let settings: DesktopSettings = loadSettings(userData);
+  let tray: WanhedaTray | null = null;
+  // A link's path that came before the server was up (it started Wanheda, say); the newest wins.
+  let pendingLink: string | null = null;
+  // An import or "use demo mode" is restarting the server.
+  let restarting = false;
+
+  log.info(`starting (${mode}, Electron ${process.versions.electron})`);
+  registerLinks();
+  openLink(linkArg(process.argv));
+
+  const lifecycle = (): Lifecycle => ({ keepRunning: settings.keepRunning, quitting: quitting !== "no" || sessionEnding, platform: process.platform });
+
+  // Notifications are kept until clicked or closed: one that's garbage collected loses its click.
+  const notices = new Set<Notification>();
+
+  // Windows starts a second copy with the link; it hands its arguments here and quits.
+  app.on("second-instance", (_event, argv) => {
+    showWindow();
+    openLink(linkArg(argv));
+  });
+  app.on("web-contents-created", (_event, contents) => { harden(contents); });
+  app.on("window-all-closed", () => {
+    if (onAllWindowsClosed(lifecycle()) === "quit") app.quit();
+  });
+  app.on("activate", () => { showWindow(); });
+  app.on("before-quit", (event) => {
+    if (quitting === "done") return;
+    event.preventDefault();
+    if (quitting === "closing") return;
+    quitting = "closing";
+    void shutdown().then((ok) => {
+      if (!ok) {
+        quitting = "no";
+        return;
+      }
+      quitting = "done";
+      tray?.destroy();
+      app.exit(0);
+    });
+  });
+
+  app
+    .whenReady()
+    .then(start)
+    .catch((err: unknown) => fail(err));
+
+  async function start(): Promise<void> {
+    Menu.setApplicationMenu(buildMenu(settings.keepRunning, menuActions));
+    if (hasTray(process.platform)) {
+      tray = createTray({
+        open: showWindow,
+        keepRunning: () => settings.keepRunning,
+        setKeepRunning,
+        quit: () => { app.quit(); },
+      });
+    }
+    hardenSession(session.defaultSession);
+    const win = createWindow();
+    // The first-run question attaches to the splash window, so wait for it to show.
+    await new Promise<void>((resolve) => {
+      if (win.isVisible()) { resolve(); return; }
+      win.once("show", () => { resolve(); });
+      setTimeout(resolve, 3000);
+    });
+    secrets = await loadOrAskSecrets();
+    server = await startServer();
+    attach(server);
+    const first = pendingLink ?? START_PATH;
+    pendingLink = null;
+    await mainWindow?.loadURL(`${server.origin}${first}`);
+  }
+
+  /** Shows a link's page now, or once the server is up. */
+  function openLink(link: string | undefined): void {
+    if (link === undefined) return;
+    const path = linkPath(link);
+    if (!path) { log.info("ignored a link Wanheda doesn't open"); return; }
+    if (!appOrigin) {
+      pendingLink = path;
+      return;
+    }
+    showWindow();
+    openInApp(path);
+  }
+
+  /**
+   * wanheda:// is only ever Wanheda's, so it's claimed at every start (the NSIS
+   * installer doesn't register it). Not in dev mode: a link can't start
+   * `next dev`. Unpackaged builds name their mode before the link: Electron
+   * refuses to start if anything follows a link on the command line.
+   */
+  function registerLinks(): void {
+    if (mode === "dev") return;
+    const ok = app.isPackaged
+      ? app.setAsDefaultProtocolClient(WANHEDA_SCHEME)
+      : app.setAsDefaultProtocolClient(WANHEDA_SCHEME, process.execPath, [app.getAppPath(), `--wanheda-mode=${mode}`]);
+    if (!ok) log.info("couldn't register wanheda:// links");
+  }
+
+  const menuActions: MenuActions = {
+    setKeepRunning: (on) => { setKeepRunning(on); },
+    importEnv: () => void reimport().catch((err: unknown) => { log.info(`import: ${errText(err)}`); }),
+    useDemo: () => void useDemo().catch((err: unknown) => { log.info(`demo mode: ${errText(err)}`); }),
+  };
+
+  async function startServer(): Promise<ServerHandle> {
+    const port = await pickPort();
+    const serverLog = createLog(logs, "server.log", !app.isPackaged);
+    if (mode === "dev") {
+      const repoRoot = process.env.WANHEDA_REPO_ROOT;
+      if (!repoRoot) throw new ServerStartError("Start dev mode with `bun run desktop:dev`.");
+      const env = serverEnv(process.env, { mode: "dev", port, token, secrets });
+      return startDevServer({ repoRoot, port, token, env, log: serverLog });
+    }
+    // Packaged: resources/server. Preview: desktop/.stage/server next to the staged app.
+    const serverDir = app.isPackaged ? join(process.resourcesPath, "server") : join(app.getAppPath(), "..", "server");
+    const env = serverEnv(process.env, { mode: "prod", port, token, secrets });
+    const handle = await startStandaloneServer({ serverDir, port, env, log: serverLog });
+    if (handle.port !== port) {
+      log.info(`port ${port} was taken; the server moved to ${handle.port}. Data the window keeps per origin starts fresh.`);
+      savePort(userData, handle.port);
+    }
+    return handle;
+  }
+
+  /** The main window while it can be seen: dialogs attach to it, so they never open behind it. */
+  function shownWindow(): BrowserWindow | null {
+    return mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible() ? mainWindow : null;
+  }
+
+  function showBox(options: MessageBoxOptions): Promise<MessageBoxReturnValue> {
+    const parent = shownWindow();
+    return parent ? dialog.showMessageBox(parent, options) : dialog.showMessageBox(options);
+  }
+
+  /* ── Sealed .env values (SPEC V69) ────────────────────────────────────── */
+
+  async function getSealer(): Promise<Sealer> {
+    sealer ??= await electronSealer();
+    return sealer;
+  }
+
+  /** The sealed values; on first run asks for a `.env` file or demo mode. */
+  async function loadOrAskSecrets(): Promise<Imported> {
+    const result = await loadSecrets(secretStore, await getSealer());
+    if (result.kind === "ok") return result.values;
+    if (result.kind === "none") return firstRun();
+    const why =
+      result.kind === "keychain-changed"
+        ? `They were locked with "${result.was}", and this system now uses "${result.now}".`
+        : result.kind === "keychain-unavailable"
+          ? "They're locked with your system's keychain, and it isn't available right now. Quit and try again once it's back."
+          : "The file that holds them can't be read.";
+    log.info(`saved keys unreadable: ${result.kind}`);
+    const { response } = await showBox({
+      type: "warning",
+      title: "Wanheda",
+      message: "Wanheda can't open its saved keys.",
+      detail: `${why} Starting fresh keeps the old file next to the new one, and asks for your .env file again.`,
+      buttons: ["Quit", "Start fresh"],
+      defaultId: 0,
+      cancelId: 0,
+    });
+    if (response !== 1) {
+      quitting = "done";
+      tray?.destroy();
+      app.exit(0);
+      return new Promise<never>(() => {});
+    }
+    secretStore.keepBroken();
+    return firstRun();
+  }
+
+  async function firstRun(): Promise<Imported> {
+    // A cancelled picker or an unusable file asks again: only "Start in demo
+    // mode" records demo mode.
+    for (;;) {
+      const { response } = await showBox({
+        type: "question",
+        title: "Wanheda",
+        message: "Run Wanheda on your own data?",
+        detail:
+          "Choose your .env file: Wanheda takes the settings it knows, seals them with your system's keychain, and doesn't keep the file. Or start in demo mode with sample data. You can import a file later from the File menu.",
+        buttons: ["Choose .env file…", "Start in demo mode"],
+        defaultId: 0,
+        cancelId: 1,
+      });
+      if (response !== 0) break;
+      const values = await importEnvFile();
+      if (values) return values;
+    }
+    await persist(secretStore, {});
+    log.info("demo mode chosen");
+    return {};
+  }
+
+  /** Asks for a `.env` file, seals what it knows from it. Null when cancelled or empty. */
+  async function importEnvFile(): Promise<Imported | null> {
+    const parent = shownWindow();
+    const options = { title: "Choose your .env file", properties: ["openFile", "showHiddenFiles", "dontAddToRecent"] as ("openFile" | "showHiddenFiles" | "dontAddToRecent")[] };
+    const picked = parent ? await dialog.showOpenDialog(parent, options) : await dialog.showOpenDialog(options);
+    const file = picked.filePaths[0];
+    if (picked.canceled || !file) return null;
+    let text: string;
+    try {
+      if (statSync(file).size > MAX_ENV_FILE) throw new Error("too large");
+      text = readFileSync(file, "utf8");
+    } catch {
+      await showBox({ type: "warning", title: "Wanheda", message: "That file can't be read as a .env file.", buttons: ["OK"] });
+      return null;
+    }
+    const { values, taken, ignored } = parseEnvFile(text);
+    if (taken === 0) {
+      await showBox({ type: "warning", title: "Wanheda", message: "That file has no Wanheda settings.", detail: "Wanheda looks for the names in .env.example, such as DATABASE_URL.", buttons: ["OK"] });
+      return null;
+    }
+    await persist(secretStore, values);
+    log.info(`imported ${taken} settings (${ignored} other names left out)`);
+    return values;
+  }
+
+  /** Seals and saves; with no keychain, the values last for this run only. */
+  async function persist(store: SecretStore, values: Imported): Promise<void> {
+    try {
+      await saveSecrets(store, await getSealer(), values);
+    } catch (err) {
+      if (!(err instanceof NoKeychainError)) throw err;
+      log.info(`not saved: ${err.message}`);
+      await showBox({
+        type: "warning",
+        title: "Wanheda",
+        message: "Wanheda can't save your keys.",
+        detail: "Your system's keychain isn't available, and Wanheda never saves them unencrypted. They last until you quit.",
+        buttons: ["OK"],
+      });
+    }
+  }
+
+  async function reimport(): Promise<void> {
+    if (restarting || !server) return;
+    const values = await importEnvFile();
+    if (!values) return;
+    secrets = values;
+    await restartServer();
+  }
+
+  async function useDemo(): Promise<void> {
+    if (restarting || !server) return;
+    const { response } = await showBox({
+      type: "question",
+      title: "Wanheda",
+      message: "Forget your imported keys and use demo mode?",
+      detail: "Wanheda deletes its sealed copy and restarts on sample data. Your data stays where it is; import your .env file again to get back to it.",
+      buttons: ["Cancel", "Use demo mode"],
+      defaultId: 0,
+      cancelId: 0,
+    });
+    if (response !== 1) return;
+    secrets = {};
+    await persist(secretStore, {});
+    await restartServer();
+  }
+
+  /** Stops the server and starts it again with the current values, on the same port. */
+  async function restartServer(): Promise<void> {
+    restarting = true;
+    try {
+      await server?.stop();
+      server = await startServer();
+      attach(server);
+      const win = mainWindow;
+      if (win && !win.isDestroyed()) await win.loadURL(`${server.origin}${START_PATH}`);
+    } catch (err) {
+      await fail(err);
+    } finally {
+      restarting = false;
+    }
+  }
+
+  /** The saved port, unless something else holds it for more than ~2 s. */
+  async function pickPort(): Promise<number> {
+    const saved = savedPort(userData);
+    if (saved) {
+      for (let i = 0; i < 10; i++) {
+        if (await isPortFree(saved)) return saved;
+        await delay(200);
+      }
+    }
+    const port = await freePort();
+    if (saved) log.info(`port ${saved} is taken; moving to ${port}. Data the window keeps per origin starts fresh.`);
+    savePort(userData, port);
+    return port;
+  }
+
+  function attach(handle: ServerHandle): void {
+    appOrigin = handle.origin;
+    routeToken(session.defaultSession, handle.origin);
+    handle.onExit((detail) => void serverDied(handle, detail));
+    log.info(`server ready at ${handle.origin}`);
+  }
+
+  async function serverDied(handle: ServerHandle, detail: string): Promise<void> {
+    log.info(`server stopped: ${detail}`);
+    if (quitting !== "no" || handle !== server) return;
+    const { response } = await showBox({
+      type: "error",
+      title: "Wanheda",
+      message: "Wanheda's background server stopped.",
+      detail: `You can restart it, or quit and look at the log:\n${join(logs, "server.log")}`,
+      buttons: ["Restart", "Quit"],
+      defaultId: 0,
+      cancelId: 1,
+    });
+    if (response !== 0) { app.quit(); return; }
+    try {
+      server = await startServer();
+      attach(server);
+      for (const win of BrowserWindow.getAllWindows()) win.reload();
+    } catch (err) {
+      await fail(err);
+    }
+  }
+
+  async function fail(err: unknown): Promise<void> {
+    const message = err instanceof ServerStartError ? err.message : "Wanheda couldn't start.";
+    log.info(`start failed: ${err instanceof Error ? (err.stack ?? err.message) : String(err)}`);
+    await showBox({ type: "error", title: "Wanheda", message, detail: `Logs: ${logs}`, buttons: ["Quit"] });
+    quitting = "done";
+    await server?.stop();
+    tray?.destroy();
+    app.exit(1);
+  }
+
+  /** Close windows (honouring "Stay"), let pagehide requests land, then stop the server (V68: drain ≤ 3 s). */
+  async function shutdown(): Promise<boolean> {
+    if (!(await closeWindows())) return false;
+    await delay(300);
+    const idleBy = Date.now() + 2000;
+    while (inFlight.size > 0 && Date.now() < idleBy) await delay(50);
+    await session.defaultSession.cookies.flushStore();
+    await server?.stop();
+    log.info("stopped");
+    return true;
+  }
+
+  /** Brings the window back from the tray or a minimise. */
+  function showWindow(): void {
+    if (quitting === "done") return;
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      // While quitting, the server is about to stop: a new window would sit on it.
+      if (appOrigin && quitting === "no") createWindow();
+      return;
+    }
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
+    mainWindow.focus();
+  }
+
+  function setKeepRunning(on: boolean): void {
+    updateSettings({ keepRunning: on });
+    Menu.setApplicationMenu(buildMenu(on, menuActions));
+    tray?.refresh();
+    // A hidden window keeps music, timers and speech at full pace.
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.setBackgroundThrottling(!on);
+  }
+
+  function updateSettings(change: Partial<DesktopSettings>): void {
+    settings = { ...settings, ...change };
+    try {
+      saveSettings(userData, settings);
+    } catch (err) {
+      log.info(`couldn't save the settings: ${errText(err)}`);
+    }
+  }
+
+  /** Closing hides the window while "keep running" is on; quitting closes it for real. */
+  function hideOnClose(win: BrowserWindow): void {
+    win.on("close", (event) => {
+      const state = lifecycle();
+      const action = onWindowClose(state);
+      if (action === "close") return;
+      event.preventDefault();
+      win.hide();
+      if (showTrayHint(state, action, settings.trayHintShown)) {
+        updateSettings({ trayHintShown: true });
+        notify("Wanheda is still running.", "Music, timers and speech go on. Open it from the tray.", showWindow);
+      }
+    });
+  }
+
+  function notify(title: string, body: string, onClick: () => void): void {
+    if (!Notification.isSupported()) return;
+    const notice = new Notification({ title, body, icon: join(app.getAppPath(), "icon.png") });
+    notices.add(notice);
+    notice.on("click", () => {
+      notices.delete(notice);
+      onClick();
+    });
+    notice.on("close", () => notices.delete(notice));
+    notice.show();
+  }
+
+  /** Shows an allowed path in the main window: routed by the page if it's up, else loaded. */
+  function openInApp(path: string): void {
+    const safe = openPath(path);
+    const win = mainWindow;
+    if (!safe || !appOrigin || !win || win.isDestroyed()) return;
+    const contents = win.webContents;
+    let onApp = false;
+    try {
+      onApp = new URL(contents.getURL()).origin === appOrigin;
+    } catch {
+      // The splash page (data:) or nothing yet.
+    }
+    if (onApp && !contents.isLoading()) contents.send(CHANNELS.open, safe);
+    else void win.loadURL(`${appOrigin}${safe}`);
+  }
+
+  function background(): string {
+    return nativeTheme.shouldUseDarkColors ? "#050a0b" : "#f3f3f1";
+  }
+
+  function createWindow(): BrowserWindow {
+    const place = placeWindow(loadWindowState(userData), screenAreas());
+    const win = new BrowserWindow({
+      width: place.width,
+      height: place.height,
+      ...(place.x !== undefined && place.y !== undefined ? { x: place.x, y: place.y } : {}),
+      minWidth: MIN_SIZE.width,
+      minHeight: MIN_SIZE.height,
+      show: false,
+      title: "Wanheda",
+      icon: join(app.getAppPath(), "icon.png"),
+      backgroundColor: background(),
+      autoHideMenuBar: true,
+      webPreferences: {
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true,
+        webviewTag: false,
+        devTools: !app.isPackaged,
+        spellcheck: true,
+        backgroundThrottling: !settings.keepRunning,
+        // Bundled next to main.js; Bun.build bakes __dirname in as the source folder, so ask Electron.
+        preload: join(app.getAppPath(), "preload.js"),
+      },
+    });
+    win.once("ready-to-show", () => {
+      if (!place.maximized) { win.show(); return; }
+      // maximize() shows the window too, but doesn't focus it.
+      win.maximize();
+      win.focus();
+    });
+    rememberPlace(win);
+    hideOnClose(win);
+    // Windows log-off or shutdown: stop the server cleanly while we still can.
+    win.on("session-end", () => {
+      sessionEnding = true;
+      void Promise.allSettled([session.defaultSession.cookies.flushStore(), server?.stop()]);
+    });
+    void win.loadURL(appOrigin ? `${appOrigin}${START_PATH}` : splash(background()));
+    mainWindow = win;
+    return win;
+  }
+
+  /**
+   * GitHub's OAuth pages in their own window (V68, ADR-0014): no preload, the
+   * app's session (so the callback's cookie lands where the app reads it),
+   * and only GitHub's sign-in pages and the app's callback. Reaching the
+   * app's origin ends it: the window closes and the main window goes there.
+   */
+  function openAuthWindow(url: string): void {
+    if (authWindow && !authWindow.isDestroyed()) {
+      void authWindow.loadURL(url);
+      authWindow.focus();
+      return;
+    }
+    const parent = mainWindow && !mainWindow.isDestroyed() ? mainWindow : null;
+    const win = new BrowserWindow({
+      width: 520,
+      height: 760,
+      ...(parent ? { parent } : {}),
+      title: "Sign in with GitHub",
+      autoHideMenuBar: true,
+      backgroundColor: background(),
+      webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, webviewTag: false, devTools: !app.isPackaged },
+    });
+    const id = win.webContents.id;
+    authContents.add(id);
+    win.on("closed", () => {
+      authContents.delete(id);
+      if (authWindow === win) authWindow = null;
+    });
+    win.webContents.on("did-navigate", (_event, landed) => {
+      const step = classifyAuthUrl(landed, appOrigin);
+      if (step.kind !== "app") return;
+      const target = mainWindow;
+      win.close();
+      if (target && !target.isDestroyed()) {
+        void target.loadURL(step.url);
+        showWindow();
+      }
+    });
+    authWindow = win;
+    void win.loadURL(url);
+  }
+
+  /** Saves the window's size and place a moment after it changes, and when it closes. */
+  function rememberPlace(win: BrowserWindow): void {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const save = () => {
+      clearTimeout(timer);
+      if (win.isDestroyed()) return;
+      try {
+        saveWindowState(userData, { bounds: win.getNormalBounds(), maximized: win.isMaximized() });
+      } catch (err) {
+        log.info(`couldn't save the window's place: ${errText(err)}`);
+      }
+    };
+    const later = () => {
+      clearTimeout(timer);
+      timer = setTimeout(save, 500);
+    };
+    win.on("resize", later);
+    win.on("move", later);
+    win.on("maximize", later);
+    win.on("unmaximize", later);
+    win.on("close", save);
+  }
+
+  /** Permissions: the allowlist, for the app's own origin only (V67). */
+  function hardenSession(ses: Session): void {
+    ses.setPermissionRequestHandler((contents, permission, callback, details) => {
+      callback(permissionAllowed(permission, details.requestingUrl, contents.getURL(), appOrigin));
+    });
+    ses.setPermissionCheckHandler((contents, permission, requestingOrigin, details) => {
+      const page = contents?.getURL() ?? details.embeddingOrigin ?? "";
+      return permissionAllowed(permission, details.requestingUrl ?? requestingOrigin, page, appOrigin);
+    });
+  }
+
+  /**
+   * Adds the token to requests for the server only (never to other sites, and
+   * page script never sees it) and tracks them. The CSP comes from the server
+   * itself (next.config.ts). Each call replaces the listeners, so a moved port re-routes.
+   */
+  function routeToken(ses: Session, origin: string): void {
+    const filter = { urls: [`${origin}/*`] };
+    const ours = (url: string) => new URL(url).origin === origin;
+    ses.webRequest.onBeforeSendHeaders(filter, (details, callback) => {
+      const requestHeaders = details.requestHeaders;
+      if (ours(details.url)) requestHeaders[TOKEN_HEADER] = token;
+      callback({ requestHeaders });
+    });
+    ses.webRequest.onSendHeaders(filter, (details) => {
+      if (ours(details.url)) inFlight.add(details.id);
+    });
+    ses.webRequest.onCompleted(filter, (details) => void inFlight.delete(details.id));
+    ses.webRequest.onErrorOccurred(filter, (details) => void inFlight.delete(details.id));
+  }
+
+  function harden(contents: WebContents): void {
+    const isAuth = () => authContents.has(contents.id);
+    contents.setWindowOpenHandler(({ url }) => {
+      if (isAuth()) {
+        const step = classifyAuthUrl(url, appOrigin);
+        if (step.kind === "external") void shell.openExternal(step.url);
+        return { action: "deny" };
+      }
+      const destination = classifyUrl(url, appOrigin);
+      if (destination.kind === "app") {
+        return {
+          action: "allow",
+          overrideBrowserWindowOptions: {
+            autoHideMenuBar: true,
+            webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, webviewTag: false, devTools: !app.isPackaged },
+          },
+        };
+      }
+      if (destination.kind === "github-sign-in") openAuthWindow(destination.url);
+      else if (destination.kind === "external") void shell.openExternal(destination.url);
+      return { action: "deny" };
+    });
+    const guard = (event: { url: string; isMainFrame: boolean; preventDefault(): void }) => {
+      const step = navigationStep({ url: event.url, isMainFrame: event.isMainFrame, isAuth: isAuth() }, appOrigin);
+      if (step.kind === "allow") return;
+      event.preventDefault();
+      if (step.kind === "github-sign-in") openAuthWindow(step.url);
+      else if (step.kind === "external") void shell.openExternal(step.url);
+    };
+    contents.on("will-navigate", (event) => { guard(event); });
+    contents.on("will-redirect", (event) => { guard(event); });
+    contents.on("will-attach-webview", (event) => { event.preventDefault(); });
+    // A page that blocks leaving with beforeunload: Electron would silently
+    // keep the window open, so ask instead.
+    contents.on("will-prevent-unload", (event) => {
+      const win = BrowserWindow.fromWebContents(contents);
+      const options = {
+        type: "question" as const,
+        title: "Wanheda",
+        message: "Wanheda is still working.",
+        detail: "Something may still be saving. If you leave now, it may not finish.",
+        buttons: ["Stay", "Leave"],
+        defaultId: 0,
+        cancelId: 0,
+      };
+      const choice = win ? dialog.showMessageBoxSync(win, options) : dialog.showMessageBoxSync(options);
+      if (choice === 1) event.preventDefault();
+    });
+  }
+}
+
+/** Every display's work area, primary first. */
+function screenAreas(): Rect[] {
+  const primary = screen.getPrimaryDisplay();
+  return [primary, ...screen.getAllDisplays().filter((display) => display.id !== primary.id)].map((display) => display.workArea);
+}
+
+/** Resolves true once every window is gone, false if one stayed open (the owner chose "Stay"). */
+async function closeWindows(): Promise<boolean> {
+  await Promise.all(
+    BrowserWindow.getAllWindows().map(
+      (win) =>
+        new Promise<void>((resolve) => {
+          if (win.isDestroyed()) { resolve(); return; }
+          win.once("closed", () => { resolve(); });
+          setTimeout(resolve, 3000);
+          win.close();
+        }),
+    ),
+  );
+  return BrowserWindow.getAllWindows().length === 0;
+}
+
+function errText(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
+type MenuActions = { setKeepRunning: (on: boolean) => void; importEnv: () => void; useDemo: () => void };
+
+function buildMenu(keepRunning: boolean, actions: MenuActions): Menu {
+  const fileMenu: MenuItemConstructorOptions = {
+    label: "File",
+    submenu: [
+      { label: KEEP_RUNNING_LABEL, type: "checkbox", checked: keepRunning, click: (item) => { actions.setKeepRunning(item.checked); } },
+      { type: "separator" },
+      { label: "Import .env file…", click: () => { actions.importEnv(); } },
+      { label: "Use demo mode…", click: () => { actions.useDemo(); } },
+      { type: "separator" },
+      { role: "quit", label: "Quit Wanheda" },
+    ],
+  };
+  const view: MenuItemConstructorOptions[] = [
+    { role: "reload" },
+    { role: "forceReload" },
+    ...(app.isPackaged ? [] : [{ role: "toggleDevTools" } as const]),
+    { type: "separator" },
+    { role: "resetZoom" },
+    { role: "zoomIn" },
+    { role: "zoomOut" },
+    { type: "separator" },
+    { role: "togglefullscreen" },
+  ];
+  return Menu.buildFromTemplate([fileMenu, { role: "editMenu" }, { label: "View", submenu: view }, { role: "windowMenu" }]);
+}
+
+function splash(color: string): string {
+  const ink = color === "#050a0b" ? "#9aa3a5" : "#5b5f61";
+  return `data:text/html;charset=utf-8,${encodeURIComponent(
+    `<!doctype html><meta charset="utf-8"><title>Wanheda</title><style>html,body{height:100%;margin:0;background:${color};color:${ink};font:14px system-ui,sans-serif;display:grid;place-items:center}</style><p>Starting Wanheda…</p>`,
+  )}`;
+}
