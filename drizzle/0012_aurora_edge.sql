@@ -1,0 +1,1 @@
+ALTER TABLE "user_prefs" ADD COLUMN "aurora_edge" text DEFAULT 'top' NOT NULL;

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { TIMER_MODES } from "@/lib/activity/timer";
-import { SCENES, SKINS, WALLPAPERS, WALLPAPER_COVERS, WALLPAPER_PAGES, WALLPAPER_SCOPES } from "./prefs";
+import { AURORA_EDGES, SCENES, SKINS, WALLPAPERS, WALLPAPER_COVERS, WALLPAPER_PAGES, WALLPAPER_SCOPES } from "./prefs";
 
 /** The whole prefs row as the save action takes it: untrusted, checked field by field, nothing extra. */
 export const prefsSchema = z
@@ -16,5 +16,6 @@ export const prefsSchema = z
     wallpaperCover: z.enum(WALLPAPER_COVERS),
     // partialRecord: zod 4's z.record with enum keys demands every key (SPEC V64).
     wallpaperPages: z.partialRecord(z.enum(WALLPAPER_PAGES), z.enum(SCENES)),
+    auroraEdge: z.enum(AURORA_EDGES),
   })
   .strict();

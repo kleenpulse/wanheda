@@ -17,6 +17,7 @@ written after the fact, one per phase, and have no git tags.
 
 ### Added
 
+- The Aurora wallpaper can hang from the top of the screen or rise from the bottom. When Aurora is picked, a small Top / Bottom switch appears under it in Settings → Appearance. From the bottom, it glows up from behind the dock and stays there as you scroll.
 - Wallpapers can now show on any page. In Settings → Appearance, pick Home, every page, or a different wallpaper for each page, and choose whether it stays below the top bar or fills the whole page behind the title too. The palette's wallpaper commands change the page you're on.
 - Videos can now come from a whole folder. In Media → Videos, press Open a folder and every video in it (and in the folders inside it) joins your list in name order, so episodes line up as Ep 1, Ep 2 … Ep 10. They play from where they are; nothing is uploaded. The video list now scrolls on its own beside the player, the way the music list does, instead of the whole page scrolling.
 - The next and previous keys on your keyboard or headset now move between videos in your list, and the list scrolls to keep the one playing in view. Each video keeps its place when you move on. Links to YouTube and other sites are skipped, since their players don't listen to those keys.

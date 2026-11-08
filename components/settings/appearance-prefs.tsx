@@ -12,6 +12,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useHydrated } from "@/hooks/use-hydrated";
 import {
   ACCENT_PRESETS,
+  AURORA_EDGES,
+  AURORA_EDGE_LABELS,
   PICKER_FALLBACK,
   SKINS,
   SKIN_LABELS,
@@ -24,6 +26,7 @@ import {
   parseAccent,
   seedPages,
   withPageWallpaper,
+  type WallpaperPages,
 } from "@/lib/prefs/prefs";
 import { WALLPAPER_PAGE_LIST } from "@/lib/prefs/wallpaper-pages";
 import { cn } from "@/lib/utils";
@@ -32,6 +35,7 @@ const SKIN_OPTIONS = SKINS.map((value) => ({ value, label: SKIN_LABELS[value] })
 const WALLPAPER_OPTIONS = WALLPAPERS.map((value) => ({ value, label: WALLPAPER_LABELS[value] }));
 const SCOPE_OPTIONS = WALLPAPER_SCOPES.map((value) => ({ value, label: WALLPAPER_SCOPE_LABELS[value] }));
 const COVER_OPTIONS = WALLPAPER_COVERS.map((value) => ({ value, label: WALLPAPER_COVER_LABELS[value] }));
+const AURORA_EDGE_OPTIONS = AURORA_EDGES.map((value) => ({ value, label: AURORA_EDGE_LABELS[value] }));
 
 /** Sample rows that wear the current skin and accent, so a change shows before you leave the page. */
 const PREVIEW = [
@@ -256,6 +260,31 @@ function PrefSelect<T extends string>({
   );
 }
 
+function usesAurora(pages: WallpaperPages): boolean {
+  return Object.values(pages).includes("aurora");
+}
+
+/** The mini tab under Aurora: its light hangs from the top or rises from the bottom. */
+function AuroraEdgeTab() {
+  const { prefs, update } = usePrefs();
+  return (
+    <div className="flex items-center gap-2">
+      <span aria-hidden className="text-[12px] text-ink-3">
+        From
+      </span>
+      <Segmented
+        size="sm"
+        label="Aurora from"
+        value={prefs.auroraEdge}
+        options={AURORA_EDGE_OPTIONS}
+        onChange={(auroraEdge) => {
+          update({ auroraEdge });
+        }}
+      />
+    </div>
+  );
+}
+
 /** Settings → Appearance → Wallpaper (SPEC V64): which pages, which scene, and how far it reaches. */
 function WallpaperCard() {
   const { prefs, update } = usePrefs();
@@ -315,17 +344,27 @@ function WallpaperCard() {
           layout="wide"
         >
           {() => (
-            <Segmented
-              label="Wallpaper"
-              value={prefs.wallpaper}
-              options={WALLPAPER_OPTIONS}
-              onChange={(wallpaper) => {
-                update({ wallpaper });
-              }}
-            />
+            <div className="flex flex-col items-start gap-2 @lg:items-end">
+              <Segmented
+                label="Wallpaper"
+                value={prefs.wallpaper}
+                options={WALLPAPER_OPTIONS}
+                onChange={(wallpaper) => {
+                  update({ wallpaper });
+                }}
+              />
+              {prefs.wallpaper === "aurora" ? <AuroraEdgeTab /> : null}
+            </div>
           )}
         </SettingRow>
       )}
+
+      {/* Per page, one edge for every page that shows Aurora: the mini tab gets its own row. */}
+      {scope === "pages" && usesAurora(prefs.wallpaperPages) ? (
+        <SettingRow label="Aurora" description="Where its light comes from, on every page that shows it.">
+          {() => <AuroraEdgeTab />}
+        </SettingRow>
+      ) : null}
 
       <SettingRow label="Covers" description="Below the top bar keeps the header plain. Whole page runs the scene behind it too." layout="wide">
         {() => (

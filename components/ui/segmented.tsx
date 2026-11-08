@@ -18,6 +18,7 @@ export function Segmented<T extends string>({
   disabled,
   className,
   layoutId,
+  size = "md",
 }: {
   label: string;
   /** null: nothing pressed yet (a value only the client knows, before hydration). */
@@ -32,6 +33,8 @@ export function Segmented<T extends string>({
    * in a different branch); a fresh useId would break the slide.
    */
   layoutId?: string;
+  /** sm: the mini tab for a sub-choice under another control. */
+  size?: "md" | "sm";
 }) {
   const ownId = React.useId();
   const indicatorId = layoutId ?? ownId;
@@ -40,7 +43,8 @@ export function Segmented<T extends string>({
       role="group"
       aria-label={label}
       className={cn(
-        "flex w-fit max-w-full flex-wrap items-center rounded-pill bg-sheet p-1 ring-1 ring-border dark:bg-background/40 dark:ring-glass-border",
+        "flex w-fit max-w-full flex-wrap items-center rounded-pill bg-sheet ring-1 ring-border dark:bg-background/40 dark:ring-glass-border",
+        size === "sm" ? "p-0.5" : "p-1",
         className,
       )}
     >
@@ -56,7 +60,8 @@ export function Segmented<T extends string>({
               onChange(o.value);
             }}
             className={cn(
-              "relative isolate inline-flex h-8 items-center rounded-pill px-3.5 text-[12px] font-medium whitespace-nowrap outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50",
+              "relative isolate inline-flex items-center rounded-pill font-medium whitespace-nowrap outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50",
+              size === "sm" ? "h-6 px-2.5 text-[11px]" : "h-8 px-3.5 text-[12px]",
               active ? "text-inverse-foreground dark:text-signal" : "text-ink-2 hover:text-foreground",
             )}
           >

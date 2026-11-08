@@ -30,6 +30,7 @@ const CUSTOM: Prefs = {
   wallpaperScope: "pages",
   wallpaperCover: "page",
   wallpaperPages: { home: "aurora", money: "stars", settings: "dots" },
+  auroraEdge: "bottom",
 };
 
 /** The generated <head> script as a function of `document`: what the browser runs inline. */
@@ -69,6 +70,10 @@ describe("parsePrefs", () => {
     expect(parsePrefs(null)).toEqual(DEFAULT_PREFS);
   });
 
+  it("defaults a bad aurora edge on its own", () => {
+    expect(parsePrefs({ ...CUSTOM, auroraEdge: "left" })).toEqual({ ...CUSTOM, auroraEdge: "top" });
+  });
+
   it("defaults a bad scope or cover and drops bad page entries one by one", () => {
     expect(parsePrefs({ ...CUSTOM, wallpaperScope: "some", wallpaperCover: 1 })).toEqual({ ...CUSTOM, wallpaperScope: "home", wallpaperCover: "sheet" });
     expect(parsePrefs({ ...CUSTOM, wallpaperPages: { home: "aurora", money: "none", notes: "lava", nowhere: "stars" } }).wallpaperPages).toEqual({ home: "aurora" });
@@ -81,6 +86,7 @@ describe("samePrefs", () => {
     expect(samePrefs(CUSTOM, { ...CUSTOM, wallpaperPages: { settings: "dots", money: "stars", home: "aurora" } })).toBe(true);
     expect(samePrefs(CUSTOM, { ...CUSTOM, wallpaperPages: { home: "aurora", money: "stars" } })).toBe(false);
     expect(samePrefs(CUSTOM, { ...CUSTOM, wallpaperCover: "sheet" })).toBe(false);
+    expect(samePrefs(CUSTOM, { ...CUSTOM, auroraEdge: "top" })).toBe(false);
   });
 });
 
@@ -153,6 +159,7 @@ describe("prefsSchema", () => {
     expect(prefsSchema.safeParse({ ...CUSTOM, wallpaperPages: { home: "none" } }).success).toBe(false);
     expect(prefsSchema.safeParse({ ...CUSTOM, wallpaperPages: { nowhere: "stars" } }).success).toBe(false);
     expect(prefsSchema.safeParse({ ...CUSTOM, extra: 1 }).success).toBe(false);
+    expect(prefsSchema.safeParse({ ...CUSTOM, auroraEdge: "left" }).success).toBe(false);
   });
 });
 
@@ -161,6 +168,11 @@ describe("the prefs cookie", () => {
     expect(decodePrefs(encodePrefs(CUSTOM))).toEqual(CUSTOM);
     expect(decodePrefs(encodePrefs(DEFAULT_PREFS))).toEqual(DEFAULT_PREFS);
     expect(samePrefs(decodePrefs(encodePrefs(CUSTOM)), CUSTOM)).toBe(true);
+  });
+
+  it("reads a cookie from before the aurora edge with the top edge", () => {
+    expect(decodePrefs("bench.12ab9f.aurora.single.all.page.-").auroraEdge).toBe("top");
+    expect(decodePrefs("bench.12ab9f.aurora.single.all.page.-.bottom").auroraEdge).toBe("bottom");
   });
 
   it("reads a cookie from before the wallpaper fields with their defaults", () => {

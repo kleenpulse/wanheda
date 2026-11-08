@@ -898,6 +898,11 @@ html[data-transparency="reduce"].dark[data-skin="bench"] {
 	mask-image: linear-gradient(to bottom, #000 45%, transparent);
 	animation: wallpaper-in 900ms var(--ease-out-quint) both;
 }
+/* Aurora from the bottom: the same frame, dissolving upward instead. */
+.wallpaper-fade-up {
+	mask-image: linear-gradient(to top, #000 45%, transparent);
+	animation: wallpaper-in 900ms var(--ease-out-quint) both;
+}
 @keyframes wallpaper-in {
 	from {
 		opacity: 0;

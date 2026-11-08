@@ -43,6 +43,7 @@ export async function savePrefs(userId: string, p: Prefs): Promise<boolean> {
     wallpaperScope: p.wallpaperScope,
     wallpaperCover: p.wallpaperCover,
     wallpaperPages: p.wallpaperPages,
+    auroraEdge: p.auroraEdge,
   };
   await db
     .insert(userPrefs)

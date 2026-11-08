@@ -30,6 +30,10 @@ export type WallpaperScope = (typeof WALLPAPER_SCOPES)[number];
 export const WALLPAPER_COVERS = ["sheet", "page"] as const;
 export type WallpaperCover = (typeof WALLPAPER_COVERS)[number];
 
+/** Which screen edge Aurora's light hangs from: the top, or rising from the bottom. */
+export const AURORA_EDGES = ["top", "bottom"] as const;
+export type AuroraEdge = (typeof AURORA_EDGES)[number];
+
 /** Per-page scenes. A page that isn't listed has none. */
 export type WallpaperPages = Partial<Record<WallpaperPage, Scene>>;
 
@@ -42,6 +46,8 @@ export interface Prefs {
   timerMode: TimerMode;
   wallpaperScope: WallpaperScope;
   wallpaperCover: WallpaperCover;
+  /** Aurora's edge, wherever Aurora shows. */
+  auroraEdge: AuroraEdge;
   /** Used by the `pages` scope. */
   wallpaperPages: WallpaperPages;
 }
@@ -71,6 +77,7 @@ export const WALLPAPER_LABELS: Record<Wallpaper, string> = {
 
 export const WALLPAPER_SCOPE_LABELS: Record<WallpaperScope, string> = { home: "Home", all: "All pages", pages: "Choose per page" };
 export const WALLPAPER_COVER_LABELS: Record<WallpaperCover, string> = { sheet: "Below the top bar", page: "Whole page" };
+export const AURORA_EDGE_LABELS: Record<AuroraEdge, string> = { top: "Top", bottom: "Bottom" };
 
 export const TIMER_MODE_LABELS: Record<TimerMode, string> = { single: "One per length", multiple: "Allow repeats" };
 
@@ -81,6 +88,7 @@ export const DEFAULT_PREFS: Prefs = {
   timerMode: "single",
   wallpaperScope: "home",
   wallpaperCover: "sheet",
+  auroraEdge: "top",
   wallpaperPages: {},
 };
 
@@ -119,6 +127,7 @@ export function parsePrefs(raw: unknown): Prefs {
     timerMode: oneOf(TIMER_MODES, r.timerMode, DEFAULT_PREFS.timerMode),
     wallpaperScope: oneOf(WALLPAPER_SCOPES, r.wallpaperScope, DEFAULT_PREFS.wallpaperScope),
     wallpaperCover: oneOf(WALLPAPER_COVERS, r.wallpaperCover, DEFAULT_PREFS.wallpaperCover),
+    auroraEdge: oneOf(AURORA_EDGES, r.auroraEdge, DEFAULT_PREFS.auroraEdge),
     wallpaperPages: parseWallpaperPages(r.wallpaperPages),
   };
 }
@@ -136,6 +145,7 @@ export function samePrefs(a: Prefs, b: Prefs): boolean {
     a.timerMode === b.timerMode &&
     a.wallpaperScope === b.wallpaperScope &&
     a.wallpaperCover === b.wallpaperCover &&
+    a.auroraEdge === b.auroraEdge &&
     samePages(a.wallpaperPages, b.wallpaperPages)
   );
 }
@@ -200,16 +210,16 @@ function decodePages(value: string | undefined): Record<string, string> {
 }
 
 /**
- * `skin.accent.wallpaper.timerMode.scope.cover.pages`, accent without `#` or
+ * `skin.accent.wallpaper.timerMode.scope.cover.pages.auroraEdge`, accent without `#` or
  * `-`: cookie-safe, no encoding. The boot script reads only the first two, and
  * a cookie from before the wallpaper fields decodes them to their defaults.
  */
 export function encodePrefs(p: Prefs): string {
-  return [p.skin, p.accent ? p.accent.slice(1) : "-", p.wallpaper, p.timerMode, p.wallpaperScope, p.wallpaperCover, encodePages(p.wallpaperPages)].join(".");
+  return [p.skin, p.accent ? p.accent.slice(1) : "-", p.wallpaper, p.timerMode, p.wallpaperScope, p.wallpaperCover, encodePages(p.wallpaperPages), p.auroraEdge].join(".");
 }
 
 export function decodePrefs(value: string | undefined | null): Prefs {
-  const [skin, accent, wallpaper, timerMode, wallpaperScope, wallpaperCover, pages] = (value ?? "").split(".");
+  const [skin, accent, wallpaper, timerMode, wallpaperScope, wallpaperCover, pages, auroraEdge] = (value ?? "").split(".");
   return parsePrefs({
     skin,
     accent: accent && accent !== "-" ? `#${accent}` : null,
@@ -218,6 +228,7 @@ export function decodePrefs(value: string | undefined | null): Prefs {
     wallpaperScope,
     wallpaperCover,
     wallpaperPages: decodePages(pages),
+    auroraEdge,
   });
 }
 
