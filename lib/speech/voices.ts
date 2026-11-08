@@ -77,6 +77,17 @@ export const CATALOG: readonly CatalogVoice[] = [
     licence: { dataset: "Blizzard 2013 Lessac", terms: "Research only", url: "https://www.cstr.ed.ac.uk/projects/blizzard/2013/lessac_blizzard2013/license.html", nonCommercial: true, note: "Research use only; not for voice synthesis products or services." },
   },
   {
+    // Left out at T55 (the card says only "License: See URL"); added on the owner's word (2026-11-08), flagged.
+    id: "en_US-amy-medium",
+    name: "Amy",
+    lang: "en-US",
+    quality: "medium",
+    revision: REVISION,
+    model: { path: "en/en_US/amy/medium/en_US-amy-medium.onnx", size: 63_201_294, sha256: "b3a6e47b57b8c7fbe6a0ce2518161a50f59a9cdd8a50835c02cb02bdd6206c18" },
+    config: { path: "en/en_US/amy/medium/en_US-amy-medium.onnx.json", size: 4_882, sha256: "95a23eb4d42909d38df73bb9ac7f45f597dbfcde2d1bf9526fdeaf5466977d77" },
+    licence: { dataset: "Mimic 3 Amy", terms: "Not stated (the card says \"See URL\")", url: "https://github.com/MycroftAI/mimic3-voices", basedOn: "Lessac", nonCommercial: true, note: "Its data's terms aren't stated. Fine-tuned from Lessac, whose data is for research use only." },
+  },
+  {
     id: "en_US-ljspeech-medium",
     name: "LJ Speech",
     lang: "en-US",

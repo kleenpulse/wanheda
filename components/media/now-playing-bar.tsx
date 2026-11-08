@@ -11,7 +11,7 @@ import { BANNER_SPRING } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import { useCoverUrl } from "./cover";
 import { useMusicPlayer } from "./music-player";
-import { Equalizer, RoundButton, VolumeRocker, WaveScrub } from "./now-playing-card";
+import { Equalizer, MusicVolume, RoundButton, WaveScrub } from "./now-playing-card";
 
 // The now-playing bar (T73, V66): on Media Home and Music, while the player
 // holds a song, an island-skinned pill floats just above the dock (above the
@@ -168,7 +168,7 @@ export function NowPlayingBar() {
         </span>
         <span className="hidden @3xl:flex">
           {/* No wheel here: the bar floats over a page that scrolls under it. */}
-          <VolumeRocker wheel={false} />
+          <MusicVolume wheel={false} />
         </span>
         <MiniProgress />
       </motion.div>

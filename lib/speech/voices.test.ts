@@ -263,6 +263,18 @@ describe("CATALOG", () => {
     }
   });
 
+  it("pins Amy to the revision's files (LFS oid for the model, hashed config)", () => {
+    const amy = CATALOG.find((v) => v.id === "en_US-amy-medium");
+    expect(amy?.revision).toBe("b4e358ffcb232591bf73a540e70f7de528e4174a");
+    expect(amy?.model).toEqual({
+      path: "en/en_US/amy/medium/en_US-amy-medium.onnx",
+      size: 63_201_294,
+      sha256: "b3a6e47b57b8c7fbe6a0ce2518161a50f59a9cdd8a50835c02cb02bdd6206c18",
+    });
+    expect(amy?.config.sha256).toBe("95a23eb4d42909d38df73bb9ac7f45f597dbfcde2d1bf9526fdeaf5466977d77");
+    expect(amy?.licence.nonCommercial).toBe(true);
+  });
+
   it("keeps T54's lessac pins (the owner's device already holds it)", () => {
     const lessac = CATALOG.find((v) => v.id === "en_US-lessac-medium");
     expect(lessac?.revision).toBe("b4e358ffcb232591bf73a540e70f7de528e4174a");

@@ -1,10 +1,11 @@
 import { create } from "zustand";
+import { nudgeVolume, volumeGain, type Volume } from "@/lib/media/volume";
 import { clampRate, isAbort, type EngineId } from "./engine";
 import { startExitLog, type ExitLog } from "./exit-log";
 import { piper } from "./piper";
 import { SpeechPlayer } from "./player";
 import { SpeechQueue, type QueueStats } from "./queue";
-import { ratePref, voicePref } from "./prefs";
+import { ratePref, speechVolumePref, voicePref } from "./prefs";
 import { chapterEnd, startSleep, type Sleep, type SleepChoice } from "./sleep";
 import { DEFAULT_VOICE, isInstalled } from "./voices";
 import { webSpeech, webSpeechAvailable } from "./web-speech";
@@ -78,6 +79,8 @@ interface Driver {
   start(sentences: readonly string[], from: number, rate: number, paused: boolean): void;
   seek(i: number): void;
   setRate(rate: number): void;
+  /** Gain 0–1. */
+  setVolume(gain: number): void;
   pause(): void;
   resume(): void;
   stop(): void;
@@ -128,6 +131,9 @@ class PiperDriver implements Driver {
   setRate(rate: number): void {
     this.queue.setRate(rate);
   }
+  setVolume(gain: number): void {
+    this.player.setVolume(gain);
+  }
   pause(): void {
     this.player.pause();
   }
@@ -151,7 +157,10 @@ class WebSpeechDriver implements Driver {
   /** A seek or new rate while paused: where to start on resume (speaking now would unpause the voice). */
   private pendingFrom: number | null = null;
 
-  constructor(private readonly events: DriverEvents) {}
+  constructor(
+    private readonly events: DriverEvents,
+    private volume: number,
+  ) {}
 
   start(sentences: readonly string[], from: number, rate: number, paused: boolean): void {
     this.sentences = sentences;
@@ -166,6 +175,16 @@ class WebSpeechDriver implements Driver {
   setRate(rate: number): void {
     this.rate = rate;
     if (this.ctrl || this.pendingFrom !== null) this.run(this.pendingFrom ?? this.current);
+  }
+  /**
+   * An utterance keeps the volume it started with, so a new level is heard
+   * from the next sentence. A mute or unmute can't wait that long: the
+   * sentence starts over.
+   */
+  setVolume(gain: number): void {
+    const flipped = (gain === 0) !== (this.volume === 0);
+    this.volume = gain;
+    if (flipped && this.ctrl) this.run(this.current);
   }
   pause(): void {
     this.paused = true;
@@ -206,7 +225,7 @@ class WebSpeechDriver implements Driver {
         this.current = i;
         this.events.onSentence(i);
         try {
-          await webSpeech.speak(this.sentences[i] ?? "", null, { rate: this.rate, signal: ctrl.signal });
+          await webSpeech.speak(this.sentences[i] ?? "", null, { rate: this.rate, volume: this.volume, signal: ctrl.signal });
         } catch (error) {
           if (!isAbort(error) && !ctrl.signal.aborted) this.events.onError(error);
           return;
@@ -255,6 +274,15 @@ function releaseLock(): void {
 
 const player = new SpeechPlayer();
 let driver: Driver | null = null;
+
+const speechGain = () => volumeGain(speechVolumePref.get());
+player.setVolume(speechGain());
+// A change in this tab reaches the voice at once; another tab's is read at the next play.
+speechVolumePref.watch((v) => {
+  const gain = volumeGain(v);
+  player.setVolume(gain);
+  driver?.setVolume(gain);
+});
 let sentences: readonly string[] = [];
 /** Bumped by every play and stop: an engine choice that resolves late for an older play is dropped. */
 let generation = 0;
@@ -286,7 +314,7 @@ export const useSpeech = create<SpeechState>()((set, get) => {
       driver = null;
       if (failed?.engine === "piper" && webSpeechAvailable()) {
         // Piper failed (voice missing, engine crashed): the browser voice carries on from here.
-        driver = new WebSpeechDriver(events(gen));
+        driver = new WebSpeechDriver(events(gen), speechGain());
         set({ engine: "webspeech", error: `Piper stopped (${message(error)}); using the browser voice.` });
         driver.start(sentences, get().sentence, get().rate, get().status === "paused");
         return;
@@ -351,6 +379,7 @@ export const useSpeech = create<SpeechState>()((set, get) => {
         return;
       }
       // In the click's turn: the browser lets the audio context run.
+      player.setVolume(speechGain());
       player.unlock();
       set({
         status: "playing",
@@ -383,7 +412,7 @@ export const useSpeech = create<SpeechState>()((set, get) => {
             set({ status: "idle", waiting: false, engine: null, error: "No voice: download one in Settings, or use a browser with speech." });
             return;
           }
-          driver = hasPiper ? new PiperDriver(player, voice, events(gen), startExitLog(voice, pressAt, playAt)) : new WebSpeechDriver(events(gen));
+          driver = hasPiper ? new PiperDriver(player, voice, events(gen), startExitLog(voice, pressAt, playAt)) : new WebSpeechDriver(events(gen), speechGain());
           set({ engine: driver.engine });
           const { sentence, status } = get();
           driver.start(sentences, sentence, rate, status === "paused");
@@ -483,6 +512,22 @@ export const useSpeech = create<SpeechState>()((set, get) => {
  */
 export function primeSpeech(): void {
   player.unlock();
+}
+
+// Read-aloud's volume (the speech card's rocker): kept in the device pref, which the voice watches.
+
+export function setSpeechVolume(level: number): void {
+  speechVolumePref.set({ level, muted: false });
+}
+
+export function nudgeSpeechVolume(by: number): void {
+  speechVolumePref.set(nudgeVolume(speechVolumePref.get(), by));
+}
+
+/** Unmuting at 0 comes back at half, so the voice is heard. */
+export function toggleSpeechMute(): void {
+  const v: Volume = speechVolumePref.get();
+  speechVolumePref.set(v.muted ? { level: v.level > 0 ? v.level : 0.5, muted: false } : { ...v, muted: true });
 }
 
 /** The text of sentence `i` of the current speech ("" when there is none). */
