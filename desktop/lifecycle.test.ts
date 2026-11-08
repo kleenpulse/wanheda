@@ -53,24 +53,31 @@ describe("tray", () => {
 describe("settings", () => {
   test("defaults: keep running, no hint yet", () => {
     expect(parseSettings(null)).toEqual(DEFAULT_SETTINGS);
-    expect(DEFAULT_SETTINGS).toEqual({ keepRunning: true, trayHintShown: false });
+    expect(DEFAULT_SETTINGS).toEqual({ keepRunning: true, trayHintShown: false, shortcuts: { capture: "Ctrl+Shift+Space", palette: "Alt+Space" } });
   });
 
   test("keeps known keys of the right type, ignores the rest", () => {
-    expect(parseSettings('{"keepRunning":false,"trayHintShown":true,"extra":1}')).toEqual({ keepRunning: false, trayHintShown: true });
+    expect(parseSettings('{"keepRunning":false,"trayHintShown":true,"extra":1}')).toEqual({ keepRunning: false, trayHintShown: true, shortcuts: { capture: "Ctrl+Shift+Space", palette: "Alt+Space" } });
     expect(parseSettings('{"keepRunning":"no"}')).toEqual(DEFAULT_SETTINGS);
     expect(parseSettings("not json")).toEqual(DEFAULT_SETTINGS);
     expect(parseSettings("null")).toEqual(DEFAULT_SETTINGS);
     expect(parseSettings("[]")).toEqual(DEFAULT_SETTINGS);
   });
 
+  test("shortcuts: turned off stays off, a broken one falls back to its default", () => {
+    expect(parseSettings('{"shortcuts":{"capture":null,"palette":"alt+p"}}').shortcuts).toEqual({ capture: null, palette: "Alt+P" });
+    expect(parseSettings('{"shortcuts":{"capture":"Shift+A","palette":5}}').shortcuts).toEqual({ capture: "Ctrl+Shift+Space", palette: "Alt+Space" });
+    expect(parseSettings('{"shortcuts":[]}').shortcuts).toEqual({ capture: "Ctrl+Shift+Space", palette: "Alt+Space" });
+  });
+
   test("round trip through settings.json", () => {
     const dir = mkdtempSync(join(tmpdir(), "wanheda-settings-"));
     try {
       expect(loadSettings(dir)).toEqual(DEFAULT_SETTINGS);
-      saveSettings(dir, { keepRunning: false, trayHintShown: true });
-      expect(loadSettings(dir)).toEqual({ keepRunning: false, trayHintShown: true });
-      expect(JSON.parse(readFileSync(join(dir, "settings.json"), "utf8"))).toEqual({ keepRunning: false, trayHintShown: true });
+      const saved = { keepRunning: false, trayHintShown: true, shortcuts: { capture: "Ctrl+Alt+N", palette: null } };
+      saveSettings(dir, saved);
+      expect(loadSettings(dir)).toEqual(saved);
+      expect(JSON.parse(readFileSync(join(dir, "settings.json"), "utf8"))).toEqual(saved);
       writeFileSync(join(dir, "settings.json"), "{broken");
       expect(loadSettings(dir)).toEqual(DEFAULT_SETTINGS);
     } finally {

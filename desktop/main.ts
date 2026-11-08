@@ -1,8 +1,8 @@
-import { app, BrowserWindow, dialog, Menu, type MessageBoxOptions, type MessageBoxReturnValue, nativeTheme, Notification, screen, session, shell, type MenuItemConstructorOptions, type Session, type WebContents } from "electron";
+import { app, BrowserWindow, dialog, globalShortcut, ipcMain, type IpcMainEvent, type IpcMainInvokeEvent, Menu, type MessageBoxOptions, type MessageBoxReturnValue, nativeTheme, Notification, screen, session, shell, type MenuItemConstructorOptions, type Session, type WebContents } from "electron";
 import { randomBytes } from "node:crypto";
 import { readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { CHANNELS, openPath } from "./bridge";
+import { CAPTURE_PATH, canTakeCommand, captureNeedsLoad, CHANNELS, openPath, parseAudible, parseCaptureText, parseDesktopChange, parseNotice, parseSecretsAction, trustedSender, type Command, type DesktopNotice, type DesktopSetResult, type DesktopState, type ShortcutStatus } from "./bridge";
 import { MAX_ENV_FILE, parseEnvFile, type Imported } from "./env-file";
 import { serverEnv } from "./env";
 import { hasTray, onAllWindowsClosed, onWindowClose, showTrayHint, type Lifecycle } from "./lifecycle";
@@ -15,6 +15,7 @@ import { fileStore, loadSecrets, NoKeychainError, saveSecrets, type Sealer, type
 import { delay, ServerStartError, startDevServer, startStandaloneServer, type ServerHandle } from "./server-process";
 import { loadSettings, saveSettings, type DesktopSettings } from "./settings";
 import { TOKEN_HEADER } from "./shared";
+import { MEDIA_KEYS, SHORTCUT_IDS, type ShortcutId } from "./shortcuts";
 import { createTray, KEEP_RUNNING_LABEL, type WanhedaTray } from "./tray";
 import { loadWindowState, MIN_SIZE, placeWindow, saveWindowState, type Rect } from "./window-state";
 
@@ -37,6 +38,9 @@ const USER_DATA: Record<Mode, string> = { dev: "Wanheda Dev", preview: "Wanheda 
 // electron.exe the first time it shows a notification.
 const APP_ID: Record<Mode, string> = { dev: "io.github.kleenpulse.wanheda.dev", preview: "io.github.kleenpulse.wanheda.preview", packaged: "io.github.kleenpulse.wanheda" };
 const START_PATH = "/";
+/** Notifications kept on screen at once; older ones close. */
+const MAX_NOTICES = 8;
+const CAPTURE_SIZE = { width: 560, height: 232 };
 
 // Set before the single-instance lock: the lock lives in userData.
 app.setName("Wanheda");
@@ -70,6 +74,15 @@ function boot(): void {
   let sealer: Sealer | null = null;
   let appOrigin: string | null = null;
   let mainWindow: BrowserWindow | null = null;
+  /** Quick capture (V71): created hidden once the server is up, shown over any app by its shortcut. */
+  let captureWindow: BrowserWindow | null = null;
+  /** The accelerator each shortcut holds now, and how its last registration went. */
+  const heldShortcuts = new Map<ShortcutId, string>();
+  const shortcutStatus = new Map<ShortcutId, ShortcutStatus>();
+  /** The media keys, held only while the page has an audible owner (V71, T74). */
+  let mediaKeysHeld = false;
+  /** The main window's page said it takes commands (its shell listener is up); reset by every new page. */
+  let pageReady = false;
   // GitHub sign-in's own window (no preload), and the contents it owns.
   let authWindow: BrowserWindow | null = null;
   const authContents = new Set<number>();
@@ -92,6 +105,62 @@ function boot(): void {
   // Notifications are kept until clicked or closed: one that's garbage collected loses its click.
   const notices = new Set<Notification>();
 
+  // The bridge (V67): each handler checks the sender (the window it expects,
+  // its top frame, the app's origin), then parses what it was sent.
+  ipcMain.on(CHANNELS.notify, (event, payload: unknown) => {
+    if (!fromWindow(event, mainWindow)) return;
+    const notice = parseNotice(payload);
+    if (notice) showNotice(notice);
+  });
+  ipcMain.on(CHANNELS.media, (event, payload: unknown) => {
+    if (!fromWindow(event, mainWindow)) return;
+    const audible = parseAudible(payload);
+    if (audible !== null) holdMediaKeys(audible);
+  });
+  ipcMain.handle(CHANNELS.desktopState, (event): DesktopState => {
+    if (!fromWindow(event, mainWindow)) throw new Error("Not allowed.");
+    return desktopState();
+  });
+  ipcMain.handle(CHANNELS.desktopSet, (event, payload: unknown): DesktopSetResult => {
+    if (!fromWindow(event, mainWindow)) throw new Error("Not allowed.");
+    const change = parseDesktopChange(payload);
+    if (!change) throw new Error("Not a desktop setting.");
+    if ("keepRunning" in change) {
+      setKeepRunning(change.keepRunning);
+      return { ok: true, state: desktopState() };
+    }
+    const { shortcut, accelerator } = change;
+    const clash = SHORTCUT_IDS.some((id) => id !== shortcut && accelerator !== null && settings.shortcuts[id] === accelerator);
+    if (clash) return { ok: false, state: desktopState() };
+    updateSettings({ shortcuts: { ...settings.shortcuts, [shortcut]: accelerator } });
+    applyShortcuts();
+    pushState();
+    return { ok: true, state: desktopState() };
+  });
+  ipcMain.handle(CHANNELS.secrets, async (event, payload: unknown): Promise<DesktopState> => {
+    if (!fromWindow(event, mainWindow)) throw new Error("Not allowed.");
+    const action = parseSecretsAction(payload);
+    if (!action) throw new Error("Not a secrets action.");
+    if (action === "import") await reimport();
+    else await useDemo();
+    return desktopState();
+  });
+  ipcMain.handle(CHANNELS.capture, (event, payload: unknown): boolean => {
+    if (!fromWindow(event, captureWindow)) throw new Error("Not allowed.");
+    const text = parseCaptureText(payload);
+    if (text === null) return false;
+    // The main window's page saves it through the notes outbox (V23), like any note.
+    return sendCommand({ kind: "capture", text });
+  });
+  ipcMain.on(CHANNELS.commandsReady, (event, payload: unknown) => {
+    if (!fromWindow(event, mainWindow)) return;
+    const ready = parseAudible(payload);
+    if (ready !== null) pageReady = ready;
+  });
+  ipcMain.on(CHANNELS.captureClose, (event) => {
+    if (fromWindow(event, captureWindow)) captureWindow?.hide();
+  });
+
   // Windows starts a second copy with the link; it hands its arguments here and quits.
   app.on("second-instance", (_event, argv) => {
     showWindow();
@@ -113,6 +182,7 @@ function boot(): void {
         return;
       }
       quitting = "done";
+      globalShortcut.unregisterAll();
       tray?.destroy();
       app.exit(0);
     });
@@ -146,6 +216,8 @@ function boot(): void {
     attach(server);
     const first = pendingLink ?? START_PATH;
     pendingLink = null;
+    applyShortcuts();
+    createCaptureWindow();
     await mainWindow?.loadURL(`${server.origin}${first}`);
   }
 
@@ -374,6 +446,7 @@ function boot(): void {
   function attach(handle: ServerHandle): void {
     appOrigin = handle.origin;
     routeToken(session.defaultSession, handle.origin);
+    if (captureWindow && !captureWindow.isDestroyed()) void captureWindow.loadURL(`${handle.origin}${CAPTURE_PATH}`);
     handle.onExit((detail) => void serverDied(handle, detail));
     log.info(`server ready at ${handle.origin}`);
   }
@@ -405,6 +478,7 @@ function boot(): void {
     log.info(`start failed: ${err instanceof Error ? (err.stack ?? err.message) : String(err)}`);
     await showBox({ type: "error", title: "Wanheda", message, detail: `Logs: ${logs}`, buttons: ["Quit"] });
     quitting = "done";
+    globalShortcut.unregisterAll();
     await server?.stop();
     tray?.destroy();
     app.exit(1);
@@ -441,6 +515,7 @@ function boot(): void {
     tray?.refresh();
     // A hidden window keeps music, timers and speech at full pace.
     if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.setBackgroundThrottling(!on);
+    pushState();
   }
 
   function updateSettings(change: Partial<DesktopSettings>): void {
@@ -470,6 +545,10 @@ function boot(): void {
   function notify(title: string, body: string, onClick: () => void): void {
     if (!Notification.isSupported()) return;
     const notice = new Notification({ title, body, icon: join(app.getAppPath(), "icon.png") });
+    for (const old of [...notices].slice(0, Math.max(0, notices.size - MAX_NOTICES + 1))) {
+      notices.delete(old);
+      old.close();
+    }
     notices.add(notice);
     notice.on("click", () => {
       notices.delete(notice);
@@ -477,6 +556,178 @@ function boot(): void {
     });
     notice.on("close", () => notices.delete(notice));
     notice.show();
+  }
+
+  /**
+   * A timer or an alert from the page (V67 parsed). Only while the window is
+   * out of sight or unfocused: in front, the page shows it itself. Clicking
+   * brings the window back on the notice's page.
+   */
+  function showNotice(notice: DesktopNotice): void {
+    const win = mainWindow;
+    if (win && !win.isDestroyed() && win.isVisible() && !win.isMinimized() && win.isFocused()) return;
+    // The kind only: titles and bodies can hold names and amounts.
+    log.info(`notice: ${notice.kind}`);
+    notify(notice.title, notice.body, () => {
+      showWindow();
+      if (notice.path) openInApp(notice.path);
+    });
+  }
+
+  /** Whether an IPC message came from `win`'s own top frame on the app's origin. */
+  function fromWindow(event: IpcMainEvent | IpcMainInvokeEvent, win: BrowserWindow | null): boolean {
+    if (!win || win.isDestroyed() || event.sender !== win.webContents) return false;
+    const frame = event.senderFrame;
+    return trustedSender(frame ? { origin: frame.origin, isTop: frame.parent === null } : null, appOrigin);
+  }
+
+  /** Hands the page something to do. False when the window has no app page to take it. */
+  function sendCommand(command: Command): boolean {
+    const win = mainWindow;
+    if (!appOrigin || !win || win.isDestroyed()) return false;
+    const contents = win.webContents;
+    let onApp = false;
+    try {
+      onApp = new URL(contents.getURL()).origin === appOrigin;
+    } catch {
+      // The splash page (data:) or nothing yet.
+    }
+    if (!canTakeCommand({ onApp, loading: contents.isLoading(), ready: pageReady })) return false;
+    contents.send(CHANNELS.command, command);
+    return true;
+  }
+
+  function desktopState(): DesktopState {
+    const names = Object.keys(secrets).length;
+    return {
+      keepRunning: settings.keepRunning,
+      shortcuts: SHORTCUT_IDS.map((id) => ({ id, accelerator: settings.shortcuts[id], status: shortcutStatus.get(id) ?? "off" })),
+      secrets: { mode: names > 0 ? "own" : "demo", names },
+    };
+  }
+
+  /** Tells Settings → Desktop, if it's open, that something changed (the tray or the menu, say). */
+  function pushState(): void {
+    const win = mainWindow;
+    if (win && !win.isDestroyed()) win.webContents.send(CHANNELS.desktopChanged, desktopState());
+  }
+
+  /**
+   * (Re)registers quick capture and the palette from the settings (V71). One
+   * another app holds is reported as "taken" in Settings → Desktop, never
+   * silently lost; it is tried again at the next start or change.
+   */
+  function applyShortcuts(): void {
+    for (const id of SHORTCUT_IDS) {
+      const held = heldShortcuts.get(id);
+      if (held) globalShortcut.unregister(held);
+      heldShortcuts.delete(id);
+      const accelerator = settings.shortcuts[id];
+      if (accelerator === null) {
+        shortcutStatus.set(id, "off");
+        continue;
+      }
+      let ok = false;
+      try {
+        ok = globalShortcut.register(accelerator, () => { runShortcut(id); });
+      } catch (err) {
+        log.info(`shortcut ${id}: ${errText(err)}`);
+      }
+      if (ok) heldShortcuts.set(id, accelerator);
+      else log.info(`shortcut ${id} (${accelerator}) is taken by another app`);
+      shortcutStatus.set(id, ok ? "on" : "taken");
+    }
+  }
+
+  function runShortcut(id: ShortcutId): void {
+    if (id === "capture") { showCapture(); return; }
+    showWindow();
+    sendCommand({ kind: "palette" });
+  }
+
+  /**
+   * The media keys go to Wanheda's audible owner only while there is one: held
+   * keys never reach Chromium's media session (so no double toggle), and
+   * released keys stay free for other apps (ADR-0014 (d)).
+   */
+  function holdMediaKeys(on: boolean): void {
+    if (on === mediaKeysHeld) return;
+    mediaKeysHeld = on;
+    log.info(on ? "media keys held" : "media keys released");
+    for (const [key, action] of Object.entries(MEDIA_KEYS)) {
+      if (!on) {
+        globalShortcut.unregister(key);
+        continue;
+      }
+      try {
+        const run = () => {
+          log.info(`media key: ${action}`);
+          sendCommand({ kind: "media", action });
+        };
+        if (!globalShortcut.register(key, run)) log.info(`media key ${key} is taken`);
+      } catch (err) {
+        log.info(`media key ${key}: ${errText(err)}`);
+      }
+    }
+  }
+
+  /** The quick-capture window (V71): hidden until its shortcut, over any app; Esc, a save or a click away hides it. */
+  function createCaptureWindow(): BrowserWindow | null {
+    if (captureWindow && !captureWindow.isDestroyed()) return captureWindow;
+    if (!appOrigin) return null;
+    const win = new BrowserWindow({
+      width: CAPTURE_SIZE.width,
+      height: CAPTURE_SIZE.height,
+      show: false,
+      frame: false,
+      resizable: false,
+      minimizable: false,
+      maximizable: false,
+      fullscreenable: false,
+      skipTaskbar: true,
+      alwaysOnTop: true,
+      title: "Quick capture",
+      backgroundColor: background(),
+      webPreferences: {
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true,
+        webviewTag: false,
+        devTools: !app.isPackaged,
+        spellcheck: true,
+        preload: join(app.getAppPath(), "preload.js"),
+      },
+    });
+    // Above full-screen apps too.
+    win.setAlwaysOnTop(true, "pop-up-menu");
+    win.on("close", (event) => {
+      if (quitting !== "no" || sessionEnding) return;
+      event.preventDefault();
+      win.hide();
+    });
+    win.on("blur", () => { win.hide(); });
+    // Sent to the sign-in page (signed out, or the session ended): sign-in belongs in the
+    // main window, never in this little one.
+    win.webContents.on("did-navigate", (_event, url) => {
+      if (!appOrigin || !captureNeedsLoad(url, appOrigin) || !win.isVisible()) return;
+      win.hide();
+      showWindow();
+    });
+    void win.loadURL(`${appOrigin}${CAPTURE_PATH}`);
+    captureWindow = win;
+    return win;
+  }
+
+  /** Shows quick capture centred near the top of the screen the cursor is on, focused. */
+  function showCapture(): void {
+    const win = createCaptureWindow();
+    if (!win || !appOrigin) return;
+    // Loaded while signed out, it's on the sign-in page: load the capture page again now.
+    if (captureNeedsLoad(win.webContents.getURL(), appOrigin)) void win.loadURL(`${appOrigin}${CAPTURE_PATH}`);
+    const area = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea;
+    win.setPosition(Math.round(area.x + (area.width - CAPTURE_SIZE.width) / 2), Math.round(area.y + area.height * 0.2));
+    win.show();
+    win.focus();
   }
 
   /** Shows an allowed path in the main window: routed by the page if it's up, else loaded. */
@@ -538,6 +789,23 @@ function boot(): void {
       void Promise.allSettled([session.defaultSession.cookies.flushStore(), server?.stop()]);
     });
     void win.loadURL(appOrigin ? `${appOrigin}${START_PATH}` : splash(background()));
+    // A new page (a reload, a server restart) starts with nothing playing: let the media keys go
+    // until it says otherwise, or they'd be swallowed with no one to take them.
+    win.webContents.on("did-navigate", () => {
+      pageReady = false;
+      holdMediaKeys(false);
+    });
+    win.webContents.on("render-process-gone", () => {
+      pageReady = false;
+      holdMediaKeys(false);
+    });
+    // Really closed (keep running is off): the hidden capture window must not keep Wanheda alive.
+    win.on("closed", () => {
+      if (captureWindow && !captureWindow.isDestroyed()) captureWindow.destroy();
+      captureWindow = null;
+      pageReady = false;
+      holdMediaKeys(false);
+    });
     mainWindow = win;
     return win;
   }

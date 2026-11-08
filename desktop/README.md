@@ -42,10 +42,19 @@ Terminals inside VS Code carry `ELECTRON_RUN_AS_NODE`. The scripts drop it, but 
 
 Desktop sign-in needs its own GitHub OAuth app ("Wanheda Desktop", an owner action), with callback `http://localhost:<saved port>/api/auth/callback/github`. Put its id and secret in the `.env` file you import. GitHub's pages open in a separate window with no preload, sharing the app's session. That window may only visit GitHub's sign-in pages, and it closes as soon as the callback reaches the app.
 
+## Native features (T76, V71)
+
+- **Quick capture**: Ctrl+Shift+Space shows a small window over any app (the `/capture` page, created hidden at start). Enter sends the text to main, which hands it to the main window's page; the page saves it through the notes outbox like any note. Esc, a save or a click elsewhere hides the window and keeps the draft.
+- **Palette**: Alt+Space shows the main window with the command palette open.
+- Both shortcuts live in `settings.json` and can be changed or turned off in Settings → Desktop. One another app holds shows as "taken" there; two of ours can't share keys.
+- **Media keys** (`MediaPlayPause`, `MediaNextTrack`, `MediaPreviousTrack`, `MediaStop`) are registered only while the page has an audible owner (V60), paused or playing, and go to that owner through `mediaSession.command()`. A reload or any full navigation of the main window releases them until the page claims them again.
+- **Notifications**: new notification-centre rows (a timer done, money and income alerts) go to main, which shows them only while the main window is hidden, minimised or unfocused. Clicking one opens its page. The log records only the kind.
+- **Settings → Desktop** (desktop only): keep running, the shortcuts, and importing the `.env` file again or going back to demo mode (main's own dialogs confirm).
+
 ## Security model (V67)
 
 - Every window is sandboxed and context-isolated, with no Node.js and no webviews. DevTools are off in the installed app.
-- The main window's preload exposes one object, `window.wanheda`, with `desktop: true` and `onOpen(callback)`. Channel names and checks are in `bridge.ts`, and the page's types are in `lib/platform/desktop.ts`.
+- The preload exposes one object, `window.wanheda`, in the main window and the quick-capture window. Every handler in main first checks the sender (that window's own top frame, on the app's origin), then parses the payload, and drops the whole payload if anything is off. Channel names and parsers are in `bridge.ts`, and the page's types are in `lib/platform/desktop.ts`.
 - Links to the app's own origin stay in the app. http(s) links open in your browser. Everything else is dropped (`policy.ts`). Only the main frame's navigations and redirects are judged: embeds and the frames inside them are held by the CSP's `frame-src`, so a third-party frame can never open your browser. The main frame never becomes a `blob:` page (it would get the preload); blob links open in a child window or download.
 - `wanheda://open/<page>?<query>` opens an allowlisted page with checked query keys (`links.ts`, `bridge.ts`). Installed and preview builds claim the scheme at every start. Uninstalling removes it.
 - Permissions are clipboard write, full screen and folder access, for the app's origin only. Full screen is judged by the window's page, so an embed's own full-screen button works.

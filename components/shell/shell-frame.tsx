@@ -14,6 +14,7 @@ import { NotificationsProvider, type NoticesSource } from "@/components/notifica
 import { PrefsProvider, type PrefsSource } from "@/components/prefs/prefs-provider";
 import { WallpaperMain } from "@/components/prefs/wallpaper";
 import { CommandPalette } from "@/components/shell/command-palette";
+import { DesktopNative } from "@/components/shell/desktop-native";
 import { DesktopOpen } from "@/components/shell/desktop-open";
 import { Dock } from "@/components/shell/dock";
 import { MobileTabBar } from "@/components/shell/mobile-tab-bar";
@@ -119,6 +120,7 @@ export function ShellFrame({
         <NotificationCentre />
         <Toaster />
         <DesktopOpen />
+        <DesktopNative />
       </div>
       </NotificationsProvider>
       </ReaderPrefsSync>

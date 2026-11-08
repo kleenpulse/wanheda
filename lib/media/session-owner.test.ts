@@ -346,3 +346,47 @@ describe("SessionArbiter: speech is an interruption (V60, B25)", () => {
     }
   });
 });
+
+describe("SessionArbiter: outside commands and watchers (V71)", () => {
+  it("play-pause follows the owner's state; next and previous go to its handlers", () => {
+    const { arb } = setup();
+    const pause = vi.fn();
+    const nexttrack = vi.fn();
+    const music = claim("music");
+    music.c.handlers = { ...music.c.handlers, pause, nexttrack };
+    arb.claim(music.c, true);
+    arb.setState("music", "playing");
+    expect(arb.command("play-pause")).toBe(true);
+    expect(pause).toHaveBeenCalledOnce();
+    arb.setState("music", "paused");
+    arb.command("play-pause");
+    expect(music.play).toHaveBeenCalledOnce();
+    expect(arb.command("next")).toBe(true);
+    expect(nexttrack).toHaveBeenCalledOnce();
+    expect(arb.command("previous")).toBe(false);
+  });
+
+  it("stop falls back to pause; with no owner nothing takes it", () => {
+    const { arb } = setup();
+    expect(arb.command("play-pause")).toBe(false);
+    const pause = vi.fn();
+    const video = claim("video");
+    video.c.handlers = { ...video.c.handlers, pause };
+    arb.claim(video.c, true);
+    expect(arb.command("stop")).toBe(true);
+    expect(pause).toHaveBeenCalledOnce();
+  });
+
+  it("watchers hear claims, states and releases until they unsubscribe", () => {
+    const { arb } = setup();
+    const seen: (string | null)[] = [];
+    const off = arb.subscribe(() => seen.push(arb.owner));
+    const speech = claim("speech");
+    arb.claim(speech.c, true);
+    arb.setState("speech", "playing");
+    arb.release("speech");
+    off();
+    arb.claim(speech.c, true);
+    expect(seen).toEqual(["speech", "speech", null]);
+  });
+});

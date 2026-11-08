@@ -3,10 +3,11 @@
 import * as React from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { motion } from "motion/react";
-import { AudioLines, BookOpen, ChevronLeft, ChevronRight, Keyboard, Palette, PlugZap, Timer, UserRound, Volume2, Wallet, type LucideIcon } from "lucide-react";
+import { AudioLines, BookOpen, ChevronLeft, ChevronRight, Keyboard, Monitor, Palette, PlugZap, Timer, UserRound, Volume2, Wallet, type LucideIcon } from "lucide-react";
 import { AddPasskeyButton, SignOutButton } from "@/components/auth/account-actions";
 import { AppearanceSection, PrefsNote, TimersSection } from "@/components/settings/appearance-prefs";
 import { ConnectionsSection } from "@/components/settings/connections-section";
+import { DesktopSection } from "@/components/settings/desktop-section";
 import { MoneySection } from "@/components/settings/money-prefs";
 import { ReaderPrefsNote, ReaderSection } from "@/components/settings/reader-prefs";
 import { SettingRow, SettingsCard } from "@/components/settings/setting-row";
@@ -15,6 +16,7 @@ import { VoicesSection } from "@/components/settings/voices-section";
 import { useAccount } from "@/components/shell/account";
 import { Kbd } from "@/components/ui/kbd";
 import { TAB_SPRING } from "@/lib/motion";
+import { isDesktop } from "@/lib/platform/desktop";
 import { cn } from "@/lib/utils";
 
 /*
@@ -82,6 +84,13 @@ const SECTIONS = {
     note: "Kept on this device",
   },
   keyboard: { label: "Keyboard", blurb: "The shortcuts that work anywhere in Wanheda.", group: "Preferences", icon: Keyboard },
+  desktop: {
+    label: "Desktop",
+    blurb: "The app's window, shortcuts that work in any app, notifications and your imported keys.",
+    group: "Preferences",
+    icon: Monitor,
+    note: "Kept on this computer",
+  },
   connections: {
     label: "Connections",
     blurb: "Polar and the products it bills for.",
@@ -93,6 +102,15 @@ const SECTIONS = {
 
 type SectionId = keyof typeof SECTIONS;
 const SECTION_IDS = Object.keys(SECTIONS) as SectionId[];
+const WEB_SECTION_IDS = SECTION_IDS.filter((id) => id !== "desktop");
+
+const noSubscribe = () => () => {};
+
+/** The sections this window has: Desktop only in the desktop app. The server render (and the first paint) has the web's. */
+function useSectionIds(): readonly SectionId[] {
+  const desktop = React.useSyncExternalStore(noSubscribe, isDesktop, () => false);
+  return desktop ? SECTION_IDS : WEB_SECTION_IDS;
+}
 
 function isSectionId(value: string | null): value is SectionId {
   return value !== null && value in SECTIONS;
@@ -127,12 +145,12 @@ function useSection() {
   return { section, open, close };
 }
 
-function Rail({ section, onSelect }: { section: SectionId; onSelect: (id: SectionId, viaKeyboard: boolean) => void }) {
+function Rail({ ids, section, onSelect }: { ids: readonly SectionId[]; section: SectionId; onSelect: (id: SectionId, viaKeyboard: boolean) => void }) {
   const indicatorId = React.useId();
 
   function onKeyDown(e: React.KeyboardEvent) {
-    const i = SECTION_IDS.indexOf(section);
-    const last = SECTION_IDS.length - 1;
+    const i = ids.indexOf(section);
+    const last = ids.length - 1;
     const keys: Record<string, number> = {
       ArrowDown: i === last ? 0 : i + 1,
       ArrowUp: i === 0 ? last : i - 1,
@@ -142,7 +160,7 @@ function Rail({ section, onSelect }: { section: SectionId; onSelect: (id: Sectio
     const next = keys[e.key];
     if (next === undefined) return;
     e.preventDefault();
-    const id = SECTION_IDS[next];
+    const id = ids[next];
     if (!id) return;
     onSelect(id, true);
     document.getElementById(`settings-tab-${id}`)?.focus();
@@ -156,7 +174,7 @@ function Rail({ section, onSelect }: { section: SectionId; onSelect: (id: Sectio
             {group}
           </p>
           <div className="flex flex-col gap-0.5" role="presentation">
-            {SECTION_IDS.filter((id) => SECTIONS[id].group === group).map((id) => {
+            {ids.filter((id) => SECTIONS[id].group === group).map((id) => {
               const selected = id === section;
               const Icon = SECTIONS[id].icon;
               return (
@@ -199,14 +217,14 @@ function Rail({ section, onSelect }: { section: SectionId; onSelect: (id: Sectio
 }
 
 /** Narrow sheets: the list you drill into. */
-function SectionList({ onOpen }: { onOpen: (id: SectionId) => void }) {
+function SectionList({ ids, onOpen }: { ids: readonly SectionId[]; onOpen: (id: SectionId) => void }) {
   return (
     <nav aria-label="Settings sections" className="flex flex-col gap-4 @3xl:hidden">
       {GROUPS.map((group) => (
         <section key={group} className="bento overflow-hidden p-0">
           <h2 className="readout px-5 pt-4 pb-1">{group}</h2>
           <ul className="divide-y divide-border/70 dark:divide-glass-border">
-            {SECTION_IDS.filter((id) => SECTIONS[id].group === group).map((id) => {
+            {ids.filter((id) => SECTIONS[id].group === group).map((id) => {
               const Icon = SECTIONS[id].icon;
               return (
                 <li key={id}>
@@ -333,12 +351,16 @@ const BODIES: Record<SectionId, () => React.ReactNode> = {
   voices: VoicesSection,
   sound: SoundSection,
   keyboard: KeyboardSection,
+  desktop: DesktopSection,
   connections: ConnectionsSection,
   account: AccountSection,
 };
 
 export function SettingsBoard() {
-  const { section: chosen, open, close } = useSection();
+  const { section: asked, open, close } = useSection();
+  const ids = useSectionIds();
+  // ?s=desktop on the web: as if no section was asked for.
+  const chosen = asked && ids.includes(asked) ? asked : null;
   const section: SectionId = chosen ?? "appearance";
   // Keyboard switches skip the entrance, so arrowing through feels instant.
   const [animate, setAnimate] = React.useState(true);
@@ -352,6 +374,7 @@ export function SettingsBoard() {
           reads a scroll reset as its own move and flies in (motion-pill-jump). */}
       <motion.aside layout layoutRoot className="sticky top-8 hidden w-52 shrink-0 self-start @3xl:block">
         <Rail
+          ids={ids}
           section={section}
           onSelect={(id, viaKeyboard) => {
             setAnimate(!viaKeyboard);
@@ -363,6 +386,7 @@ export function SettingsBoard() {
       <div className="min-w-0 max-w-[680px] flex-1">
         {listOnly && (
           <SectionList
+            ids={ids}
             onOpen={(id) => {
               setAnimate(true);
               open(id, true);
