@@ -230,6 +230,9 @@ function musicClaim(t: Track): SessionClaim {
     pause: () => {
       if (player().status === "playing") player().pause();
     },
+    resume: () => {
+      if (player().status === "paused") player().resume();
+    },
     duck: (gain) => {
       engine?.duck(gain);
     },

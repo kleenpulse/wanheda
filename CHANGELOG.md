@@ -79,6 +79,7 @@ written after the fact, one per phase, and have no git tags.
 
 ### Fixed
 
+- With Settings → Sound on "Pause the other", music or a video that read-aloud paused now plays again when you stop the reading or it reaches the end. Before, it stayed paused. Pausing the reading keeps it paused, and if you play or stop the music yourself in the meantime, your choice wins.
 - Settings → Sound's cards have room between them again, like every other settings page, instead of being stacked edge to edge.
 - Money's Spent, Received and Net totals no longer spill out of their cards in a narrower window. They stay one per row until there's room for three across, and then the amounts size themselves to fit.
 - Short videos now pick up where you left off. Before, a clip under about 40 seconds always started from the beginning even though its row showed a progress bar, and a row now only shows a bar when the video will really continue from there.

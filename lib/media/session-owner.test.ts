@@ -239,3 +239,94 @@ describe("SessionArbiter: release lifts the duck (V60)", () => {
     expect(duck).not.toHaveBeenCalled();
   });
 });
+
+describe("SessionArbiter: speech is an interruption (V60, B25)", () => {
+  function setupMode(mode: SoundMode) {
+    const s = fake();
+    const arb = new SessionArbiter(
+      () => s,
+      (m) => ({ title: m.title }) as unknown as MediaMetadata,
+      () => ({ mode, level: 35 }),
+    );
+    return arb;
+  }
+  function resumable(id: SessionOwnerId) {
+    const c = claim(id);
+    const resume = vi.fn();
+    return { ...c, c: { ...c.c, resume }, resume };
+  }
+  /** Music plays, then speech starts over it (music reports its pause). */
+  function speechOverMusic(mode: SoundMode) {
+    const arb = setupMode(mode);
+    const music = resumable("music");
+    arb.claim(music.c, true);
+    arb.setState("music", "playing");
+    arb.claim(claim("speech").c, true);
+    arb.setState("speech", "playing");
+    if (mode === "pause") arb.setState("music", "paused");
+    return { arb, music };
+  }
+
+  it("pause: what speech paused plays again when speech stops or ends", () => {
+    const { arb, music } = speechOverMusic("pause");
+    expect(music.pause).toHaveBeenCalledOnce();
+    arb.release("speech");
+    expect(music.resume).toHaveBeenCalledOnce();
+  });
+
+  it("pause: a pause of speech keeps it held (the keys can resume speech)", () => {
+    const { arb, music } = speechOverMusic("pause");
+    arb.setState("speech", "paused");
+    expect(music.resume).not.toHaveBeenCalled();
+    arb.release("speech");
+    expect(music.resume).toHaveBeenCalledOnce();
+  });
+
+  it("pause: played again by hand under speech, it isn't resumed twice", () => {
+    const { arb, music } = speechOverMusic("pause");
+    arb.setState("speech", "paused");
+    arb.claim(music.c, true);
+    arb.setState("music", "playing");
+    arb.release("speech");
+    expect(music.resume).not.toHaveBeenCalled();
+  });
+
+  it("pause: stopped while speech spoke, it stays stopped", () => {
+    const { arb, music } = speechOverMusic("pause");
+    arb.release("music");
+    arb.release("speech");
+    expect(music.resume).not.toHaveBeenCalled();
+  });
+
+  it("pause: a music or video start pauses for good (only speech is an interruption)", () => {
+    const arb = setupMode("pause");
+    const video = resumable("video");
+    arb.claim(video.c, true);
+    arb.setState("video", "playing");
+    arb.claim(claim("music").c, true);
+    arb.setState("music", "playing");
+    arb.setState("video", "paused");
+    arb.release("music");
+    expect(video.resume).not.toHaveBeenCalled();
+  });
+
+  it("pause: a video started by hand under paused speech isn't hijacked when speech stops", () => {
+    const { arb, music } = speechOverMusic("pause");
+    const video = resumable("video");
+    arb.claim(video.c, true);
+    arb.setState("video", "playing");
+    arb.setState("speech", "paused");
+    arb.release("speech");
+    expect(music.resume).not.toHaveBeenCalled();
+    expect(video.pause).not.toHaveBeenCalled();
+  });
+
+  it("duck and mix: nothing was paused, so nothing is resumed", () => {
+    for (const mode of ["duck", "mix"] as const) {
+      const { arb, music } = speechOverMusic(mode);
+      arb.release("speech");
+      expect(music.pause).not.toHaveBeenCalled();
+      expect(music.resume).not.toHaveBeenCalled();
+    }
+  });
+});
