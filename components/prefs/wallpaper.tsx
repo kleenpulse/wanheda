@@ -8,11 +8,11 @@ import { Contour } from "@/components/prefs/wallpapers/contour";
 import { Dots } from "@/components/prefs/wallpapers/dots";
 import { Stars } from "@/components/prefs/wallpapers/stars";
 import { useReducedMotion } from "@/hooks/use-reduced-motion";
-import { wallpaperFor, type Scene as SceneName, type WallpaperCover } from "@/lib/prefs/prefs";
+import { wallpaperFor, type AuroraEdge, type Scene as SceneName, type WallpaperCover } from "@/lib/prefs/prefs";
 import { wallpaperPageFor } from "@/lib/prefs/wallpaper-pages";
 import { readPalette, samePalette, type WallpaperPalette } from "@/lib/prefs/wallpaper-palette";
 
-type Draw = React.ComponentType<{ palette: WallpaperPalette; reduced: boolean }>;
+type Draw = React.ComponentType<{ palette: WallpaperPalette; reduced: boolean; edge?: AuroraEdge }>;
 
 const SCENES: Record<SceneName, Draw> = {
   aurora: Aurora,
@@ -43,13 +43,27 @@ function useWallpaperPalette(): WallpaperPalette | null {
 function Scene({ name }: { name: SceneName }) {
   const palette = useWallpaperPalette();
   const reduced = useReducedMotion();
+  const { prefs } = usePrefs();
   if (!palette) return null;
   const Draw = SCENES[name];
+  // Aurora from the bottom rises from the screen's bottom edge, behind the
+  // dock, and stays there as the page scrolls: fixed to the viewport, right
+  // of the rail, faded out upward. Fixed escapes the sheet's overflow clip
+  // (no transform or filter above it), and its own mask is the only one.
+  const fromBottom = name === "aurora" && prefs.auroraEdge === "bottom";
   return (
-    // One screen tall and faded out at the bottom: the scene sits behind the
-    // top of the page, and a tall page never pays for a canvas it scrolls past.
-    <div data-wallpaper={name} className="wallpaper-fade absolute inset-x-0 top-0 h-svh max-h-full">
-      <Draw palette={palette} reduced={reduced} />
+    <div
+      data-wallpaper={name}
+      data-edge={fromBottom ? "bottom" : undefined}
+      className={
+        fromBottom
+          ? "wallpaper-fade-up fixed right-0 bottom-0 left-(--rail-w) h-svh"
+          : // One screen tall and faded out at the bottom: the scene sits behind the
+            // top of the page, and a tall page never pays for a canvas it scrolls past.
+            "wallpaper-fade absolute inset-x-0 top-0 h-svh max-h-full"
+      }
+    >
+      <Draw palette={palette} reduced={reduced} edge={prefs.auroraEdge} />
     </div>
   );
 }

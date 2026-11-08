@@ -2,17 +2,20 @@
 
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { useAnimationLoop } from "@/hooks/use-animation-loop";
+import type { AuroraEdge } from "@/lib/prefs/prefs";
 import { paint, unit, type WallpaperPalette } from "@/lib/prefs/wallpaper-palette";
 
 // Ported from Motion Garden's horizon-aurora: smoky light hanging from the top
-// edge of the sheet, drifting on its own and leaning toward the pointer.
+// edge of the sheet (or rising from the bottom one), drifting on its own and
+// leaning toward the pointer.
 
 const VERTEX = `
 attribute vec2 position;
 void main() { gl_Position = vec4(position, 0.0, 1.0); }
 `;
 
-// Units are pane heights: y = 0 on the top edge (flipped), x runs 0 to aspect.
+// Units are pane heights: y = 0 on the light's edge (the top, flipped, unless
+// uFromBottom), x runs 0 to aspect.
 const FRAGMENT = `
 precision highp float;
 uniform vec2 uRes;
@@ -22,6 +25,7 @@ uniform vec3 uCore;
 uniform vec3 uHaze;
 uniform float uReach;
 uniform float uIntensity;
+uniform float uFromBottom;
 
 float hash(vec2 p) {
   vec3 p3 = fract(vec3(p.xyx) * 0.1031);
@@ -41,7 +45,7 @@ float fbm(vec2 p) {
 
 void main() {
   vec2 frag = gl_FragCoord.xy;
-  frag.y = uRes.y - frag.y;
+  if (uFromBottom < 0.5) frag.y = uRes.y - frag.y;
   vec2 p = frag / uRes.y;
   float aspect = uRes.x / uRes.y;
   float cx = p.x - aspect * 0.5;
@@ -85,7 +89,7 @@ function compile(gl: WebGLRenderingContext, type: number, source: string) {
   return gl.getShaderParameter(shader, gl.COMPILE_STATUS) ? shader : null;
 }
 
-export function Aurora({ palette, reduced }: { palette: WallpaperPalette; reduced: boolean }) {
+export function Aurora({ palette, reduced, edge = "top" }: { palette: WallpaperPalette; reduced: boolean; edge?: AuroraEdge }) {
   const ref = useRef<HTMLDivElement>(null);
   const fallback = useRef<HTMLDivElement>(null);
   const draw = useRef<((dt: number) => void) | null>(null);
@@ -93,12 +97,14 @@ export function Aurora({ palette, reduced }: { palette: WallpaperPalette; reduce
 
   // The core leans a third of the way to ink on glass (a pure ink core burns white behind
   // the cards); on paper it stays in the hue so it reads as light, not soot.
-  const live = useRef({ core: unit(palette.ink), haze: unit(palette.signal), intensity: 1 });
+  // The edge rides along too, so flipping it changes the next frame, not the canvas.
+  const live = useRef({ core: unit(palette.ink), haze: unit(palette.signal), intensity: 1, bottom: edge === "bottom" });
   useLayoutEffect(() => {
     live.current = {
       core: palette.dark ? mix(unit(palette.signal), unit(palette.ink), 0.35) : unit(palette.signal),
       haze: unit(palette.signal),
       intensity: palette.dark ? 0.55 : 0.5,
+      bottom: edge === "bottom",
     };
   });
 
@@ -152,6 +158,7 @@ export function Aurora({ palette, reduced }: { palette: WallpaperPalette; reduce
     const uHaze = at("uHaze");
     const uReach = at("uReach");
     const uIntensity = at("uIntensity");
+    const uFromBottom = at("uFromBottom");
     gl.uniform1f(uReach, 0.8);
 
     // Pointer in pane-height units, eased so the smoke drifts after it rather than snapping.
@@ -172,7 +179,8 @@ export function Aurora({ palette, reduced }: { palette: WallpaperPalette; reduce
       target.pull = inside ? 1 : 0;
       if (!inside) return;
       target.x = (e.clientX - rect.left) / rect.height;
-      target.y = (e.clientY - rect.top) / rect.height;
+      // Measured from the light's own edge, as the shader counts it.
+      target.y = (live.current.bottom ? rect.bottom - e.clientY : e.clientY - rect.top) / rect.height;
       if (eased.pull < 0.01) Object.assign(eased, { x: target.x, y: target.y });
     };
     const onLeave = () => {
@@ -201,6 +209,7 @@ export function Aurora({ palette, reduced }: { palette: WallpaperPalette; reduce
       gl.uniform3fv(uCore, l.core);
       gl.uniform3fv(uHaze, l.haze);
       gl.uniform1f(uIntensity, l.intensity);
+      gl.uniform1f(uFromBottom, l.bottom ? 1 : 0);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
     };
     loop.resize();
@@ -216,19 +225,19 @@ export function Aurora({ palette, reduced }: { palette: WallpaperPalette; reduce
     };
   }, [loop]);
 
-  // A skin or accent change repaints the still frame under reduced motion.
+  // A skin, accent or edge change repaints the still frame under reduced motion.
   useEffect(() => {
     loop.paint();
-  }, [palette, loop]);
+  }, [palette, edge, loop]);
 
   return (
     <div ref={ref} className="relative size-full overflow-hidden">
       <div
         ref={fallback}
         hidden
-        className="absolute inset-x-0 top-0 h-[70%]"
+        className={edge === "bottom" ? "absolute inset-x-0 bottom-0 h-[70%]" : "absolute inset-x-0 top-0 h-[70%]"}
         style={{
-          background: `radial-gradient(60% 100% at 50% 0%, ${paint(palette.signal, 0.4)}, ${paint(palette.signal, 0.1)} 55%, transparent)`,
+          background: `radial-gradient(60% 100% at 50% ${edge === "bottom" ? "100%" : "0%"}, ${paint(palette.signal, 0.4)}, ${paint(palette.signal, 0.1)} 55%, transparent)`,
         }}
       />
     </div>

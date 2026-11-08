@@ -16,6 +16,7 @@ const GOOD = {
   wallpaperScope: "pages",
   wallpaperCover: "page",
   wallpaperPages: { home: "aurora", media: "stars" },
+  auroraEdge: "bottom",
 };
 
 beforeEach(() => {

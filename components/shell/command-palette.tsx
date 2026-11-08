@@ -91,7 +91,7 @@ import { todayIn } from "@/lib/money/dates";
 import { byId, categoryPath, type Category, type Txn } from "@/lib/money/money";
 import { looksLikeQuickAdd, parseQuickAdd } from "@/lib/money/quick-add";
 import { parseCapture } from "@/lib/notes/notes";
-import { ACCENT_PRESETS, SKINS, SKIN_LABELS, TIMER_MODE_LABELS, WALLPAPERS, WALLPAPER_COVERS, WALLPAPER_COVER_LABELS, WALLPAPER_LABELS, wallpaperFor, withPageWallpaper } from "@/lib/prefs/prefs";
+import { ACCENT_PRESETS, AURORA_EDGES, AURORA_EDGE_LABELS, SKINS, SKIN_LABELS, TIMER_MODE_LABELS, WALLPAPERS, WALLPAPER_COVERS, WALLPAPER_COVER_LABELS, WALLPAPER_LABELS, wallpaperFor, withPageWallpaper } from "@/lib/prefs/prefs";
 import { wallpaperPageFor } from "@/lib/prefs/wallpaper-pages";
 import { TIMER_MODES } from "@/lib/activity/timer";
 import { cn } from "@/lib/utils";
@@ -990,6 +990,19 @@ function PaletteBody({
               {...inUse(prefs.wallpaperCover === wallpaperCover)}
               onSelect={run(() => {
                 update({ wallpaperCover });
+              })}
+            />
+          ))}
+          {AURORA_EDGES.map((auroraEdge) => (
+            <Item
+              key={auroraEdge}
+              value={`aurora-edge-${auroraEdge}`}
+              keywords={["wallpaper", "aurora", "top", "bottom", "edge", AURORA_EDGE_LABELS[auroraEdge]]}
+              icon={Wallpaper}
+              title={`Aurora from the ${AURORA_EDGE_LABELS[auroraEdge].toLowerCase()}`}
+              {...inUse(prefs.auroraEdge === auroraEdge)}
+              onSelect={run(() => {
+                update({ auroraEdge });
               })}
             />
           ))}
