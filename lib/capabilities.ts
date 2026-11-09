@@ -1,4 +1,4 @@
-import { parseOwnerEmails } from "@/lib/auth/allowlist";
+import { parseEmailList } from "@/lib/auth/allowlist";
 import { sealKeyBytes } from "@/lib/saas/seal-key";
 import { parseLocation, type WeatherLocation } from "@/lib/weather/location";
 
@@ -34,9 +34,9 @@ export function weatherLocation(): WeatherLocation | null {
   });
 }
 
-/** The owner allowlist. Empty means nobody may sign up or in. */
-export function ownerEmails(): ReadonlySet<string> {
-  return parseOwnerEmails(process.env.OWNER_EMAILS);
+/** Who sees the admin page (ADR-0015). Empty means nobody; sign-in is open either way. */
+export function adminEmails(): ReadonlySet<string> {
+  return parseEmailList(process.env.ADMIN_EMAILS);
 }
 
 /** The key that seals connector secrets (SPEC V33), or null if unset or malformed. */
@@ -66,27 +66,23 @@ export interface AuthSettings {
   baseURL: string | undefined;
   githubClientId: string;
   githubClientSecret: string;
-  owners: ReadonlySet<string>;
 }
 
 /**
  * Everything Better Auth needs, or null if any part is missing. A short
- * secret or an empty allowlist counts as missing (fail closed, SPEC V6).
+ * secret counts as missing (fail closed, SPEC V6).
  */
 export function authSettings(): AuthSettings | null {
   const secret = value(process.env.BETTER_AUTH_SECRET);
   const githubClientId = value(process.env.GITHUB_CLIENT_ID);
   const githubClientSecret = value(process.env.GITHUB_CLIENT_SECRET);
-  const owners = ownerEmails();
   if (!secret || secret.length < MIN_SECRET_LENGTH) return null;
   if (!githubClientId || !githubClientSecret) return null;
-  if (owners.size === 0) return null;
   return {
     secret,
     baseURL: value(process.env.BETTER_AUTH_URL),
     githubClientId,
     githubClientSecret,
-    owners,
   };
 }
 

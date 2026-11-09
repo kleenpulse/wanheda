@@ -11,7 +11,7 @@ vi.mock("./store", async (original) => ({ ...(await original<typeof import("./st
 
 const { moneyFor, moneyRangeFor } = await import("./server");
 
-const OWNER: Owner = { kind: "owner", user: { id: "user-1", email: "o@example.test", name: "O" } };
+const OWNER: Owner = { kind: "owner", user: { id: "user-1", email: "o@example.test", name: "O" }, admin: false };
 const DEMO: Owner = { kind: "demo" };
 
 beforeEach(() => {

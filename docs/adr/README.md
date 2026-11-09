@@ -4,7 +4,7 @@ One file per decision. Each records the context, the decision, its effects in 6 
 
 - [ADR-0001](0001-desktop-shell-electron.md): Desktop shell is Electron, ported from Raven (Tauri rejected for now).
 - [ADR-0002](0002-database-neon-drizzle.md): Neon Postgres + Drizzle, null DB handle when unconfigured; previews get no database.
-- [ADR-0003](0003-auth-better-auth-owner-only.md): Better Auth with passkey + GitHub, owner allowlist, gate modes `demo` / `locked` / `gated`.
+- [ADR-0003](0003-auth-better-auth-owner-only.md): Better Auth with passkey + GitHub, gate modes `demo` / `locked` / `gated` (its owner allowlist is superseded by ADR-0015).
 - [ADR-0004](0004-shell-launcher-mini-windows.md): Launcher + full-screen apps + pop-out mini windows, no window manager in v1.
 - [ADR-0005](0005-tts-piper-kokoro.md): Piper everywhere (WASM on web, native on desktop), Kokoro as the quality option, GPL note.
 - [ADR-0006](0006-media-native-remux-transcode.md): Media plays native first, remux second (Mediabunny), transcode last, behind `<MediaSurface>` (amended: Video.js v10, not Vidstack).
@@ -16,3 +16,4 @@ One file per decision. Each records the context, the decision, its effects in 6 
 - [ADR-0012](0012-tts-web-engine-onnxruntime-web.md): Piper on the web = raw onnxruntime-web + espeak-ng `phonemizer`, pre-warmed on reader open, single-threaded until the app is cross-origin isolated (Phase 6 spike).
 - [ADR-0013](0013-media-engines.md): Media engines: Video.js v10, Mediabunny streaming into MSE from a worker for remux, Mediabunny streaming clipped to exact duration for gapless music, `music-metadata` in a worker (Phase 7 spike).
 - [ADR-0014](0014-desktop-build-and-runtime.md): Desktop build and runtime: Electron 45 with the standalone server on `localhost` (passkeys), sherpa-onnx Piper in a utility process, own Electron fetch script, pinned toolchain and LGPL ffmpeg (Phase 8 spike).
+- [ADR-0015](0015-open-sign-up-and-admin.md): Anyone with a verified GitHub email can sign up; `ADMIN_EMAILS` sees `/admin` (users, actives, app use), counted from one row per user per day.

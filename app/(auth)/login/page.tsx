@@ -2,7 +2,6 @@ import type { Metadata, Route } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
-import { SignOutButton } from "@/components/auth/account-actions";
 import { SignInPanel } from "@/components/auth/sign-in-panel";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { buttonClass } from "@/components/ui/button";
@@ -32,17 +31,12 @@ function first(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
 }
 
-const ERRORS: Record<string, string> = {
-  "not-owner": "That account is not the owner of this Wanheda.",
-};
-
 async function LoginBody({ searchParams }: { searchParams: PageProps<"/login">["searchParams"] }) {
   const [owner, params] = await Promise.all([getOwner(), searchParams]);
   const next = safeNextPath(first(params.next));
   const errorCode = first(params.error);
 
-  // A valid owner session goes straight in: one redirect, never a loop (SPEC V8).
-  // A signed-in non-owner stays here, or the shell would bounce them back.
+  // A valid session goes straight in: one redirect, never a loop (SPEC V8).
   if (owner.kind === "owner") redirect(next as Route);
 
   if (owner.kind === "demo") {
@@ -70,29 +64,13 @@ async function LoginBody({ searchParams }: { searchParams: PageProps<"/login">["
     );
   }
 
-  if (owner.kind === "not-owner") {
-    return (
-      <>
-        <h1 className="font-display mt-3 text-[28px] leading-tight tracking-[-0.02em]">Not this one</h1>
-        <p className="mt-3 text-[15px] leading-relaxed text-pretty text-ink-2">
-          <span className="font-mono text-[13px] text-foreground">{owner.user.email}</span> is not the owner of
-          this Wanheda. Sign out and use the owner&apos;s account.
-        </p>
-        <div className="mt-8">
-          <SignOutButton />
-        </div>
-      </>
-    );
-  }
-
   return (
     <>
-      <h1 className="font-display mt-3 text-[28px] leading-tight tracking-[-0.02em]">Welcome back</h1>
-      <p className="mt-3 text-[15px] leading-relaxed text-pretty text-ink-2">Only the owner can sign in.</p>
-      <SignInPanel
-        next={next}
-        error={errorCode ? (ERRORS[errorCode] ?? "Sign-in failed. Try again.") : null}
-      />
+      <h1 className="font-display mt-3 text-[28px] leading-tight tracking-[-0.02em]">Welcome</h1>
+      <p className="mt-3 text-[15px] leading-relaxed text-pretty text-ink-2">
+        Sign in with GitHub to open your own Wanheda. New here? The same button makes your account.
+      </p>
+      <SignInPanel next={next} error={errorCode ? "Sign-in failed. Try again." : null} />
     </>
   );
 }

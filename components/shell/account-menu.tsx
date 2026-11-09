@@ -2,12 +2,11 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { LogOut, Settings, UserRound } from "lucide-react";
 import { useAccount } from "@/components/shell/account";
 import { circle } from "@/components/shell/styles";
 import { Menu, MenuContent, MenuHeader, MenuItem, MenuLinkItem, MenuSeparator, MenuTrigger } from "@/components/ui/menu";
-import { signOutOk } from "@/components/auth/account-actions";
+import { leaveAfterSignOut, signOutOk } from "@/components/auth/account-actions";
 import { accountMode, initials } from "@/lib/shell/account";
 import { cn } from "@/lib/utils";
 
@@ -28,14 +27,12 @@ export function AccountMenu({
   className?: string;
 }) {
   const account = useAccount();
-  const router = useRouter();
   const [signOutState, setSignOutState] = React.useState<"idle" | "pending" | "failed">("idle");
 
   async function signOut() {
     setSignOutState("pending");
     if (await signOutOk()) {
-      router.replace("/login");
-      router.refresh();
+      leaveAfterSignOut();
     } else {
       setSignOutState("failed");
     }

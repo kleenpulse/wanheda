@@ -9,7 +9,6 @@ const FULL = {
   BETTER_AUTH_URL: "https://wanheda.example.com",
   GITHUB_CLIENT_ID: "client-id",
   GITHUB_CLIENT_SECRET: "client-secret",
-  OWNER_EMAILS: "owner@example.com",
 };
 
 // t3-env logs the issues before it throws; keep the test output readable.
@@ -30,9 +29,9 @@ describe("server env schema", () => {
   });
 
   it("treats empty strings as unset", () => {
-    const env = createServerEnv({ DATABASE_URL: "", OWNER_EMAILS: "" });
+    const env = createServerEnv({ DATABASE_URL: "", ADMIN_EMAILS: "" });
     expect(env.DATABASE_URL).toBeUndefined();
-    expect(env.OWNER_EMAILS).toBeUndefined();
+    expect(env.ADMIN_EMAILS).toBeUndefined();
   });
 
   it("accepts a full production environment", () => {
@@ -45,10 +44,8 @@ describe("server env schema", () => {
     expect(() => quietly(() => createServerEnv(runtime))).toThrow(name);
   });
 
-  it("fails a production build whose OWNER_EMAILS has no addresses", () => {
-    expect(() =>
-      quietly(() => createServerEnv({ ...FULL, VERCEL_ENV: "production", OWNER_EMAILS: " , " })),
-    ).toThrow("OWNER_EMAILS");
+  it("does not need ADMIN_EMAILS in production: anyone may sign up (ADR-0015)", () => {
+    expect(() => createServerEnv({ ...FULL, VERCEL_ENV: "production" })).not.toThrow();
   });
 
   it("does not require auth on preview or development deploys", () => {
@@ -62,6 +59,6 @@ describe("server env schema", () => {
 
   it("rejects malformed values", () => {
     expect(() => quietly(() => createServerEnv({ DATABASE_URL: "not a url" }))).toThrow();
-    expect(() => quietly(() => createServerEnv({ OWNER_EMAILS: "owner@example.com, nope" }))).toThrow();
+    expect(() => quietly(() => createServerEnv({ ADMIN_EMAILS: "admin@example.com, nope" }))).toThrow();
   });
 });

@@ -22,14 +22,14 @@ describe("parseEnvFile", () => {
     const text = [
       "# comment",
       "DATABASE_URL=postgres://u:p@host/db?sslmode=require",
-      "export OWNER_EMAILS=me@example.com",
+      "export ADMIN_EMAILS=me@example.com",
       "BETTER_AUTH_URL=https://wanheda.example",
       "VERCEL_OIDC_TOKEN=abc",
       "NODE_OPTIONS=--require x",
       "",
     ].join("\n");
     const { values, taken, ignored } = parseEnvFile(text);
-    expect(values).toEqual({ DATABASE_URL: "postgres://u:p@host/db?sslmode=require", OWNER_EMAILS: "me@example.com" });
+    expect(values).toEqual({ DATABASE_URL: "postgres://u:p@host/db?sslmode=require", ADMIN_EMAILS: "me@example.com" });
     expect(taken).toBe(2);
     expect(ignored).toBe(3);
   });

@@ -1,4 +1,6 @@
-import Dexie, { type Table } from "dexie";
+import type Dexie from "dexie";
+import type { Table } from "dexie";
+import { openScopedDexie } from "@/lib/device/dexie";
 import { supersedes, type MoneyOp, type MoneyQueueStore } from "./outbox";
 
 /*
@@ -78,10 +80,13 @@ class DexieMoneyStore implements MoneyQueueStore {
   }
 }
 
-/** Opens the device queue. Rejects where IndexedDB is unavailable; the caller falls back to memory. */
+/**
+ * Opens this account's device queue (`wanheda-money@<scope>`, ADR-0015).
+ * Rejects where IndexedDB is unavailable or no account is set; the caller falls back to memory.
+ */
 export async function openMoneyStore(): Promise<MoneyQueueStore> {
-  const db = new Dexie(DB_NAME) as MoneyDb;
-  db.version(1).stores({ outbox: "++seq, key", meta: "key" });
-  await db.open();
+  const db = await openScopedDexie<MoneyDb>(DB_NAME, (d) => {
+    d.version(1).stores({ outbox: "++seq, key", meta: "key" });
+  });
   return new DexieMoneyStore(db);
 }

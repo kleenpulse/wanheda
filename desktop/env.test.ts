@@ -20,11 +20,11 @@ describe("baseEnv", () => {
 });
 
 describe("serverEnv", () => {
-  const env = serverEnv(parent, { mode: "prod", port: 4123, token: "t".repeat(43), secrets: { DATABASE_URL: "postgres://sealed", OWNER_EMAILS: "me@example.com" } });
+  const env = serverEnv(parent, { mode: "prod", port: 4123, token: "t".repeat(43), secrets: { DATABASE_URL: "postgres://sealed", ADMIN_EMAILS: "me@example.com" } });
 
   test("the sealed values, never the shell's", () => {
     expect(env.DATABASE_URL).toBe("postgres://sealed");
-    expect(env.OWNER_EMAILS).toBe("me@example.com");
+    expect(env.ADMIN_EMAILS).toBe("me@example.com");
     expect(env.NODE_OPTIONS).toBeUndefined();
     expect(env.ELECTRON_RUN_AS_NODE).toBeUndefined();
     expect(env.GITHUB_TOKEN).toBeUndefined();

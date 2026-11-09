@@ -3,14 +3,14 @@ import { passkey } from "@better-auth/passkey";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { nextCookies } from "better-auth/next-js";
-import { authSettings, has, ownerEmails, type AuthSettings } from "@/lib/capabilities";
+import { authSettings, has, type AuthSettings } from "@/lib/capabilities";
 import { getDb, type Db } from "@/lib/db";
 import * as schema from "@/lib/db/schema";
-import { assertOwnerSignup } from "./signup-guard";
+import { assertVerifiedSignup } from "./signup-guard";
 
-// Better Auth, owner only (FRD D3, ADR-0003): GitHub OAuth for the first
-// sign-in, then passkeys. There is no email/password sign-in. Built lazily so
-// importing this module never needs credentials.
+// Better Auth (ADR-0003, ADR-0015): anyone may sign up with GitHub OAuth, then
+// add passkeys; each user sees only their own data. There is no email/password
+// sign-in. Built lazily so importing this module never needs credentials.
 
 function createAuth(db: Db, settings: AuthSettings) {
   const origin = settings.baseURL ? new URL(settings.baseURL) : undefined;
@@ -33,10 +33,9 @@ function createAuth(db: Db, settings: AuthSettings) {
     databaseHooks: {
       user: {
         create: {
-          // Read the allowlist at call time, not from `settings`, so an edit to
-          // OWNER_EMAILS applies without a restart.
+          // A verified email only: it names the account and the admin check reads it.
           before: (user) => {
-            assertOwnerSignup(user, ownerEmails());
+            assertVerifiedSignup(user);
             return Promise.resolve();
           },
         },

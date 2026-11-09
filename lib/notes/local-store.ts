@@ -1,4 +1,6 @@
-import Dexie, { type Table } from "dexie";
+import type Dexie from "dexie";
+import type { Table } from "dexie";
+import { openScopedDexie } from "@/lib/device/dexie";
 import type { Note } from "./notes";
 import { merged, supersedes, type LocalNotesStore, type OutboxOp, type SaveOp } from "./outbox";
 
@@ -133,10 +135,14 @@ class DexieNotesStore implements LocalNotesStore {
   }
 }
 
-/** Opens the device store. Rejects where IndexedDB is unavailable; the caller falls back to memory. */
+/**
+ * Opens this account's device store (`wanheda-notes@<scope>`, ADR-0015), so an
+ * op queued by one user is never drained under another's session. Rejects
+ * where IndexedDB is unavailable or no account is set; the caller falls back to memory.
+ */
 export async function openDeviceStore(): Promise<LocalNotesStore> {
-  const db = new Dexie(DB_NAME) as NotesDb;
-  db.version(1).stores({ outbox: "++seq, noteId", landed: "noteId", notes: "id", meta: "key" });
-  await db.open();
+  const db = await openScopedDexie<NotesDb>(DB_NAME, (d) => {
+    d.version(1).stores({ outbox: "++seq, noteId", landed: "noteId", notes: "id", meta: "key" });
+  });
   return new DexieNotesStore(db);
 }

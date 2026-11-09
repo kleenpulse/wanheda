@@ -56,7 +56,7 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react";
-import { signOutOk } from "@/components/auth/account-actions";
+import { leaveAfterSignOut, signOutOk } from "@/components/auth/account-actions";
 import { rebuildIncome } from "@/actions/connectors";
 import { useIncome } from "@/components/income/use-income";
 import { togglePrivacy, usePrivacy } from "@/components/money/privacy";
@@ -85,7 +85,7 @@ import { TAB_SPRING } from "@/lib/motion";
 import { useActivity } from "@/lib/activity/store";
 import { MINUTE, formatDuration, isDone, isRunning, parseTimerQuery } from "@/lib/activity/timer";
 import { BOARD_EDIT_HREF } from "@/lib/board/edit";
-import { MODULES, SYSTEM_PAGES, WINDOWS } from "@/lib/modules";
+import { MODULES, WINDOWS, systemPages } from "@/lib/modules";
 import { continueReading } from "@/lib/reader/reader";
 import { formatMoney } from "@/lib/money/currency";
 import { todayIn } from "@/lib/money/dates";
@@ -413,7 +413,7 @@ function PaletteBody({
         )}
 
         <Command.Group heading="Apps">
-          {[...MODULES, ...SYSTEM_PAGES].map((m) => (
+          {[...MODULES, ...systemPages(account.admin)].map((m) => (
             <Item
               key={m.id}
               value={`app-${m.id}`}
@@ -1053,8 +1053,7 @@ function PaletteBody({
                     return;
                   }
                   close();
-                  router.replace("/login");
-                  router.refresh();
+                  leaveAfterSignOut();
                 });
               }}
             />

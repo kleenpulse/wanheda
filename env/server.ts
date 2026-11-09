@@ -2,7 +2,7 @@ import { createEnv } from "@t3-oss/env-nextjs";
 import { z } from "zod";
 // Relative import: next.config.ts loads this file, and the `@/` alias is not
 // resolved there.
-import { parseOwnerEmails } from "../lib/auth/allowlist";
+import { parseEmailList } from "../lib/auth/allowlist";
 import { sealKeyBytes } from "../lib/saas/seal-key";
 
 // Server environment schema. next.config.ts imports this module, so `next build`
@@ -24,14 +24,13 @@ export const PRODUCTION_REQUIRED = [
   "BETTER_AUTH_URL",
   "GITHUB_CLIENT_ID",
   "GITHUB_CLIENT_SECRET",
-  "OWNER_EMAILS",
 ] as const;
 
-const ownerEmails = z
+const emailList = z
   .string()
   .refine(
-    (raw) => [...parseOwnerEmails(raw)].every((email) => z.email().safeParse(email).success),
-    "OWNER_EMAILS must be a comma-separated list of email addresses",
+    (raw) => [...parseEmailList(raw)].every((email) => z.email().safeParse(email).success),
+    "ADMIN_EMAILS must be a comma-separated list of email addresses",
   );
 
 export function createServerEnv(runtimeEnv: RuntimeEnv) {
@@ -46,7 +45,8 @@ export function createServerEnv(runtimeEnv: RuntimeEnv) {
       BETTER_AUTH_URL: z.url().optional(),
       GITHUB_CLIENT_ID: z.string().min(1).optional(),
       GITHUB_CLIENT_SECRET: z.string().min(1).optional(),
-      OWNER_EMAILS: ownerEmails.optional(),
+      // Who sees the admin page (ADR-0015). Optional: anyone may sign up either way.
+      ADMIN_EMAILS: emailList.optional(),
       // Home board weather (Open-Meteo, keyless). All three or none.
       WEATHER_LATITUDE: z.coerce.number().min(-90).max(90).optional(),
       WEATHER_LONGITUDE: z.coerce.number().min(-180).max(180).optional(),
@@ -78,7 +78,7 @@ export function createServerEnv(runtimeEnv: RuntimeEnv) {
       BETTER_AUTH_URL: runtimeEnv.BETTER_AUTH_URL,
       GITHUB_CLIENT_ID: runtimeEnv.GITHUB_CLIENT_ID,
       GITHUB_CLIENT_SECRET: runtimeEnv.GITHUB_CLIENT_SECRET,
-      OWNER_EMAILS: runtimeEnv.OWNER_EMAILS,
+      ADMIN_EMAILS: runtimeEnv.ADMIN_EMAILS,
       WEATHER_LATITUDE: runtimeEnv.WEATHER_LATITUDE,
       WEATHER_LONGITUDE: runtimeEnv.WEATHER_LONGITUDE,
       WEATHER_PLACE: runtimeEnv.WEATHER_PLACE,
@@ -92,9 +92,7 @@ export function createServerEnv(runtimeEnv: RuntimeEnv) {
   });
 
   if (env.VERCEL_ENV === "production") {
-    const missing = PRODUCTION_REQUIRED.filter((name) =>
-      name === "OWNER_EMAILS" ? parseOwnerEmails(env.OWNER_EMAILS).size === 0 : !env[name],
-    );
+    const missing = PRODUCTION_REQUIRED.filter((name) => !env[name]);
     if (missing.length > 0) {
       throw new Error(`Production deploy is missing required environment variables: ${missing.join(", ")}`);
     }

@@ -18,7 +18,7 @@ test.describe("gated: auth configured, signed out", { tag: "@gated" }, () => {
 
     const second = await hop(request, "/login");
     expect(second.status()).toBe(200);
-    expect(await second.text()).toContain("Only the owner can sign in.");
+    expect(await second.text()).toContain("Sign in with GitHub to open your own Wanheda.");
   });
 
   test("a deep link keeps its path in ?next= and still ends in one hop", async ({ request }) => {
@@ -29,6 +29,12 @@ test.describe("gated: auth configured, signed out", { tag: "@gated" }, () => {
 
     const second = await hop(request, location);
     expect(second.status()).toBe(200);
+  });
+
+  test("/admin sends a signed-out visitor to /login like any other page", async ({ request }) => {
+    const res = await hop(request, "/admin");
+    expect(res.status()).toBe(307);
+    expect(res.headers().location).toBe(`/login?next=${encodeURIComponent("/admin")}`);
   });
 
   test("/login is public and never redirects a signed-out visitor", async ({ request }) => {
@@ -100,6 +106,13 @@ test.describe("demo: zero env", { tag: "@demo" }, () => {
     const html = await res.text();
     expect(html).toContain('aria-label="Primary"');
     expect(html).toContain("Demo mode");
+  });
+
+  test("/admin is not found in demo: nobody is an admin without sign-in", async ({ request }) => {
+    const res = await hop(request, "/admin");
+    const html = await res.text();
+    expect(html).not.toContain("Who uses Wanheda");
+    expect(html).toContain("could not be found");
   });
 
   test("/login offers the way in instead of a sign-in form", async ({ request }) => {

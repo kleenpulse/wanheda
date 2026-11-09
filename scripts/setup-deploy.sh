@@ -211,7 +211,7 @@ TOTAL_STAGES=8
 TOTAL_MINUTES=18
 
 # Must never reach Vercel Preview (SPEC C12).
-PREVIEW_FORBIDDEN="DATABASE_URL DATABASE_URL_UNPOOLED BETTER_AUTH_SECRET BETTER_AUTH_URL GITHUB_CLIENT_ID GITHUB_CLIENT_SECRET OWNER_EMAILS"
+PREVIEW_FORBIDDEN="DATABASE_URL DATABASE_URL_UNPOOLED BETTER_AUTH_SECRET BETTER_AUTH_URL GITHUB_CLIENT_ID GITHUB_CLIENT_SECRET ADMIN_EMAILS"
 
 PROJECT_NAME="wanheda"
 LOCAL_URL="http://localhost:3000"
@@ -369,10 +369,10 @@ fi
 write_env BETTER_AUTH_SECRET "$local_secret"
 write_env BETTER_AUTH_URL "$LOCAL_URL"
 write_env NEXT_PUBLIC_APP_URL "$LOCAL_URL"
-say "Only these emails can create the owner account (comma-separated)."
+say "Anyone can sign up. These emails (comma-separated) also see the Admin page; Enter skips."
 note "Use the primary email of the GitHub account you will sign in with."
-ask OWNER_EMAILS "Owner email(s):"
-write_env OWNER_EMAILS "$OWNER_EMAILS"
+ask ADMIN_EMAILS "Admin email(s):"
+if [[ -n "$ADMIN_EMAILS" ]]; then write_env ADMIN_EMAILS "$ADMIN_EMAILS"; fi
 if [[ -z "$(_existing DATABASE_URL_UNPOOLED || true)" ]]; then
   if [[ "$current_db" == *"-pooler."* ]]; then
     write_env DATABASE_URL_UNPOOLED "${current_db/-pooler./.}"
@@ -468,14 +468,14 @@ step "BETTER_AUTH_URL       $PROD_URL"
 step "NEXT_PUBLIC_APP_URL   $PROD_URL"
 step "GITHUB_CLIENT_ID      the production app's Client ID"
 step "GITHUB_CLIENT_SECRET  the production app's secret"
-step "OWNER_EMAILS          $OWNER_EMAILS"
-if confirm "Write these 6 variables to Vercel Production now?"; then
+step "ADMIN_EMAILS          ${ADMIN_EMAILS:-(none: no Admin page)}"
+if confirm "Write these variables to Vercel Production now?"; then
   vercel_env_set BETTER_AUTH_SECRET "$(openssl rand -base64 32)" sensitive
   vercel_env_set BETTER_AUTH_URL "$PROD_URL"
   vercel_env_set NEXT_PUBLIC_APP_URL "$PROD_URL"
   vercel_env_set GITHUB_CLIENT_ID "$PROD_GITHUB_CLIENT_ID"
   vercel_env_set GITHUB_CLIENT_SECRET "$PROD_GITHUB_CLIENT_SECRET" sensitive
-  vercel_env_set OWNER_EMAILS "$OWNER_EMAILS"
+  if [[ -n "$ADMIN_EMAILS" ]]; then vercel_env_set ADMIN_EMAILS "$ADMIN_EMAILS"; fi
 else
   SKIPPED+=("Vercel Production auth variables (re-run the wizard)")
 fi
@@ -490,9 +490,9 @@ stage "Try sign-in locally" 3
 say "In another terminal, in $MAIN_ROOT:"
 step "bun run dev"
 open_url "$LOCAL_URL"
-step "You land on /login. Sign in with GitHub as the owner."
+step "You land on /login. Sign in with GitHub."
 step "On the home page, click 'Add passkey', then sign out and sign in with it."
-note "A GitHub account whose email is not in OWNER_EMAILS must be refused."
+note "Any GitHub account with a verified email gets its own Wanheda; only ADMIN_EMAILS see /admin."
 pause "Press Enter when done (or to skip)"
 
 finish

@@ -3,6 +3,7 @@
 import { after } from "next/server";
 import { z } from "zod";
 import { requireOwner } from "@/lib/auth/owner";
+import { queuedForAnother } from "@/lib/auth/queued";
 import { budgetAlertsForSave } from "@/lib/money/alerts";
 import { budgetWriteSchema } from "@/lib/money/budgets";
 import { CURRENCY_CODES, type Currency } from "@/lib/money/currency";
@@ -18,9 +19,10 @@ import { saveBaseCurrency as storeBaseCurrency } from "@/lib/prefs/store";
 const idSchema = z.object({ id: z.uuid() }).strict();
 
 /** Creates or edits a budget. The alerts it makes due (V31) are raised now and returned. */
-export async function saveBudget(input: unknown): Promise<BudgetSaveResult> {
+export async function saveBudget(input: unknown, asUser?: string): Promise<BudgetSaveResult> {
   const owner = await requireOwner();
   if (owner.kind === "demo") return { ok: false, reason: "demo" };
+  if (queuedForAnother(owner, asUser)) return { ok: false, reason: "failed" };
   const parsed = budgetWriteSchema.safeParse(input);
   if (!parsed.success) return { ok: false, reason: "invalid" };
   try {
@@ -36,9 +38,10 @@ export async function saveBudget(input: unknown): Promise<BudgetSaveResult> {
 }
 
 /** Deletes a budget. Already gone counts as done, so a retry settles. */
-export async function deleteBudget(input: unknown): Promise<PlanDeleteResult> {
+export async function deleteBudget(input: unknown, asUser?: string): Promise<PlanDeleteResult> {
   const owner = await requireOwner();
   if (owner.kind === "demo") return { ok: false, reason: "demo" };
+  if (queuedForAnother(owner, asUser)) return { ok: false, reason: "failed" };
   const parsed = idSchema.safeParse(input);
   if (!parsed.success) return { ok: false, reason: "invalid" };
   try {
@@ -49,9 +52,10 @@ export async function deleteBudget(input: unknown): Promise<PlanDeleteResult> {
   }
 }
 
-export async function saveRule(input: unknown): Promise<RuleSaveResult> {
+export async function saveRule(input: unknown, asUser?: string): Promise<RuleSaveResult> {
   const owner = await requireOwner();
   if (owner.kind === "demo") return { ok: false, reason: "demo" };
+  if (queuedForAnother(owner, asUser)) return { ok: false, reason: "failed" };
   const parsed = ruleWriteSchema.safeParse(input);
   if (!parsed.success) return { ok: false, reason: "invalid" };
   try {
@@ -64,9 +68,10 @@ export async function saveRule(input: unknown): Promise<RuleSaveResult> {
   }
 }
 
-export async function deleteRule(input: unknown): Promise<PlanDeleteResult> {
+export async function deleteRule(input: unknown, asUser?: string): Promise<PlanDeleteResult> {
   const owner = await requireOwner();
   if (owner.kind === "demo") return { ok: false, reason: "demo" };
+  if (queuedForAnother(owner, asUser)) return { ok: false, reason: "failed" };
   const parsed = idSchema.safeParse(input);
   if (!parsed.success) return { ok: false, reason: "invalid" };
   try {

@@ -9,7 +9,6 @@ const AUTH_ENV = {
   BETTER_AUTH_URL: "https://wanheda.example.test",
   GITHUB_CLIENT_ID: "test-client-id",
   GITHUB_CLIENT_SECRET: "test-client-secret",
-  OWNER_EMAILS: "owner@example.test",
 };
 
 // The first test pays the cold import of Better Auth, Drizzle and the plugins.

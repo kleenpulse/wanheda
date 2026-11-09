@@ -1,4 +1,4 @@
-import { AudioLines, BookOpen, BookOpenText, CalendarClock, ChartColumnStacked, Clapperboard, CloudSun, Clock, DollarSign, House, Music, NotebookPen, Pin, Settings, Sunrise, Target, Timer, TrendingUp, Wallet, type LucideIcon } from "lucide-react";
+import { AudioLines, BookOpen, ChartNoAxesCombined, BookOpenText, CalendarClock, ChartColumnStacked, Clapperboard, CloudSun, Clock, DollarSign, House, Music, NotebookPen, Pin, Settings, Sunrise, Target, Timer, TrendingUp, Wallet, type LucideIcon } from "lucide-react";
 import type { Route } from "next";
 
 // The module registry (FRD 4.2). The shell builds the rail, the tab bar, the
@@ -236,6 +236,20 @@ export const TOOLS = [TIMER] as const satisfies readonly ToolManifest[];
 export const SYSTEM_PAGES: readonly ModuleManifest[] = [
   { id: "settings", title: "Settings", icon: Settings, route: "/settings", blurb: "Theme, timers, passkeys and account" },
 ];
+
+/** The admin page (ADR-0015): users and usage. In the rail only for admins; /admin checks on the server. */
+export const ADMIN_PAGE: ModuleManifest = {
+  id: "admin",
+  title: "Admin",
+  icon: ChartNoAxesCombined,
+  route: "/admin",
+  blurb: "Users, sign-ups and which apps they use",
+};
+
+/** The system pages this account sees: Admin first for an admin. */
+export function systemPages(admin: boolean): readonly ModuleManifest[] {
+  return admin ? [ADMIN_PAGE, ...SYSTEM_PAGES] : SYSTEM_PAGES;
+}
 
 /** Every widget id the registry offers. Renderers are keyed by it, so a missing one fails typecheck. */
 export type WidgetId = (typeof MODULES)[number]["widgets"][number]["id"];

@@ -32,7 +32,7 @@ async function OwnerShell({ children }: { children: React.ReactNode }) {
   const jar = await cookies();
   const account: ShellAccount =
     owner.kind === "owner"
-      ? { kind: "owner", name: owner.user.name || owner.user.email, email: owner.user.email }
+      ? { kind: "owner", id: owner.user.id, name: owner.user.name || owner.user.email, email: owner.user.email, admin: owner.admin }
       : DEMO_ACCOUNT;
 
   // Prefs and alerts: the owner's from the database (either read failing falls back,

@@ -92,6 +92,13 @@
       "when": 1794144617725,
       "tag": "0012_aurora_edge",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1794253122968,
+      "tag": "0013_user_activity",
+      "breakpoints": true
     }
   ]
 }

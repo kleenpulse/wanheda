@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { authSettings, gateMode, has } from "./capabilities";
+import { adminEmails, authSettings, gateMode, has } from "./capabilities";
 
 const VARS = [
   "DATABASE_URL",
@@ -7,7 +7,7 @@ const VARS = [
   "BETTER_AUTH_URL",
   "GITHUB_CLIENT_ID",
   "GITHUB_CLIENT_SECRET",
-  "OWNER_EMAILS",
+  "ADMIN_EMAILS",
 ] as const;
 
 const DB = { DATABASE_URL: "postgresql://user:pass@ep-quiet-sky-pooler.eu-central-1.aws.neon.tech/neondb" };
@@ -15,7 +15,6 @@ const AUTH = {
   BETTER_AUTH_SECRET: "s".repeat(32),
   GITHUB_CLIENT_ID: "client-id",
   GITHUB_CLIENT_SECRET: "client-secret",
-  OWNER_EMAILS: "owner@example.com",
 };
 
 function setEnv(values: Partial<Record<(typeof VARS)[number], string>>) {
@@ -48,9 +47,9 @@ describe("gateMode", () => {
     expect(gateMode()).toBe("locked");
   });
 
-  it("is locked with a database and an empty OWNER_EMAILS", () => {
-    setEnv({ ...DB, ...AUTH, OWNER_EMAILS: " , " });
-    expect(gateMode()).toBe("locked");
+  it("is gated with no admin list: anyone may sign up (ADR-0015)", () => {
+    setEnv({ ...DB, ...AUTH, ADMIN_EMAILS: " , " });
+    expect(gateMode()).toBe("gated");
   });
 
   it.each(["GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET"] as const)("is locked with a database and %s unset", (name) => {
@@ -83,14 +82,19 @@ describe("gateMode", () => {
 });
 
 describe("authSettings", () => {
-  it("lower-cases the owner allowlist", () => {
-    setEnv({ ...AUTH, OWNER_EMAILS: " Owner@Example.com ,second@example.com" });
-    expect([...(authSettings()?.owners ?? [])]).toEqual(["owner@example.com", "second@example.com"]);
-  });
 
   it("leaves baseURL undefined when BETTER_AUTH_URL is unset", () => {
     setEnv(AUTH);
     expect(authSettings()?.baseURL).toBeUndefined();
+  });
+});
+
+describe("adminEmails", () => {
+  it("lower-cases the list and reads it on every call", () => {
+    setEnv({ ADMIN_EMAILS: " Admin@Example.com ,second@example.com" });
+    expect([...adminEmails()]).toEqual(["admin@example.com", "second@example.com"]);
+    setEnv({});
+    expect(adminEmails().size).toBe(0);
   });
 });
 
