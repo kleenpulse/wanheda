@@ -10,7 +10,8 @@ import { Stars } from "@/components/prefs/wallpapers/stars";
 import { useReducedMotion } from "@/hooks/use-reduced-motion";
 import { wallpaperFor, type AuroraEdge, type Scene as SceneName, type WallpaperCover } from "@/lib/prefs/prefs";
 import { wallpaperPageFor } from "@/lib/prefs/wallpaper-pages";
-import { readPalette, samePalette, type WallpaperPalette } from "@/lib/prefs/wallpaper-palette";
+import { useWallpaperPalette } from "@/hooks/use-wallpaper-palette";
+import type { WallpaperPalette } from "@/lib/prefs/wallpaper-palette";
 
 type Draw = React.ComponentType<{ palette: WallpaperPalette; reduced: boolean; edge?: AuroraEdge }>;
 
@@ -20,25 +21,6 @@ const SCENES: Record<SceneName, Draw> = {
   stars: Stars,
   dots: Dots,
 };
-
-/** Skin, theme and accent all land on <html>: re-read the tokens when it changes. */
-function useWallpaperPalette(): WallpaperPalette | null {
-  const [palette, setPalette] = React.useState<WallpaperPalette | null>(null);
-  React.useEffect(() => {
-    const root = document.documentElement;
-    const read = () => {
-      const next = readPalette(root);
-      setPalette((prev) => (prev && samePalette(prev, next) ? prev : next));
-    };
-    read();
-    const observer = new MutationObserver(read);
-    observer.observe(root, { attributes: true, attributeFilter: ["class", "style", "data-skin", "data-accent"] });
-    return () => {
-      observer.disconnect();
-    };
-  }, []);
-  return palette;
-}
 
 function Scene({ name }: { name: SceneName }) {
   const palette = useWallpaperPalette();

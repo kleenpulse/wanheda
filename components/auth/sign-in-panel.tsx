@@ -2,11 +2,13 @@
 
 import { Fingerprint, LogIn } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useRef, useState, type FocusEvent, type PointerEvent } from "react";
 import type { Route } from "next";
+import { useAuthWord } from "@/components/auth/auth-word";
 import { buttonClass } from "@/components/ui/button";
+import { pickFromDom, resolveWord, wordDelay } from "@/lib/auth/auth-word";
 import { authClient } from "@/lib/auth/client";
-import type { SignInMethod } from "@/lib/auth/last-method";
+import { parseLastMethod, type SignInMethod } from "@/lib/auth/last-method";
 import { isDesktop } from "@/lib/platform/desktop";
 
 type Provider = "github" | "google";
@@ -31,6 +33,65 @@ export function SignInPanel({
   const [message, setMessage] = useState<string | null>(error);
   // Desktop: the provider opened in the default browser, and this window waits for it to come back.
   const [inBrowser, setInBrowser] = useState<Provider | null>(null);
+  // What the sign-in swarm spells (V82). Hover and keyboard focus are kept
+  // apart: the mouse leaving must not drop a word the keyboard still holds.
+  const [hovered, setHovered] = useState<SignInMethod | null>(null);
+  const [focused, setFocused] = useState<SignInMethod | null>(null);
+  const panel = useRef<HTMLDivElement>(null);
+  const setWord = useAuthWord()?.setWord;
+  const word = resolveWord({ pending, inBrowser, hovered, focused });
+
+  useEffect(() => {
+    if (!setWord) return;
+    const delay = wordDelay(word);
+    if (delay === 0) {
+      setWord(word);
+      return;
+    }
+    const timer = setTimeout(() => {
+      setWord(word);
+    }, delay);
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [word, setWord]);
+
+  /**
+   * Ends an attempt. The buttons were disabled while it ran and can miss
+   * their leave and blur events, so hover and focus are read back from them.
+   */
+  function settle() {
+    setPending(null);
+    const buttons = panel.current?.querySelectorAll<HTMLButtonElement>("button[data-method]") ?? [];
+    const picked = pickFromDom(
+      [...buttons].flatMap((el) => {
+        const method = parseLastMethod(el.dataset.method);
+        return method ? [[method, { hover: el.matches(":hover"), focusVisible: el.matches(":focus-visible") }] as const] : [];
+      }),
+    );
+    setHovered(picked.hovered);
+    setFocused(picked.focused);
+  }
+
+  function track(method: SignInMethod) {
+    return {
+      "data-method": method,
+      onPointerEnter: (event: PointerEvent) => {
+        if (event.pointerType === "mouse") setHovered(method);
+      },
+      onPointerLeave: (event: PointerEvent) => {
+        if (event.pointerType === "mouse") setHovered((current) => (current === method ? null : current));
+      },
+      // Keyboard focus only: a mouse click focuses the button too, and its
+      // word would stick after the pointer left.
+      onFocus: (event: FocusEvent<HTMLButtonElement>) => {
+        if (event.currentTarget.matches(":focus-visible")) setFocused(method);
+      },
+      onBlur: () => {
+        setFocused((current) => (current === method ? null : current));
+      },
+    };
+  }
 
   async function withProvider(provider: Provider) {
     setPending(provider);
@@ -43,14 +104,14 @@ export function SignInPanel({
     });
     if (failure) {
       setMessage(`${NAME[provider]} sign-in could not start. Try again.`);
-      setPending(null);
+      settle();
       return;
     }
     // On the web the page is already leaving for the provider. The desktop app
     // opens it in the default browser instead and comes back here by itself.
     if (isDesktop()) {
       setInBrowser(provider);
-      setPending(null);
+      settle();
     }
   }
 
@@ -61,7 +122,7 @@ export function SignInPanel({
     const result = await authClient.signIn.passkey();
     if (result.error) {
       setMessage(`No passkey sign-in. Use ${google ? "GitHub or Google" : "GitHub"}, then add a passkey.`);
-      setPending(null);
+      settle();
       return;
     }
     router.replace(next as Route);
@@ -71,9 +132,10 @@ export function SignInPanel({
   const providers: Provider[] = google ? ["github", "google"] : ["github"];
 
   return (
-    <div className="mt-8 flex flex-col gap-3">
+    <div ref={panel} className="mt-8 flex flex-col gap-3">
       <button
         type="button"
+        {...track("passkey")}
         onClick={() => void withPasskey()}
         disabled={pending !== null}
         className={buttonClass("inverse", "pill", "relative")}
@@ -86,6 +148,7 @@ export function SignInPanel({
         <button
           key={provider}
           type="button"
+          {...track(provider)}
           onClick={() => void withProvider(provider)}
           disabled={pending !== null}
           className={buttonClass("surface", "pill", "relative")}

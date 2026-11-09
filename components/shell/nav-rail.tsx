@@ -16,6 +16,9 @@ import { MODULES, isActive, systemPages, type ModuleManifest } from "@/lib/modul
 import { useAccount } from "@/components/shell/account";
 import { TAB_SPRING } from "@/lib/motion";
 import { AppIcon } from "@/components/shell/app-icon";
+import { Inlay } from "@/components/ui/inlay";
+import { useReducedMotion } from "@/hooks/use-reduced-motion";
+import { useWallpaperPalette } from "@/hooks/use-wallpaper-palette";
 import { cn } from "@/lib/utils";
 
 /*
@@ -37,7 +40,8 @@ export function NavRail({
   className,
 }: {
   expanded: boolean;
-  onToggle: () => void;
+  /** A click passes its event, so a "held shut" note can land at the pointer. */
+  onToggle: (event?: React.MouseEvent) => void;
   className?: string;
 }) {
   const pathname = usePathname();
@@ -75,67 +79,132 @@ export function NavRail({
   );
 
   return (
-    <nav
-      aria-label="Primary"
-      data-expanded={expanded}
+    <div
       className={cn(
-        "sticky top-(--tb) z-20 h-(--app-h) shrink-0 flex-col gap-4 overflow-x-hidden overflow-y-auto bg-band px-5 py-5 [scrollbar-width:none]",
+        "group/rail sticky top-(--tb) z-20 h-(--app-h) shrink-0",
         "transition-[width] duration-300 ease-out-quint motion-reduce:transition-none",
-        "dark:border-r dark:border-rail-border",
         expanded ? "w-[232px]" : "w-[84px]",
         className,
       )}
     >
-      <TooltipGroup side="right" sideOffset={12}>
-        <Link
-          href="/"
-          aria-label="Wanheda home"
-          className="flex items-center gap-3 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <WanhedaMark />
-          <span className={cn(label, "font-display text-[15px] font-semibold tracking-[-0.01em] text-foreground", hidden)}>
-            Wanheda
-          </span>
-        </Link>
-
-        <div className="-mx-1.5 mt-2 flex flex-col gap-1.5 rounded-[28px] bg-sheet p-1.5 ring-1 ring-border dark:bg-card-nested dark:ring-rail-border">
-          {MODULES.map(link)}
-        </div>
-
-        <div className="mt-auto flex flex-col gap-3">
-          <div className="-mx-1.5 flex flex-col gap-1.5 px-1.5">{system.map(link)}</div>
-          {tip(
-            expanded ? (
-              "Collapse"
-            ) : (
-              <>
-                Expand <Kbd>[</Kbd>
-              </>
-            ),
-            <button
-              type="button"
-              onClick={onToggle}
-              aria-expanded={expanded}
-              aria-label={expanded ? "Collapse sidebar" : "Expand sidebar"}
-              className="group flex items-center gap-3 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              <span className={cn(circle, "text-ink-2 group-hover:text-foreground")}>
-                {expanded ? <PanelLeftClose strokeWidth={1.75} /> : <PanelLeftOpen strokeWidth={1.75} />}
-              </span>
-              <span className={cn(label, "text-ink-2", hidden)}>Collapse</span>
-            </button>,
-          )}
-          {tip("Notifications", <NotificationBell circleClass={cn(circle, idleInk)} labelClass={cn(label, "text-ink-2", hidden)} />)}
-          <div className="flex items-center gap-3">
-            <ThemeToggle className={cn(circle, idleInk, "[&_svg]:size-4")} />
-            <span aria-hidden className={cn(label, "text-ink-2", hidden)}>
-              Theme
+      <nav
+        aria-label="Primary"
+        data-expanded={expanded}
+        className={cn(
+          "flex size-full flex-col gap-4 overflow-x-hidden overflow-y-auto bg-band px-5 py-5 [scrollbar-width:none]",
+          "dark:border-r dark:border-rail-border",
+        )}
+      >
+        <TooltipGroup side="right" sideOffset={12}>
+          <Link
+            href="/"
+            aria-label="Wanheda home"
+            className="flex items-center gap-3 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            {/* Shrinks when expanded, as ellum's mark does, giving the name room. */}
+            <WanhedaMark
+              className={cn(
+                "transition-[width,height] duration-300 ease-out-quint motion-reduce:transition-none",
+                expanded && "size-9",
+              )}
+            />
+            <span className={cn(label, "font-display text-[26px] leading-none font-extrabold tracking-[0.02em]", hidden)}>
+              <Wordmark expanded={expanded} />
             </span>
+          </Link>
+
+          <div className="-mx-1.5 mt-2 flex flex-col gap-1.5 rounded-[28px] bg-sheet p-1.5 ring-1 ring-border dark:bg-card-nested dark:ring-rail-border">
+            {MODULES.map(link)}
           </div>
-          <AccountMenu withLabel labelClass={hidden} />
-        </div>
-      </TooltipGroup>
-    </nav>
+
+          <div className="mt-auto flex flex-col gap-3">
+            <div className="-mx-1.5 flex flex-col gap-1.5 px-1.5">{system.map(link)}</div>
+            {tip(
+              expanded ? (
+                "Collapse"
+              ) : (
+                <>
+                  Expand <Kbd>[</Kbd>
+                </>
+              ),
+              <button
+                type="button"
+                data-rail-toggle
+                onClick={onToggle}
+                aria-expanded={expanded}
+                aria-label={expanded ? "Collapse sidebar" : "Expand sidebar"}
+                className={cn(
+                  "group flex items-center gap-3 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                  // Only while the pointer is over the rail (or a keyboard lands on it);
+                  // it keeps its slot so the foot never shifts.
+                  "opacity-0 transition-opacity duration-200 group-hover/rail:opacity-100 focus-visible:opacity-100 motion-reduce:transition-none",
+                )}
+              >
+                <span className={cn(circle, "text-ink-2 group-hover:text-foreground")}>
+                  {expanded ? <PanelLeftClose strokeWidth={1.75} /> : <PanelLeftOpen strokeWidth={1.75} />}
+                </span>
+                <span className={cn(label, "text-ink-2", hidden)}>Collapse</span>
+              </button>,
+            )}
+            {tip("Notifications", <NotificationBell circleClass={cn(circle, idleInk)} labelClass={cn(label, "text-ink-2", hidden)} />)}
+            <div className="flex items-center gap-3">
+              <ThemeToggle className={cn(circle, idleInk, "[&_svg]:size-4")} />
+              <span aria-hidden className={cn(label, "text-ink-2", hidden)}>
+                Theme
+              </span>
+            </div>
+            <AccountMenu withLabel labelClass={hidden} />
+          </div>
+        </TooltipGroup>
+      </nav>
+      {/* The edge itself toggles the rail, as shadcn's SidebarRail does. Out of
+          the tab order: the Collapse row and `[` cover keyboards. Inside the
+          wrapper: overhanging the sticky, width-animating layer can leave a
+          stale sliver over the sheet until the next repaint. */}
+      <button
+        type="button"
+        tabIndex={-1}
+        aria-label={expanded ? "Collapse sidebar" : "Expand sidebar"}
+        title={expanded ? "Collapse sidebar" : "Expand sidebar"}
+        onClick={onToggle}
+        className={cn(
+          "absolute inset-y-0 right-0 z-20 w-3 outline-none",
+          "after:absolute after:inset-y-0 after:right-0 after:w-0.5 after:transition-colors after:duration-200",
+          "hover:after:bg-border dark:hover:after:bg-rail-border",
+          expanded ? "cursor-w-resize" : "cursor-e-resize",
+        )}
+      />
+    </div>
+  );
+}
+
+const WORDMARK = "WANHEDA";
+
+/**
+ * The name, poured full of the skin's signal (Motion Garden's Inlay). It runs
+ * only while the rail is open and pours again on every expand. Until the
+ * palette resolves on the client it is the same word in a signal gradient.
+ */
+function Wordmark({ expanded }: { expanded: boolean }) {
+  const palette = useWallpaperPalette();
+  const reduced = useReducedMotion();
+  if (!palette) {
+    return <span className="bg-linear-to-r from-signal to-signal-ink bg-clip-text text-transparent">{WORDMARK}</span>;
+  }
+  const [r, g, b] = palette.signal;
+  const lift = (c: number) => Math.round(c + (255 - c) * 0.3);
+  return (
+    <Inlay
+      text={WORDMARK}
+      colorA={palette.signal}
+      colorB={[lift(r), lift(g), lift(b)]}
+      // A 26px line: coarser features and a tighter bloom than the registry's headline defaults.
+      scale={0.7}
+      glow={0.3}
+      grain={0.08}
+      paused={!expanded}
+      reducedMotion={reduced}
+    />
   );
 }
 

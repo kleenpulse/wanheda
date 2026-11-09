@@ -8,6 +8,10 @@ export const circle =
 /** Idle chrome: colour-only hover (vxrcel-ui-design motion rule). */
 export const idleInk = "text-ink-2 hover:text-foreground";
 
-/** The selected nav item: ink on paper (Ember), gold tint on glass (Nebula). */
-export const activeFill = "bg-inverse dark:bg-signal-soft dark:shadow-glow";
+/**
+ * The selected nav item: ink on paper (Ember). In dark skins it wears the
+ * rail's own band with the signal glow, like the Wanheda mark above it: a
+ * dark well in the capsule rather than a tint.
+ */
+export const activeFill = "bg-inverse dark:bg-band dark:shadow-glow";
 export const activeInk = "text-inverse-foreground dark:text-signal";

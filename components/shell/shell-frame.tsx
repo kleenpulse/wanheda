@@ -20,6 +20,8 @@ import { DesktopOpen } from "@/components/shell/desktop-open";
 import { Dock } from "@/components/shell/dock";
 import { MobileTabBar } from "@/components/shell/mobile-tab-bar";
 import { NavRail } from "@/components/shell/nav-rail";
+import { useRailLock } from "@/components/shell/rail-lock";
+import { AnchoredNotes, anchoredNote, notePoint } from "@/components/ui/anchored-note";
 import { Toaster } from "@/components/ui/toaster";
 import { WindowLayer } from "@/components/windows/window-layer";
 import type { Notice } from "@/lib/notifications/notifications";
@@ -55,14 +57,35 @@ export function ShellFrame({
   notices: { initial: Notice[]; source: NoticesSource };
   children: React.ReactNode;
 }) {
+  // `expanded` is the owner's choice (the cookie); `shown` is what the rail
+  // does, which a view that needs the width can hold shut (rail-lock.ts).
   const [expanded, setExpanded] = React.useState(initialExpanded);
-  const toggle = React.useCallback(() => {
-    setExpanded((was) => !was);
+  const lock = useRailLock((s) => s.reason);
+  const shown = expanded && !lock;
+
+  /** A click passes its event, so a locked note lands at the pointer; a key lands it on the Expand row. */
+  const toggle = React.useCallback((event?: React.MouseEvent) => {
+    const reason = useRailLock.getState().reason;
+    if (!reason) {
+      setExpanded((was) => !was);
+      return;
+    }
+    // Enter on a button reports detail 0: treat it as a key.
+    const anchor =
+      event && event.detail > 0
+        ? notePoint(event.clientX, event.clientY)
+        : document.querySelector<HTMLElement>("[data-rail-toggle]");
+    // A fixed id: repeat presses move and refresh the one note instead of stacking.
+    anchoredNote.add({
+      id: "rail-locked",
+      title: "The sidebar stays collapsed here",
+      description: reason,
+      positionerProps: { anchor, side: "right" },
+    });
   }, []);
 
-  // Persist after a change, never on mount: the server and the <head> boot
-  // script already agree with the cookie. html[data-rail] follows too, so a
-  // later Suspense fallback is drawn at the current width.
+  // Persist the choice after a change, never on mount: the server and the
+  // <head> boot script already agree with the cookie.
   const mounted = React.useRef(false);
   React.useEffect(() => {
     if (!mounted.current) {
@@ -70,9 +93,13 @@ export function ShellFrame({
       return;
     }
     document.cookie = railCookie(expanded);
-    if (expanded) document.documentElement.setAttribute(RAIL_ATTR, "open");
-    else document.documentElement.removeAttribute(RAIL_ATTR);
   }, [expanded]);
+
+  // html[data-rail] follows what is shown, so a later Suspense fallback is drawn at the current width.
+  React.useEffect(() => {
+    if (shown) document.documentElement.setAttribute(RAIL_ATTR, "open");
+    else document.documentElement.removeAttribute(RAIL_ATTR);
+  }, [shown]);
 
   // `[` toggles the rail, the way editors bind their sidebars. AltGr (reported
   // as Ctrl+Alt on Windows) is how many non-US layouts type `[`, so it passes.
@@ -91,7 +118,7 @@ export function ShellFrame({
     };
   }, [toggle]);
 
-  const railW = expanded ? RAIL_WIDTH.expanded : RAIL_WIDTH.collapsed;
+  const railW = shown ? RAIL_WIDTH.expanded : RAIL_WIDTH.collapsed;
 
   return (
     <AccountProvider account={account}>
@@ -109,7 +136,7 @@ export function ShellFrame({
         className="relative flex min-h-(--app-h) w-full shrink-0 [--rail-w:0px] md:[--rail-w:var(--rail-w-md)]"
         style={{ ["--rail-w-md" as string]: `${railW}px` }}
       >
-        <NavRail expanded={expanded} onToggle={toggle} className="hidden md:flex" />
+        <NavRail expanded={shown} onToggle={toggle} className="hidden md:block" />
         {/* No bottom padding here: PageFrame clears the floating dock and tab bar inside the sheet. */}
         <WallpaperMain>{children}</WallpaperMain>
         <MobileTabBar />
@@ -117,9 +144,10 @@ export function ShellFrame({
         <Dock />
         <Island />
         <SpeechMediaSession />
-        <CommandPalette railExpanded={expanded} onToggleRail={toggle} />
+        <CommandPalette railExpanded={shown} onToggleRail={toggle} />
         <NotificationCentre />
         <Toaster />
+        <AnchoredNotes />
         <DesktopOpen />
         <DesktopNative />
         <IslandMirror />

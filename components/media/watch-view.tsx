@@ -19,6 +19,7 @@ import { Thumb } from "./thumb";
 import { providerName, useMedia, useMediaApi } from "./use-media";
 import { CinemaFrame } from "./video-chrome";
 import { openWatch } from "./watch-nav";
+import { useHoldRail } from "@/components/shell/rail-lock";
 
 // The Watch view (T61, T72, T73): one player, the library beside it (or below
 // it in theatre mode). `?m=` is the item playing, so a reload or a link
@@ -257,6 +258,8 @@ export function WatchView() {
   const currentName = current ? displayTitle(current) : null;
   const [dragging, setDragging] = React.useState(false);
   const theatre = usePlayer((s) => s.theatre);
+  // Theatre wants the width: the rail stays collapsed until it is left.
+  useHoldRail(theatre && current ? "Leave theatre mode to expand it again." : null);
   const going = items ? continueList(items) : [];
   const later = items ? watchLaterList(items) : [];
 
