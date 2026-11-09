@@ -17,6 +17,9 @@ written after the fact, one per phase, and have no git tags.
 
 ### Added
 
+- Click the sidebar's right edge to open or close it. The Collapse button now shows only while your pointer is over the sidebar.
+- Theatre mode keeps the sidebar collapsed to give the video the full width. Trying to open it shows a short note beside your pointer explaining why, and your usual sidebar setting comes back when you leave theatre mode.
+- With the sidebar open, the Wanheda name at the top is filled with a slow, living glow in your accent colour. It pours in each time you open the sidebar, follows your theme, and holds still if you prefer reduced motion.
 - The sign-in page marks the way you signed in last time with a small "Last used" tag, so you know which button to press.
 - You can sign in with Google as well as GitHub, on the web and in the Windows app. If your Google email is the same as your GitHub one, both buttons open the same Wanheda.
 - You can delete your account yourself, in Settings → Account → Danger zone. Type your email to confirm, and your account and everything in it are gone for good, on every device, and cleared from that browser too. If you signed in more than a day ago, Wanheda asks you to sign in again first.
@@ -33,6 +36,7 @@ written after the fact, one per phase, and have no git tags.
 
 ### Changed
 
+- In dark themes, the page you're on in the sidebar now sits on the same dark background as the Wanheda logo, instead of a lighter tint.
 - The web app now tells the browser exactly which sites it may load scripts, frames and data from, so a page can't be made to run code or send data anywhere else. Video embeds, cover pictures, voices and the reader work as before.
 
 ## [0.7.0] - 2026-11-08
