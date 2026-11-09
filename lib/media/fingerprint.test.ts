@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { FP_EDGE, fingerprintInput, quickFingerprint } from "./fingerprint";
+import { FP_EDGE, fingerprintInput, quickFingerprint, urlReader } from "./fingerprint";
 
 function bytes(n: number, seed = 1): Uint8Array {
   const out = new Uint8Array(n);
@@ -43,5 +43,30 @@ describe("quickFingerprint", () => {
   it("handles small and empty files (head and tail overlap)", async () => {
     expect((await fingerprintInput(blob(bytes(10)))).length).toBe(8 + 10 + 10);
     expect(await quickFingerprint(blob(new Uint8Array(0)))).toMatch(/^[0-9a-f]{64}$/);
+  });
+});
+
+describe("urlReader", () => {
+  // A fake server over a Blob that honours one Range header, or ignores it.
+  const serve =
+    (b: Blob, honour: boolean): typeof fetch =>
+    (_url: RequestInfo | URL, init?: RequestInit) => {
+      const range = new Headers(init?.headers).get("range");
+      const m = /^bytes=(\d+)-(\d+)$/.exec(range ?? "");
+      if (!m || !honour) return Promise.resolve(new Response(b, { status: 200 }));
+      return Promise.resolve(new Response(b.slice(Number(m[1]), Number(m[2]) + 1), { status: 206 }));
+    };
+
+  it("the same fingerprint as the Blob, from two ranges, with or without Range support", async () => {
+    const data = bytes(3 * FP_EDGE + 17);
+    const b = blob(data);
+    const expected = await quickFingerprint(b);
+    expect(await quickFingerprint(urlReader("wanheda-file://x/a.mp4", b.size, serve(b, true)))).toBe(expected);
+    expect(await quickFingerprint(urlReader("wanheda-file://x/a.mp4", b.size, serve(b, false)))).toBe(expected);
+  });
+
+  it("a missing file fails", async () => {
+    const gone: typeof fetch = () => Promise.resolve(new Response("Not found", { status: 404 }));
+    await expect(quickFingerprint(urlReader("wanheda-file://x/a.mp4", 10, gone))).rejects.toThrow();
   });
 });

@@ -142,14 +142,14 @@ async function make(item: MediaItem): Promise<void> {
   if (pending.has(item.fp) || (await opfsImageUrl(THUMBS_DIR, key))) return;
   if (item.source === "local") {
     const found = await locate(item.fp);
-    if (found.kind !== "file") {
+    if (found.kind !== "file" && found.kind !== "native") {
       notLocated.add(item.fp);
       return;
     }
     const { MediaEngine } = await import("@/lib/platform/media");
     const engine = new MediaEngine();
     try {
-      await engine.open(found.file);
+      await engine.open(found.kind === "file" ? found.file : { url: found.file.url, size: found.file.size });
       const blob = await engine.thumb();
       if (blob) await writeOpfsImage(THUMBS_DIR, key, blob);
       else failed.add(item.fp);

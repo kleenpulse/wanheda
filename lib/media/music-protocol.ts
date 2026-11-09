@@ -8,7 +8,14 @@ export const COVERS_DIR = "wanheda-covers";
 export type ScanSource =
   | { kind: "dir"; handle: FileSystemDirectoryHandle }
   /** A plain `<input webkitdirectory>` pick (no FSA): this tab only. */
-  | { kind: "files"; files: File[] };
+  | { kind: "files"; files: File[] }
+  /**
+   * The desktop app's native music folder (V72): the shell lists it, and each
+   * file is read through its `wanheda-file:` URL. `complete` is false when the
+   * listing missed something (an unreadable folder, a drive gone): nothing is
+   * pruned then.
+   */
+  | { kind: "native"; rootId: string; files: Stamped[]; complete: boolean };
 
 /** A file as last seen: path, size, mtime. */
 export type Stamped = [path: string, size: number, lastModified: number];

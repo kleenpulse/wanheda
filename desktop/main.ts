@@ -1,12 +1,14 @@
-import { app, BrowserWindow, dialog, globalShortcut, ipcMain, type IpcMainEvent, type IpcMainInvokeEvent, Menu, type MessageBoxOptions, type MessageBoxReturnValue, nativeTheme, Notification, screen, session, shell, type MenuItemConstructorOptions, type Session, type WebContents } from "electron";
+import { app, BrowserWindow, dialog, globalShortcut, ipcMain, protocol, type IpcMainEvent, type IpcMainInvokeEvent, Menu, type MessageBoxOptions, type MessageBoxReturnValue, nativeTheme, Notification, screen, session, shell, type MenuItemConstructorOptions, type Session, type WebContents } from "electron";
 import { randomBytes } from "node:crypto";
 import { readFileSync, statSync } from "node:fs";
-import { join } from "node:path";
-import { CAPTURE_PATH, canTakeCommand, CHANNELS, needsLoad, openPath, parseAudible, parseCaptureText, parseDesktopChange, parseNotice, parseSecretsAction, trustedSender, type Command, type DesktopNotice, type DesktopSetResult, type DesktopState, type ShortcutStatus } from "./bridge";
+import { basename, join } from "node:path";
+import { CAPTURE_PATH, canTakeCommand, CHANNELS, needsLoad, openPath, parseAudible, parseRootKind, parseCaptureText, parseDesktopChange, parseNotice, parseSecretsAction, trustedSender, type Command, type DesktopNotice, type DesktopSetResult, type DesktopState, type ShortcutStatus } from "./bridge";
 import { MAX_ENV_FILE, parseEnvFile, type Imported } from "./env-file";
 import { serverEnv } from "./env";
 import { hasTray, onAllWindowsClosed, onWindowClose, showTrayHint, type Lifecycle } from "./lifecycle";
 import { linkArg, linkPath, WANHEDA_SCHEME } from "./links";
+import { FILE_SCHEME, isRootId, MAX_ROOTS, newRootId, type Root } from "./files";
+import { listRoot, loadRoots, saveRoots, serveFile, watchRoot } from "./files-io";
 import { EMPTY_SNAPSHOT, ISLAND_PATH, ISLAND_SIZE, islandPosition, overIsland, parseIslandCommand, parseIslandReport, parseIslandSnapshot, shouldShowIsland, type IslandReport, type IslandSnapshot } from "./island";
 import { createLog } from "./log";
 import { classifyAuthUrl, classifyUrl, navigationStep, permissionAllowed } from "./policy";
@@ -91,6 +93,9 @@ function boot(): void {
   let islandFloating = false;
   let islandHover = false;
   let islandTimer: ReturnType<typeof setInterval> | null = null;
+  /** Native music and video folders (V72): picked in a dialog, kept here, read through `wanheda-file:`. */
+  let roots: Root[] = loadRoots(userData);
+  const rootWatches = new Map<string, () => void>();
   // GitHub sign-in's own window (no preload), and the contents it owns.
   let authWindow: BrowserWindow | null = null;
   const authContents = new Set<number>();
@@ -112,6 +117,34 @@ function boot(): void {
 
   // Notifications are kept until clicked or closed: one that's garbage collected loses its click.
   const notices = new Set<Notification>();
+
+  // Before ready: `wanheda-file:` serves the picked folders with Range (seeking) to the app's
+  // pages, fetchable from workers. Every request goes through serveFile's checks (V72).
+  protocol.registerSchemesAsPrivileged([
+    { scheme: FILE_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, corsEnabled: true } },
+  ]);
+
+  ipcMain.handle(CHANNELS.filesRoots, (event): Root[] => {
+    if (!fromWindow(event, mainWindow)) throw new Error("Not allowed.");
+    return roots;
+  });
+  ipcMain.handle(CHANNELS.filesPick, async (event, payload: unknown): Promise<Root | null> => {
+    if (!fromWindow(event, mainWindow)) throw new Error("Not allowed.");
+    const kind = parseRootKind(payload);
+    if (!kind) throw new Error("Not a folder kind.");
+    return pickRoot(kind);
+  });
+  ipcMain.handle(CHANNELS.filesList, async (event, payload: unknown) => {
+    if (!fromWindow(event, mainWindow)) throw new Error("Not allowed.");
+    const root = isRootId(payload) ? roots.find((r) => r.id === payload) : undefined;
+    if (!root) throw new Error("Not a picked folder.");
+    return listRoot(root);
+  });
+  ipcMain.handle(CHANNELS.filesForget, (event, payload: unknown): void => {
+    if (!fromWindow(event, mainWindow)) throw new Error("Not allowed.");
+    if (!isRootId(payload)) throw new Error("Not a picked folder.");
+    setRoots(roots.filter((r) => r.id !== payload));
+  });
 
   // The bridge (V67): each handler checks the sender (the window it expects,
   // its top frame, the app's origin), then parses what it was sent.
@@ -256,6 +289,8 @@ function boot(): void {
       });
     }
     hardenSession(session.defaultSession);
+    session.defaultSession.protocol.handle(FILE_SCHEME, (request) => serveFile(request, roots, appOrigin));
+    for (const root of roots) watch(root);
     const win = createWindow();
     // The first-run question attaches to the splash window, so wait for it to show.
     await new Promise<void>((resolve) => {
@@ -838,6 +873,64 @@ function boot(): void {
       if (!win || win.isDestroyed() || win.isVisible()) continue;
       if (needsLoad(win.webContents.getURL(), appOrigin, path)) void win.loadURL(`${appOrigin}${path}`);
     }
+  }
+
+  /**
+   * The music folder (one, replaced) or a videos folder (added; the same
+   * folder again is the same root). Null when the dialog was closed.
+   */
+  async function pickRoot(kind: Root["kind"]): Promise<Root | null> {
+    const parent = shownWindow();
+    const options = { title: kind === "music" ? "Choose your music folder" : "Choose a folder of videos", properties: ["openDirectory", "dontAddToRecent"] as ("openDirectory" | "dontAddToRecent")[] };
+    const picked = parent ? await dialog.showOpenDialog(parent, options) : await dialog.showOpenDialog(options);
+    const path = picked.filePaths[0];
+    if (picked.canceled || !path) return null;
+    const same = roots.find((r) => r.kind === kind && r.path.toLowerCase() === path.toLowerCase());
+    if (same) return same;
+    const root: Root = { id: newRootId(), kind, path, name: basename(path) || path };
+    const kept = kind === "music" ? roots.filter((r) => r.kind !== "music") : roots;
+    const ofKind = kept.filter((r) => r.kind === kind);
+    // The oldest videos folder goes when there are too many, and the owner is told which.
+    const dropped = ofKind.length >= MAX_ROOTS ? ofKind[0] : undefined;
+    setRoots([...kept.filter((r) => r !== dropped), root]);
+    if (dropped) {
+      void showBox({
+        type: "info",
+        title: "Wanheda",
+        message: `Wanheda now plays videos from ${String(MAX_ROOTS)} folders at most, so it let go of "${dropped.name}".`,
+        detail: "Its videos stay in your list; open that folder again to play them.",
+        buttons: ["OK"],
+      });
+    }
+    return root;
+  }
+
+  /** Saves the roots and keeps one watch per root. */
+  function setRoots(next: Root[]): void {
+    roots = next;
+    try {
+      saveRoots(userData, roots);
+    } catch (err) {
+      log.info(`couldn't save the folders: ${errText(err)}`);
+    }
+    for (const [id, stop] of rootWatches) {
+      if (roots.some((r) => r.id === id)) continue;
+      stop();
+      rootWatches.delete(id);
+    }
+    for (const root of roots) watch(root);
+  }
+
+  /** Changes on disk, settled, tell the page to catch its index up (V72). */
+  function watch(root: Root): void {
+    if (rootWatches.has(root.id)) return;
+    rootWatches.set(
+      root.id,
+      watchRoot(root, () => {
+        const win = mainWindow;
+        if (win && !win.isDestroyed()) win.webContents.send(CHANNELS.filesChanged, root.id);
+      }),
+    );
   }
 
   /** Shows or hides the island for the main window's state, the setting and what's live. */

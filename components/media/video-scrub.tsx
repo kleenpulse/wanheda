@@ -46,9 +46,12 @@ class FramePreview {
   at(t: number): boolean {
     const src = this.el.currentSrc;
     const box = this.box.current;
-    if (!src.startsWith("blob:") || this.el.srcObject || !box) return false;
+    // A picked file's object URL, or a native folder file's own URL (desktop, V72): both are local reads.
+    const native = src.startsWith("wanheda-file:");
+    if ((!src.startsWith("blob:") && !native) || this.el.srcObject || !box) return false;
     if (!this.video) {
       const video = document.createElement("video");
+      if (native) video.crossOrigin = "anonymous";
       video.muted = true;
       video.preload = "auto";
       video.playsInline = true;

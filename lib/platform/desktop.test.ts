@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { acceleratorFromKey, acceleratorKeys, desktopBridge, desktopNotice, isAppPath, isDesktop, isDesktopCommand } from "./desktop";
+import { acceleratorFromKey, acceleratorKeys, desktopBridge, desktopFileUrl, desktopNotice, isAppPath, isDesktop, isDesktopCommand } from "./desktop";
 
 describe("desktopBridge", () => {
   afterEach(() => vi.unstubAllGlobals());
@@ -80,5 +80,11 @@ describe("isDesktopCommand", () => {
     for (const bad of [null, "palette", { kind: "media", action: "eject" }, { kind: "capture", text: " " }, { kind: "capture" }, { kind: "quit" }]) {
       expect(isDesktopCommand(bad), JSON.stringify(bad)).toBe(false);
     }
+  });
+});
+
+describe("desktopFileUrl", () => {
+  test("encodes each segment like the shell's fileUrl", () => {
+    expect(desktopFileUrl("0123456789abcdef0123456789abcdef", "Album/AC#DC 100%/01?.mp3")).toBe("wanheda-file://0123456789abcdef0123456789abcdef/Album/AC%23DC%20100%25/01%3F.mp3");
   });
 });

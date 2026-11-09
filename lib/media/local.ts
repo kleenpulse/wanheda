@@ -5,10 +5,20 @@
 // <input> is only known to this tab.
 
 import Dexie, { type EntityTable } from "dexie";
+import { desktopFileUrl, desktopFiles, type DesktopRoot } from "@/lib/platform/desktop";
 import type { Track } from "./library";
 import type { TrackStat } from "./stats";
 
 type HandleRow = { fp: string; handle: FileSystemFileHandle; name: string; size: number };
+
+/**
+ * A file in one of the desktop app's native folders (V72), read through its
+ * `wanheda-file:` URL with Range requests: never copied, never read whole.
+ */
+export type NativeFile = { url: string; name: string; size: number; type: string; rootId: string; path: string };
+
+/** Where a native file is, by fp: the desktop's answer to a kept handle, with no permission to lose. */
+type NativeRow = { fp: string; rootId: string; path: string; name: string; size: number };
 
 /** Where an item was left on this device (V55). `pending` = 1 until the server has it. */
 export type ProgressRow = { itemId: string; positionS: number; watched: boolean; at: number; pending: 0 | 1 };
@@ -26,6 +36,7 @@ type MediaDb = Dexie & {
   folders: EntityTable<FolderRow, "key">;
   skipped: EntityTable<SkippedRow, "path">;
   trackStats: EntityTable<TrackStat, "path">;
+  nativeFiles: EntityTable<NativeRow, "fp">;
 };
 
 let dbPromise: Promise<MediaDb | null> | null = null;
@@ -41,6 +52,8 @@ export function db(): Promise<MediaDb | null> {
     d.version(4).stores({ handles: "fp", progress: "itemId, pending", tracks: "path", folders: "key", skipped: "path" });
     // Play history (V66): per device, like the index it counts.
     d.version(5).stores({ handles: "fp", progress: "itemId, pending", tracks: "path", folders: "key", skipped: "path", trackStats: "path, lastPlayedAt" });
+    // The desktop app's native video files (V72), by fp.
+    d.version(6).stores({ handles: "fp", progress: "itemId, pending", tracks: "path", folders: "key", skipped: "path", trackStats: "path, lastPlayedAt", nativeFiles: "fp" });
     await d.open();
     return d;
   })().catch(() => null);
@@ -59,6 +72,37 @@ export function forgetFile(fp: string): void {
   void db().then((d) => d?.handles.delete(fp));
 }
 
+const VIDEO_TYPES: Readonly<Record<string, string>> = {
+  mp4: "video/mp4",
+  m4v: "video/mp4",
+  mkv: "video/x-matroska",
+  webm: "video/webm",
+  mov: "video/quicktime",
+  ts: "video/mp2t",
+  m2ts: "video/mp2t",
+  mts: "video/mp2t",
+  ogv: "video/ogg",
+  avi: "video/x-msvideo",
+};
+
+/** A native folder file by its root and path in it. */
+export function nativeFile(rootId: string, path: string, size: number): NativeFile {
+  const name = path.slice(path.lastIndexOf("/") + 1);
+  const ext = name.slice(name.lastIndexOf(".") + 1).toLowerCase();
+  return { url: desktopFileUrl(rootId, path), name, size, type: VIDEO_TYPES[ext] ?? "", rootId, path };
+}
+
+/** This tab's native files by fp. */
+const sessionNative = new Map<string, NativeFile>();
+
+/** Remembers where a native file is: in this tab always, on the device unless it's demo (which writes nothing). */
+export async function keepNative(fp: string, file: NativeFile, persist: boolean): Promise<void> {
+  sessionNative.set(fp, file);
+  if (!persist) return;
+  const d = await db();
+  await d?.nativeFiles.put({ fp, rootId: file.rootId, path: file.path, name: file.name, size: file.size }).catch(() => undefined);
+}
+
 export async function keepHandle(fp: string, handle: FileSystemFileHandle, file: File): Promise<void> {
   const d = await db();
   await d?.handles.put({ fp, handle, name: file.name, size: file.size }).catch(() => undefined);
@@ -66,6 +110,8 @@ export async function keepHandle(fp: string, handle: FileSystemFileHandle, file:
 
 export type Located =
   | { kind: "file"; file: File }
+  /** In one of the desktop app's native folders (V72): played from its URL. */
+  | { kind: "native"; file: NativeFile }
   /** A handle is kept but needs a click to grant read permission again. */
   | { kind: "permission"; name: string }
   | { kind: "missing" };
@@ -79,6 +125,8 @@ type PermissionHandle = FileSystemFileHandle & {
 export async function locate(fp: string): Promise<Located> {
   const inTab = sessionFiles.get(fp);
   if (inTab) return { kind: "file", file: inTab };
+  const native = sessionNative.get(fp) ?? (await nativeRow(fp));
+  if (native) return (await reachable(native)) ? { kind: "native", file: native } : { kind: "missing" };
   const row = await (await db())?.handles.get(fp).catch(() => undefined);
   if (!row) return { kind: "missing" };
   const h = row.handle as PermissionHandle;
@@ -92,6 +140,26 @@ export async function locate(fp: string): Promise<Located> {
     // Moved or deleted since: the handle is stale.
     return { kind: "missing" };
   }
+}
+
+async function nativeRow(fp: string): Promise<NativeFile | null> {
+  if (!desktopFiles()) return null;
+  const row = await (await db())?.nativeFiles.get(fp).catch(() => undefined);
+  return row ? nativeFile(row.rootId, row.path, row.size) : null;
+}
+
+/** Whether a native file is still there (a drive unplugged, a file moved or deleted: not). */
+async function reachable(file: NativeFile): Promise<boolean> {
+  const res = await fetch(file.url, { method: "HEAD" }).catch(() => null);
+  return res?.ok === true;
+}
+
+/** Every video in a native videos folder (the shell lists it), in name order, at most FOLDER_MAX. */
+export async function videosInNative(root: DesktopRoot): Promise<FolderVideo[]> {
+  const files = desktopFiles();
+  if (!files) return [];
+  const { files: listed } = await files.list(root.id);
+  return orderFolderVideos(listed.filter((f) => isVideoName(f.path)).map((f) => ({ path: f.path, file: nativeFile(root.id, f.path, f.size), handle: null })));
 }
 
 /** Asks again for a kept handle (needs a click). */
@@ -139,7 +207,7 @@ export const FOLDER_MAX = 500;
 const WALK_MAX = 5000;
 
 /** A video found in a picked folder: its path inside it, and its handle when File System Access gave one. */
-export type FolderVideo = { path: string; file: File; handle: FileSystemFileHandle | null };
+export type FolderVideo = { path: string; file: File | NativeFile; handle: FileSystemFileHandle | null };
 
 const byPath = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
 

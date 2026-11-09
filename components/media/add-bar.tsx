@@ -3,8 +3,9 @@
 import * as React from "react";
 import { FileVideo, FolderOpen, Plus, TriangleAlert } from "lucide-react";
 import { buttonClass } from "@/components/ui/button";
+import { desktopFiles } from "@/lib/platform/desktop";
 import { toast } from "@/components/ui/toaster";
-import { fsaFolderPicker, videosInFiles, videosInFolder, type FolderVideo } from "@/lib/media/local";
+import { fsaFolderPicker, videosInFiles, videosInFolder, type FolderVideo, videosInNative } from "@/lib/media/local";
 import type { MediaItem } from "@/lib/media/types";
 import { preloadSurface } from "./stage";
 import { useFilePick } from "./use-file-pick";
@@ -71,6 +72,15 @@ export function AddBar({ onAdded }: { onAdded: (item: MediaItem) => void }) {
   };
 
   const openFolder = () => {
+    // The desktop app picks and keeps the folder itself (V72): no permission to lose, nothing read whole.
+    const files = desktopFiles();
+    if (files) {
+      void files.pick("video").then(
+        (root) => (root ? addVideos(root.name, () => videosInNative(root)) : undefined),
+        () => undefined,
+      );
+      return;
+    }
     const picker = fsaFolderPicker();
     if (!picker) {
       folderRef.current?.click();

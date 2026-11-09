@@ -30,6 +30,10 @@ export type DesktopState = {
   secrets: { mode: "own" | "demo"; names: number };
 };
 
+export type DesktopRootKind = "music" | "video";
+export type DesktopRoot = { id: string; kind: DesktopRootKind; path: string; name: string };
+export type DesktopListedFile = { path: string; size: number; mtimeMs: number };
+
 export type DesktopChange = { keepRunning: boolean } | { island: boolean } | { shortcut: DesktopShortcutId; accelerator: string | null };
 
 export type WanhedaDesktop = {
@@ -60,6 +64,16 @@ export type WanhedaDesktop = {
     onHover(callback: (over: boolean) => void): () => void;
     report(report: { content: boolean; rect: { x: number; y: number; width: number; height: number } | null }): void;
     command(command: IslandCommand): void;
+  };
+  /** Native music and video folders (V72): picked in the shell's dialog, read through `wanheda-file:` URLs. */
+  files: {
+    roots(): Promise<DesktopRoot[]>;
+    /** Null when the dialog was closed. */
+    pick(kind: DesktopRootKind): Promise<DesktopRoot | null>;
+    /** `complete` is false when a folder couldn't be read (or the drive is gone): nothing should be pruned then. */
+    list(rootId: string): Promise<{ files: DesktopListedFile[]; complete: boolean }>;
+    forget(rootId: string): Promise<void>;
+    onChanged(callback: (rootId: string) => void): () => void;
   };
   /** Quick capture's own window only; elsewhere the shell ignores it. */
   capture: {
@@ -185,4 +199,14 @@ function isIslandPageCommand(value: unknown): boolean {
   if (c.kind === "music") return c.action === "toggle" || c.action === "next" || c.action === "previous";
   if (c.kind === "speech") return c.action === "toggle" || c.action === "stop";
   return c.kind === "dismiss" && typeof c.noticeId === "string" && c.noticeId !== "";
+}
+
+/** A native folder file's URL (desktop/files.ts `fileUrl`): each path segment encoded. */
+export function desktopFileUrl(rootId: string, relPath: string): string {
+  return `wanheda-file://${rootId}/${relPath.split("/").map(encodeURIComponent).join("/")}`;
+}
+
+/** The desktop app's files bridge, or null on the web. */
+export function desktopFiles(): WanhedaDesktop["files"] | null {
+  return desktopBridge()?.files ?? null;
 }

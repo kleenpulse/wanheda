@@ -9,9 +9,9 @@
 //   an OffscreenCanvas, sent back as an image for the library's cards (T72).
 // Nothing remuxed is stored.
 
-import { ALL_FORMATS, BlobSource, CanvasSink, Conversion, EncodedPacketSink, Input, Mp4OutputFormat, Output, StreamTarget, type InputTrack, type StreamTargetChunk } from "mediabunny";
+import { ALL_FORMATS, BlobSource, CanvasSink, Conversion, EncodedPacketSink, Input, Mp4OutputFormat, Output, StreamTarget, UrlSource, type InputTrack, type StreamTargetChunk } from "mediabunny";
 import { AHEAD_S, BEHIND_S, type EngineRequest, type EngineResponse } from "./engine-protocol";
-import { quickFingerprint } from "./fingerprint";
+import { quickFingerprint, urlReader } from "./fingerprint";
 import { JobSlot, needsRestart, rangeAt, restartFrom, toRanges, type Range, type RemuxJob } from "./remux-plan";
 import type { Probe, ProbeTrack } from "./ladder";
 
@@ -59,12 +59,16 @@ async function probeTracks(): Promise<ProbeTrack[]> {
   return out;
 }
 
-async function open(file: File): Promise<void> {
-  const fpTask = quickFingerprint(file);
+/** A URL source gives up after two tries: a missing native file mustn't retry forever. */
+const URL_RETRY = (attempts: number) => (attempts < 2 ? 0.5 : null);
+
+async function open(file: File | { url: string; size: number }): Promise<void> {
+  const isUrl = !(file instanceof File);
+  const fpTask = quickFingerprint(isUrl ? urlReader(file.url, file.size) : file);
   let probe: Probe | null = null;
   let probeError: string | null = null;
   try {
-    input = new Input({ source: new BlobSource(file), formats: ALL_FORMATS });
+    input = new Input({ source: isUrl ? new UrlSource(file.url, { getRetryDelay: URL_RETRY }) : new BlobSource(file), formats: ALL_FORMATS });
     const format = await input.getFormat();
     tracks = await input.getTracks();
     durationS = (await input.getDurationFromMetadata().catch(() => null)) ?? (await input.computeDuration().catch(() => null));
@@ -305,6 +309,9 @@ scope.onmessage = (event) => {
   switch (m.type) {
     case "open":
       void open(m.file);
+      break;
+    case "open-url":
+      void open({ url: m.url, size: m.size });
       break;
     case "remux":
       void remux(m.video, m.audio);
