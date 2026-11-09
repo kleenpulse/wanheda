@@ -677,6 +677,15 @@
 	body {
 		@apply bg-background text-foreground;
 		height: 100%;
+		/* The desktop title bar sits over this (components/shell/title-bar.tsx). */
+		padding-top: var(--tb);
+	}
+	/* The desktop main window's title bar: the height of Windows' caption-button
+	   overlay, 0 on the web and in every other window. --app-h is the window
+	   below it; use it, and top-(--tb), wherever a page would use 100svh or top-0. */
+	:root {
+		--tb: env(titlebar-area-height, 0px);
+		--app-h: calc(100svh - var(--tb));
 	}
 	::selection { background: color-mix(in oklab, var(--signal) 30%, transparent); }
 	:focus-visible { outline-offset: 2px; }

@@ -162,7 +162,7 @@ const FILL_VIEW =
  * 25rem = the header and tabs above the stage, the title and bar below it, and the dock clearance;
  * 24rem is a floor for the frame's own minimum height.
  */
-const FILL_STAGE = "lg:max-w-[max(24rem,calc((100svh-25rem)*16/9))]";
+const FILL_STAGE = "lg:max-w-[max(24rem,calc((var(--app-h)-25rem)*16/9))]";
 /** If it still doesn't fit (a very short window), the column scrolls rather than run under the dock. */
 const FILL_PLAYER = "lg:-mx-1 lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain lg:px-1 lg:pb-[calc(76px+2rem)]";
 const FILL_LIST = "lg:min-h-40 lg:flex-1 lg:overflow-y-auto lg:overscroll-contain lg:scroll-fade lg:pb-[calc(76px+2rem)]";

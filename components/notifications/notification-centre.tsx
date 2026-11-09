@@ -51,7 +51,7 @@ export function NotificationCentre() {
         <Dialog.Popup
           finalFocus={bellOrDefault}
           className={cn(
-            "glass-window fixed top-3 right-3 bottom-3 z-50 flex w-[min(400px,calc(100vw-1.5rem))] flex-col rounded-card shadow-lift outline-none",
+            "glass-window fixed top-[calc(var(--tb)+0.75rem)] right-3 bottom-3 z-50 flex w-[min(400px,calc(100vw-1.5rem))] flex-col rounded-card shadow-lift outline-none",
             "transition-[opacity,translate] duration-200 ease-out-quint data-ending-style:translate-x-4 data-ending-style:opacity-0 data-starting-style:translate-x-4 data-starting-style:opacity-0 motion-reduce:translate-x-0",
           )}
         >

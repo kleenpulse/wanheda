@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron";
-import { CHANNELS, type Command, type DesktopChange, type DesktopNotice, type DesktopSetResult, type DesktopState, type SecretsAction } from "./bridge";
+import { CHANNELS, type Command, type DesktopChange, type DesktopNotice, type DesktopSetResult, type DesktopState, type MenuAnchor, type SecretsAction, type TitleBarColors } from "./bridge";
 import type { ListedFile, Root, RootKind } from "./files";
 import type { IslandCommand, IslandReport, IslandSnapshot } from "./island";
 
@@ -82,6 +82,14 @@ contextBridge.exposeInMainWorld("wanheda", {
     save: (text: string): Promise<boolean> => ipcRenderer.invoke(CHANNELS.capture, text),
     close(): void {
       ipcRenderer.send(CHANNELS.captureClose);
+    },
+  },
+  titleBar: {
+    colors(colors: TitleBarColors): void {
+      ipcRenderer.send(CHANNELS.titleBarColors, colors);
+    },
+    menu(anchor: MenuAnchor): void {
+      ipcRenderer.send(CHANNELS.titleBarMenu, anchor);
     },
   },
 });

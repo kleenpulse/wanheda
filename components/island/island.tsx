@@ -73,7 +73,7 @@ export function Island() {
 
   if (!ready || activities.length === 0 || floating) return null;
   return (
-    <div className="pointer-events-none fixed inset-x-0 top-2 z-40 md:left-(--rail-w)">
+    <div className="pointer-events-none fixed inset-x-0 top-[calc(var(--tb)+0.5rem)] z-40 md:left-(--rail-w)">
       <LiveActivity activities={activities} show={show} showKey={showKey} />
     </div>
   );

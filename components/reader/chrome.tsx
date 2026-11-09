@@ -47,7 +47,7 @@ export const Stage = React.forwardRef<
       {...rest}
       aria-busy={busy || undefined}
       aria-label={busy ? "Opening" : undefined}
-      className={cn("relative flex flex-col overflow-hidden bg-stage text-stage-ink", full ? "h-svh w-full" : STAGE_BOX, className)}
+      className={cn("relative flex flex-col overflow-hidden bg-stage text-stage-ink", full ? "h-(--app-h) w-full" : STAGE_BOX, className)}
     >
       {children}
     </div>

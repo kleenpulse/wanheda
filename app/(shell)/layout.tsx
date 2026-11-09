@@ -67,13 +67,13 @@ async function OwnerShell({ children }: { children: React.ReactNode }) {
 function ShellFallback() {
   return (
     <div
-      className="relative flex min-h-svh w-full shrink-0 [--rail-w:0px] md:[--rail-w:84px] md:[html[data-rail=open]_&]:[--rail-w:232px]"
+      className="relative flex min-h-(--app-h) w-full shrink-0 [--rail-w:0px] md:[--rail-w:84px] md:[html[data-rail=open]_&]:[--rail-w:232px]"
       aria-busy
     >
       <div
         aria-hidden
         data-rail-skeleton
-        className="sticky top-0 hidden h-svh w-[84px] shrink-0 bg-band px-5 py-5 md:block dark:border-r dark:border-rail-border [html[data-rail=open]_&]:w-[232px]"
+        className="sticky top-(--tb) hidden h-(--app-h) w-[84px] shrink-0 bg-band px-5 py-5 md:block dark:border-r dark:border-rail-border [html[data-rail=open]_&]:w-[232px]"
       >
         <div className="size-11 rounded-full bg-card-nested" />
       </div>

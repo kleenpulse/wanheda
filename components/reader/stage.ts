@@ -5,4 +5,4 @@
  * Phones get more room: their page header wraps taller.
  * The loading shell and the reader share it, so nothing jumps on open.
  */
-export const STAGE_BOX = "h-[calc(100svh-20.75rem)] min-h-[420px] rounded-card md:h-[calc(100svh-18.5rem)]";
+export const STAGE_BOX = "h-[calc(var(--app-h)-20.75rem)] min-h-[420px] rounded-card md:h-[calc(var(--app-h)-18.5rem)]";

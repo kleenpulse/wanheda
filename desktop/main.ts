@@ -2,7 +2,7 @@ import { app, BrowserWindow, dialog, globalShortcut, ipcMain, protocol, type Ipc
 import { randomBytes } from "node:crypto";
 import { readFileSync, statSync } from "node:fs";
 import { basename, join } from "node:path";
-import { CAPTURE_PATH, canTakeCommand, CHANNELS, needsLoad, openPath, parseAudible, parseRootKind, parseTtsInstall, parseCaptureText, parseDesktopChange, parseNotice, parseSecretsAction, trustedSender, type Command, type DesktopNotice, type DesktopSetResult, type DesktopState, type ShortcutStatus } from "./bridge";
+import { CAPTURE_PATH, canTakeCommand, CHANNELS, needsLoad, openPath, parseAudible, parseMenuAnchor, parseRootKind, parseTitleBarColors, parseTtsInstall, parseCaptureText, parseDesktopChange, parseNotice, parseSecretsAction, trustedSender, type Command, type DesktopNotice, type DesktopSetResult, type DesktopState, type ShortcutStatus, type TitleBarColors } from "./bridge";
 import { MAX_ENV_FILE, parseEnvFile, type Imported } from "./env-file";
 import { serverEnv } from "./env";
 import { hasTray, onAllWindowsClosed, onWindowClose, showTrayHint, type Lifecycle } from "./lifecycle";
@@ -13,6 +13,7 @@ import { createSpeech } from "./tts";
 import { isVoiceId, parseSynthRequest } from "./tts-model";
 import { EMPTY_SNAPSHOT, ISLAND_PATH, ISLAND_SIZE, islandPosition, overIsland, parseIslandCommand, parseIslandReport, parseIslandSnapshot, shouldShowIsland, type IslandReport, type IslandSnapshot } from "./island";
 import { createLog } from "./log";
+import { menuKey, type MenuKey } from "./menu-keys";
 import { CALLBACK_PATH, callbackQuery, signInFrom, type PendingSignIn } from "./oauth";
 import { classifyAuthUrl, classifyUrl, navigationStep, permissionAllowed } from "./policy";
 import { freePort, isPortFree, savePort, savedPort } from "./ports";
@@ -101,6 +102,8 @@ function boot(): void {
   const rootWatches = new Map<string, () => void>();
   /** Native Piper (V73): voices in userData, synthesis in its own utility process. */
   const speech = createSpeech({ userData, speechDir: speechDir(), log });
+  /** The title bar's colours from the main window's page (its skin), kept for a window made again. */
+  let titleBarColors: TitleBarColors | null = null;
   // GitHub sign-in: the one started in the system browser, waiting for GitHub to send it back.
   let pendingSignIn: PendingSignIn | null = null;
   // Dev only: GitHub sign-in's own window (no preload), and the contents it owns.
@@ -178,6 +181,22 @@ function boot(): void {
     if (!fromWindow(event, mainWindow)) return;
     const notice = parseNotice(payload);
     if (notice) showNotice(notice);
+  });
+  ipcMain.on(CHANNELS.titleBarColors, (event, payload: unknown) => {
+    if (!fromWindow(event, mainWindow)) return;
+    const colors = parseTitleBarColors(payload);
+    if (!colors || !mainWindow) return;
+    titleBarColors = colors;
+    mainWindow.setTitleBarOverlay(titleBarOverlay());
+  });
+  ipcMain.on(CHANNELS.titleBarMenu, (event, payload: unknown) => {
+    if (!fromWindow(event, mainWindow)) return;
+    const anchor = parseMenuAnchor(payload);
+    const win = mainWindow;
+    if (!anchor || !win) return;
+    // The page measures in CSS pixels; the menu opens in the window's DIPs.
+    const zoom = win.webContents.getZoomFactor();
+    Menu.getApplicationMenu()?.popup({ window: win, x: Math.round(anchor.x * zoom), y: Math.round(anchor.y * zoom) });
   });
   ipcMain.on(CHANNELS.media, (event, payload: unknown) => {
     if (!fromWindow(event, mainWindow)) return;
@@ -1056,6 +1075,28 @@ function boot(): void {
     return nativeTheme.shouldUseDarkColors ? "#050a0b" : "#f3f3f1";
   }
 
+  /** What the View menu's item does for that key. Zoom steps match Chromium's menu roles (0.5 a step). */
+  function runMenuKey(win: BrowserWindow, key: MenuKey): void {
+    const contents = win.webContents;
+    if (key === "zoomIn") contents.setZoomLevel(Math.min(contents.getZoomLevel() + 0.5, 9));
+    else if (key === "zoomOut") contents.setZoomLevel(Math.max(contents.getZoomLevel() - 0.5, -8));
+    else if (key === "resetZoom") contents.setZoomLevel(0);
+    else if (key === "reload") contents.reload();
+    else if (key === "forceReload") contents.reloadIgnoringCache();
+    else if (key === "toggleDevTools") contents.toggleDevTools();
+    else win.setFullScreen(!win.isFullScreen());
+  }
+
+  /**
+   * Windows' caption buttons over the page's own title bar (components/shell/title-bar.tsx),
+   * the way VS Code does it: the page's colours once it has said them, the splash's until then.
+   */
+  function titleBarOverlay(): { color: string; symbolColor: string; height: number } {
+    const color = titleBarColors?.color ?? background();
+    const symbolColor = titleBarColors?.symbol ?? (nativeTheme.shouldUseDarkColors ? "#9aa3a5" : "#5b5f61");
+    return { color, symbolColor, height: TITLE_BAR_HEIGHT };
+  }
+
   function createWindow(): BrowserWindow {
     const place = placeWindow(loadWindowState(userData), screenAreas());
     const win = new BrowserWindow({
@@ -1069,6 +1110,9 @@ function boot(): void {
       icon: join(app.getAppPath(), "icon.png"),
       backgroundColor: background(),
       autoHideMenuBar: true,
+      // No Windows title bar: the page draws its own, under Windows' caption buttons.
+      titleBarStyle: "hidden",
+      titleBarOverlay: titleBarOverlay(),
       webPreferences: {
         contextIsolation: true,
         nodeIntegration: false,
@@ -1089,6 +1133,13 @@ function boot(): void {
     });
     rememberPlace(win);
     hideOnClose(win);
+    // With no menu bar the app menu's own accelerators don't run (menu-keys.ts).
+    win.webContents.on("before-input-event", (event, input) => {
+      const key = menuKey(input, !app.isPackaged);
+      if (!key) return;
+      event.preventDefault();
+      runMenuKey(win, key);
+    });
     // Windows log-off or shutdown: stop the server cleanly while we still can.
     win.on("session-end", () => {
       sessionEnding = true;
@@ -1378,9 +1429,13 @@ function buildMenu(keepRunning: boolean, actions: MenuActions): Menu {
   return Menu.buildFromTemplate([fileMenu, { role: "editMenu" }, { label: "View", submenu: view }, { role: "windowMenu" }]);
 }
 
+/** The main window's title bar height (the caption buttons' overlay), in DIPs: Windows' own. */
+const TITLE_BAR_HEIGHT = 32;
+
 function splash(color: string): string {
   const ink = color === "#050a0b" ? "#9aa3a5" : "#5b5f61";
+  // The window has no Windows title bar, so the splash's top strip drags it.
   return `data:text/html;charset=utf-8,${encodeURIComponent(
-    `<!doctype html><meta charset="utf-8"><title>Wanheda</title><style>html,body{height:100%;margin:0;background:${color};color:${ink};font:14px system-ui,sans-serif;display:grid;place-items:center}</style><p>Starting Wanheda…</p>`,
+    `<!doctype html><meta charset="utf-8"><title>Wanheda</title><style>html,body{height:100%;margin:0;background:${color};color:${ink};font:14px system-ui,sans-serif;display:grid;place-items:center}i{position:fixed;inset:0 0 auto;height:${TITLE_BAR_HEIGHT}px;app-region:drag}</style><i></i><p>Starting Wanheda…</p>`,
   )}`;
 }

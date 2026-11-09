@@ -103,10 +103,10 @@ export function ShellFrame({
       <ReaderPrefsSync initial={prefs.reader} source={prefs.source}>
       <NotificationsProvider initial={notices.initial} source={notices.source}>
       <div
-        // shrink-0: body is a flex column and min-h-svh replaces min-height:auto,
+        // shrink-0: body is a flex column and min-h-(--app-h) replaces min-height:auto,
         // so without it the frame shrinks to the viewport and the sticky rail
         // scrolls away on any page taller than the screen.
-        className="relative flex min-h-svh w-full shrink-0 [--rail-w:0px] md:[--rail-w:var(--rail-w-md)]"
+        className="relative flex min-h-(--app-h) w-full shrink-0 [--rail-w:0px] md:[--rail-w:var(--rail-w-md)]"
         style={{ ["--rail-w-md" as string]: `${railW}px` }}
       >
         <NavRail expanded={expanded} onToggle={toggle} className="hidden md:flex" />

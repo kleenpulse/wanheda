@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { canTakeCommand, MAX_CAPTURE, MAX_NOTICE_BODY, MAX_NOTICE_TITLE, MAX_VALUE, openPath, parseAudible, parseCaptureText, parseDesktopChange, parseNotice, parseRootKind, parseSecretsAction, parseTtsInstall, needsLoad, trustedSender } from "./bridge";
+import { canTakeCommand, MAX_CAPTURE, MAX_NOTICE_BODY, MAX_NOTICE_TITLE, MAX_VALUE, openPath, parseAudible, parseCaptureText, parseDesktopChange, parseMenuAnchor, parseNotice, parseRootKind, parseSecretsAction, parseTitleBarColors, parseTtsInstall, needsLoad, trustedSender } from "./bridge";
 
 describe("openPath", () => {
   test("takes allowlisted pages and their keys", () => {
@@ -134,5 +134,29 @@ describe("canTakeCommand", () => {
     expect(canTakeCommand({ onApp: true, loading: false, ready: false })).toBe(false);
     expect(canTakeCommand({ onApp: true, loading: true, ready: true })).toBe(false);
     expect(canTakeCommand({ onApp: false, loading: false, ready: true })).toBe(false);
+  });
+});
+
+describe("parseTitleBarColors", () => {
+  test("two #rrggbb colours, lower-cased", () => {
+    expect(parseTitleBarColors({ color: "#050A0B", symbol: "#9aa3a5" })).toEqual({ color: "#050a0b", symbol: "#9aa3a5" });
+  });
+
+  test("anything else is dropped", () => {
+    for (const bad of [null, "x", { color: "#050a0b" }, { color: "red", symbol: "#ffffff" }, { color: "#fff", symbol: "#ffffff" }, { color: "#05050505", symbol: "#ffffff" }, { color: "rgb(0,0,0)", symbol: "#ffffff" }]) {
+      expect(parseTitleBarColors(bad), JSON.stringify(bad)).toBeNull();
+    }
+  });
+});
+
+describe("parseMenuAnchor", () => {
+  test("a point in the window, rounded", () => {
+    expect(parseMenuAnchor({ x: 4.4, y: 32 })).toEqual({ x: 4, y: 32 });
+  });
+
+  test("anything else is dropped", () => {
+    for (const bad of [null, { x: 1 }, { x: -1, y: 0 }, { x: 0, y: Number.NaN }, { x: 0, y: 1e9 }, { x: "1", y: 1 }]) {
+      expect(parseMenuAnchor(bad), JSON.stringify(bad)).toBeNull();
+    }
   });
 });
