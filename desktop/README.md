@@ -52,6 +52,13 @@ Desktop sign-in needs its own GitHub OAuth app ("Wanheda Desktop", an owner acti
 - **Floating island** (V70, T77): a transparent window at the top centre of the main window's display, shown while the main window is hidden, minimised or unfocused and there's something live. The main window's page publishes a snapshot (music, read-aloud, transfers, alerts; `lib/island/snapshot.ts`), at most 4 times a second; timers reach the island through the shared activity store, like a second tab. Main checks the snapshot (`island.ts`) and hands it to the island window, whose buttons come back as commands (music, speech, dismiss, open). The window ignores the mouse except while main's 30 Hz cursor check finds the cursor over the island's rectangle (reported by the island page). Meanwhile the page's own island steps aside.
 - **Settings → Desktop** (desktop only): keep running, the floating island, the shortcuts, and importing the `.env` file again or going back to demo mode (main's own dialogs confirm).
 
+## Native folders (T78, V72)
+
+- Music and video folders are picked in the shell's own dialog (`files.pick`). Main keeps them in `roots.json` with a 128-bit random id each; the page only ever gets the id, the name and the path to show.
+- The page reads files only through `wanheda-file://<root id>/<path>` (`files.ts`, `files-io.ts`). Main answers GET and HEAD with one byte range at most (so video seeks) and CORS for the app origin only; another origin gets a 404. Every request's real path (symlinks and junctions resolved) must be a plain file inside the root's real path, and a UNC path only counts when the root is one.
+- The music scan lists the folder through main and reads each song through its URL; a listing that missed something (an unreadable folder, a drive gone) prunes nothing. Videos are fingerprinted from two ranges and played straight from the URL; where each one is, by fp, is kept on the device.
+- Each folder is watched (`fs.watch`, recursive); once changes settle for 1.5 s, the page catches its index up.
+
 ## Security model (V67)
 
 - Every window is sandboxed and context-isolated, with no Node.js and no webviews. DevTools are off in the installed app.

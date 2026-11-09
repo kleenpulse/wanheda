@@ -45,6 +45,16 @@ export const CHANNELS = {
   islandHover: "wanheda:island-hover",
   /** island window → main: a button (`IslandCommand`). */
   islandCommand: "wanheda:island-command",
+  /** page ⇄ main (invoke): the picked native folders (V72). */
+  filesRoots: "wanheda:files-roots",
+  /** page ⇄ main (invoke): pick a music or video folder in a dialog. */
+  filesPick: "wanheda:files-pick",
+  /** page ⇄ main (invoke): every music or video file in a picked folder. */
+  filesList: "wanheda:files-list",
+  /** page ⇄ main (invoke): forget a picked folder. */
+  filesForget: "wanheda:files-forget",
+  /** main → page: a picked folder changed on disk (settled), so its index can catch up. */
+  filesChanged: "wanheda:files-changed",
 } as const;
 
 /** The quick-capture page. */
@@ -198,4 +208,8 @@ export function openPath(path: string): string | null {
   if (keys.some((key) => !allowed.has(key)) || new Set(keys).size !== keys.length) return null;
   if (entries.some(([, value]) => value.length > MAX_VALUE)) return null;
   return `${url.pathname}${url.search}`;
+}
+
+export function parseRootKind(payload: unknown): "music" | "video" | null {
+  return payload === "music" || payload === "video" ? payload : null;
 }

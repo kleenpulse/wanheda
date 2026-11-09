@@ -78,7 +78,8 @@ export class MediaEngine {
     return () => this.listeners.delete(listener);
   }
 
-  open(file: File): Promise<Opened> {
+  /** A local file, or a file behind a URL with Range support (the desktop's native folders, V72). */
+  open(file: File | { url: string; size: number }): Promise<Opened> {
     return new Promise((resolve, reject) => {
       const off = this.on((m) => {
         if (m.type === "opened") {
@@ -89,7 +90,7 @@ export class MediaEngine {
           reject(new Error(m.type === "open-failed" ? m.message : m.message));
         }
       });
-      this.send({ type: "open", file });
+      this.send(file instanceof File ? { type: "open", file } : { type: "open-url", url: file.url, size: file.size });
     });
   }
 

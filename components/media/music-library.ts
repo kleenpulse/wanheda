@@ -1,6 +1,7 @@
 "use client";
 
 import { create } from "zustand";
+import { desktopFileUrl, desktopFiles } from "@/lib/platform/desktop";
 import { relativeMusicPath, type Track } from "@/lib/media/library";
 import { db } from "@/lib/media/local";
 import { seedTracks } from "@/lib/media/music-seed";
@@ -54,6 +55,11 @@ let skipped: Stamped[] = [];
 let liveDir: FileSystemDirectoryHandle | null = null;
 /** A plain folder input's files, by library path: this tab only. */
 let sessionFiles = new Map<string, File>();
+/** The desktop app's native music folder (V72), by its root id: read through `wanheda-file:` URLs. */
+let nativeRoot: string | null = null;
+let stopWatching: (() => void) | null = null;
+/** The native folder changed while a scan ran: scan again once it ends. */
+let nativeDirty = false;
 
 function ensureWorker(onMessage: (m: MusicResponse) => void): Worker {
   if (!worker) {
@@ -113,15 +119,23 @@ export const useMusicLibrary = create<State>((set, get) => {
         });
       }
     } else set({ scan: { ...scan, phase: "failed", message: m.message } });
+    // Files that arrived on disk during that scan: catch up now.
+    if ((m.type === "done" || m.type === "failed") && nativeDirty && nativeRoot) {
+      nativeDirty = false;
+      void startNative(nativeRoot);
+    }
   };
 
   const start = (source: ScanSource) => {
     const prev = get().scan;
     if (prev?.phase === "scanning") worker?.postMessage({ type: "cancel", id: prev.id } satisfies MusicRequest);
     const id = nextId++;
-    persist = source.kind === "dir" && !demoMode;
+    persist = (source.kind === "dir" || source.kind === "native") && !demoMode;
     if (source.kind === "dir") {
       liveDir = source.handle;
+      sessionFiles = new Map();
+    } else if (source.kind === "native") {
+      liveDir = null;
       sessionFiles = new Map();
     } else {
       liveDir = null;
@@ -133,6 +147,30 @@ export const useMusicLibrary = create<State>((set, get) => {
   };
 
   const folderRow = async () => (await db())?.folders.get("music").catch(() => undefined);
+
+  /** Lists the native folder in the shell and scans what's new or changed (V72). */
+  const startNative = async (rootId: string) => {
+    const files = desktopFiles();
+    if (!files) return;
+    const listing = await files.list(rootId).catch(() => ({ files: [], complete: false }));
+    if (nativeRoot !== rootId) return;
+    start({ kind: "native", rootId, files: listing.files.map((f): Stamped => [f.path, f.size, f.mtimeMs]), complete: listing.complete });
+  };
+
+  /** Follows the native folder: a change on disk, once it settles, catches the index up (V72). */
+  const followNative = (rootId: string) => {
+    stopWatching?.();
+    stopWatching =
+      desktopFiles()?.onChanged((id) => {
+        if (id !== nativeRoot) return;
+        if (get().scan?.phase === "scanning") {
+          nativeDirty = true;
+          return;
+        }
+        void startNative(id);
+      }) ?? null;
+    nativeRoot = rootId;
+  };
 
   return {
     tracks: null,
@@ -151,6 +189,14 @@ export const useMusicLibrary = create<State>((set, get) => {
         const d = await db();
         const tracks = (await d?.tracks.toArray().catch(() => [])) ?? [];
         skipped = ((await d?.skipped.toArray().catch(() => [])) ?? []).map((r): Stamped => [r.path, r.size, r.lastModified]);
+        // The desktop app keeps its music folder itself: no permission to lose (V72).
+        const native = (await desktopFiles()?.roots().catch(() => []))?.find((r) => r.kind === "music");
+        if (native) {
+          set({ tracks, folder: { kind: "ready", name: native.name } });
+          followNative(native.id);
+          void startNative(native.id);
+          return;
+        }
         const row = await folderRow();
         if (!row) {
           set({ tracks, folder: { kind: "none" } });
@@ -165,6 +211,23 @@ export const useMusicLibrary = create<State>((set, get) => {
     },
 
     pickFolder: async () => {
+      const files = desktopFiles();
+      if (files) {
+        const root = await files.pick("music").catch(() => null);
+        if (!root) return; // closed the dialog
+        if (root.id !== nativeRoot) {
+          // A different folder: its index replaces the old one.
+          const d = demoMode ? null : await db();
+          await d?.tracks.clear().catch(() => undefined);
+          await d?.skipped.clear().catch(() => undefined);
+          skipped = [];
+          set({ tracks: [] });
+        }
+        set({ folder: demoMode ? { kind: "session", name: root.name } : { kind: "ready", name: root.name } });
+        followNative(root.id);
+        void startNative(root.id);
+        return;
+      }
       const picker = (globalThis as unknown as { showDirectoryPicker?: DirPicker }).showDirectoryPicker;
       if (!picker) return;
       let dir: FileSystemDirectoryHandle;
@@ -213,6 +276,10 @@ export const useMusicLibrary = create<State>((set, get) => {
     },
 
     rescan: async () => {
+      if (nativeRoot) {
+        await startNative(nativeRoot);
+        return;
+      }
       const row = await folderRow();
       if (row && get().folder.kind === "ready") start({ kind: "dir", handle: row.handle });
     },
@@ -240,6 +307,7 @@ export class FolderAccessError extends Error {}
 export async function musicFile(path: string): Promise<File> {
   const inTab = sessionFiles.get(path);
   if (inTab) return inTab;
+  if (nativeRoot) return nativeMusicFile(nativeRoot, path);
   let dir = liveDir;
   if (!dir) {
     const row = await (await db())?.folders.get("music").catch(() => undefined);
@@ -270,4 +338,12 @@ export function libraryIsDemo(): boolean {
 export function keepsHistory(): boolean {
   const kind = useMusicLibrary.getState().folder.kind;
   return !demoMode && (kind === "ready" || kind === "reconnect");
+}
+
+/** A song from the desktop app's native folder, read whole through its `wanheda-file:` URL. */
+async function nativeMusicFile(rootId: string, path: string): Promise<File> {
+  const res = await fetch(desktopFileUrl(rootId, path)).catch(() => null);
+  if (!res) throw new FolderAccessError("The music folder can't be read right now. Is its drive plugged in?");
+  if (!res.ok) throw new Error("It isn't in the music folder any more. Rescan to tidy the list.");
+  return new File([await res.blob()], path.slice(path.lastIndexOf("/") + 1));
 }

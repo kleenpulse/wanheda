@@ -22,6 +22,7 @@ written after the fact, one per phase, and have no git tags.
 - In the Windows app, the keyboard's play/pause, next and previous keys control what's playing in Wanheda, even when another app had them last. When nothing in Wanheda can play, they're left alone for your other apps.
 - In the Windows app, a finished timer and new money or income alerts show as Windows notifications while Wanheda is in the background. Clicking one opens its page.
 - In the Windows app, the island floats at the top of your screen while Wanheda is in the background: what's playing, read-aloud, your timers, downloads and alerts, with their buttons. Clicks pass straight through everywhere but the island. Turn it off in Settings → Desktop.
+- In the Windows app, your music folder and video folders are picked once and stay connected: no "Reconnect folder" after a restart. Songs and videos you add or change in those folders show up on their own, and videos open straight from the folder without being read in full.
 - Settings → Desktop, in the Windows app: keep Wanheda running when you close the window, change or turn off the two shortcuts (it tells you if another app already uses the keys), and import your .env file again or go back to demo mode.
 
 ### Changed

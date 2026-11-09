@@ -228,7 +228,8 @@ function VideoChrome({
     if (!offer || next.source !== "local") return;
     let alive = true;
     void locate(next.fp).then((l) => {
-      if (alive) setNeedsGesture(l.kind !== "file");
+      // A native folder file (desktop) needs no permission: only a lapsed handle waits for a click.
+      if (alive) setNeedsGesture(l.kind !== "file" && l.kind !== "native");
     });
     return () => {
       alive = false;

@@ -9,7 +9,7 @@ import { toast } from "@/components/ui/toaster";
 import { useHydrated } from "@/hooks/use-hydrated";
 import { fetchJson } from "@/lib/fetch-json";
 import { folderFor } from "@/lib/media/episodes";
-import { forgetFile, keepHandle, rememberFile, type FolderVideo } from "@/lib/media/local";
+import { forgetFile, keepHandle, rememberFile, type FolderVideo, keepNative, type NativeFile } from "@/lib/media/local";
 import { MEDIA_KEY, TITLE_MAX, upsertItem, type MediaPayload } from "@/lib/media/media";
 import type { MediaItem, MediaItemInput } from "@/lib/media/types";
 import { layProgress } from "@/lib/media/playback";
@@ -64,12 +64,12 @@ export function titleFromName(name: string): string {
  * Fingerprint + probe in a short-lived worker (the player opens its own). The
  * caller closes the engine: a single file's thumbnail is grabbed on it first.
  */
-async function identify(file: File) {
+async function identify(file: File | NativeFile) {
   // Loaded on use, so the palette (in the shell) never carries the engine (V62).
   const { MediaEngine } = await import("@/lib/platform/media");
   const engine = new MediaEngine();
   try {
-    return { opened: await engine.open(file), engine };
+    return { opened: await engine.open(file instanceof File ? file : { url: file.url, size: file.size }), engine };
   } catch (e) {
     engine.close();
     throw e;
@@ -118,9 +118,13 @@ export function useMediaApi() {
     [qc, demo, patchCache],
   );
 
-  /** A picked local file joins the library by its fp (V54); the same file again relinks. `quiet`: the caller reports failures itself. */
+  /**
+   * A picked local file joins the library by its fp (V54); the same file again relinks. A native
+   * folder file (desktop, V72) is remembered by where it is instead of a handle. `quiet`: the caller
+   * reports failures itself.
+   */
   const addFile = React.useCallback(
-    async (file: File, handle: FileSystemFileHandle | null, quiet = false, folder?: string): Promise<MediaItem | null> => {
+    async (file: File | NativeFile, handle: FileSystemFileHandle | null, quiet = false, folder?: string): Promise<MediaItem | null> => {
       let found: Awaited<ReturnType<typeof identify>>;
       try {
         found = await identify(file);
@@ -129,9 +133,13 @@ export function useMediaApi() {
         return null;
       }
       const { opened, engine } = found;
-      rememberFile(opened.fp, file);
+      if (file instanceof File) {
+        rememberFile(opened.fp, file);
+        if (handle && !demo) void keepHandle(opened.fp, handle, file);
+      } else {
+        await keepNative(opened.fp, file, !demo);
+      }
       retryThumb(opened.fp);
-      if (handle && !demo) void keepHandle(opened.fp, handle, file);
       const hasVideo = opened.probe ? opened.probe.tracks.some((t) => t.kind === "video") : !file.type.startsWith("audio/");
       // One file on its own: its frame comes off this engine once the row shows. Marked before the
       // save, so the row the save draws doesn't queue the same file on a second worker. A folder's

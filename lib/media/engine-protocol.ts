@@ -6,6 +6,8 @@ import type { Probe } from "./ladder";
 export type EngineRequest =
   /** Fingerprint and probe a local file (V54, V52): header reads only. */
   | { type: "open"; file: File }
+  /** The same, for a file behind a URL that answers Range requests (the desktop's `wanheda-file:`, V72). */
+  | { type: "open-url"; url: string; size: number }
   /** Start the remux (V53) of the opened file into an MSE source owned by the worker. */
   | { type: "remux"; video: number | null; audio: number | null }
   /** The element's clock, so the worker keeps ≤ 30 s ahead and drops > 20 s behind. */

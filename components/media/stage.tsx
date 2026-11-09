@@ -6,7 +6,7 @@ import { CloudOff, FolderOpen, KeyRound, TriangleAlert } from "lucide-react";
 import { buttonClass } from "@/components/ui/button";
 import { toast } from "@/components/ui/toaster";
 import { cannotMessage, planPlayback, type PlaybackPlan, type Probe } from "@/lib/media/ladder";
-import { locate, regrant, rememberFile, type Located } from "@/lib/media/local";
+import { locate, regrant, rememberFile, type Located, type NativeFile } from "@/lib/media/local";
 import type { MediaItem } from "@/lib/media/types";
 import { parseMediaUrl } from "@/lib/media/url";
 import { MediaEngine, browserCapsDeps, capsFrom } from "@/lib/platform/media";
@@ -72,6 +72,24 @@ function setSource(el: HTMLVideoElement, source: string | MediaProvider | null):
   else el.load();
 }
 
+/**
+ * The URL the element plays: an object URL for a picked file (revoked on
+ * cleanup), or a native folder file's own `wanheda-file:` URL (desktop, V72),
+ * fetched with CORS so a frame drawn from it (save frame, previews) stays readable.
+ */
+function sourceUrl(el: HTMLVideoElement, file: File | NativeFile, cleanups: (() => void)[]): string {
+  if (!(file instanceof File)) {
+    el.crossOrigin = "anonymous";
+    return file.url;
+  }
+  el.removeAttribute("crossorigin");
+  const url = URL.createObjectURL(file);
+  cleanups.push(() => {
+    URL.revokeObjectURL(url);
+  });
+  return url;
+}
+
 /** The surface's `<video>`, held in a ref; `mounted` changes when it (re)mounts so effects rerun. */
 function useVideoElement() {
   const ref = React.useRef<HTMLVideoElement | null>(null);
@@ -84,7 +102,7 @@ function useVideoElement() {
 }
 
 /** Plays a local file: probe, plan, then native or remux. */
-function LocalPlayer({ item: live, file }: { item: MediaItem; file: File }) {
+function LocalPlayer({ item: live, file }: { item: MediaItem; file: File | NativeFile }) {
   // Frozen at mount (the stage keys players by item): a saved position changes
   // the cached item, and that must never re-run the source effects.
   const [item] = React.useState(live);
@@ -160,7 +178,7 @@ function LocalPlayer({ item: live, file }: { item: MediaItem; file: File }) {
     void (async () => {
       let opened;
       try {
-        opened = await engine.open(file);
+        opened = await engine.open(file instanceof File ? file : { url: file.url, size: file.size });
       } catch {
         fail("The media reader stopped. Open the file again.");
         return;
@@ -175,10 +193,7 @@ function LocalPlayer({ item: live, file }: { item: MediaItem; file: File }) {
         // Mediabunny can't read the container; the browser may still play it.
         if (file.type && el.canPlayType(file.type) !== "") {
           log(item, { mode: "native (unprobed)" }, null);
-          const url = URL.createObjectURL(file);
-          cleanups.push(() => {
-            URL.revokeObjectURL(url);
-          });
+          const url = sourceUrl(el, file, cleanups);
           listen("error", () => {
             fail("This file isn't a format this player can read.");
           });
@@ -206,10 +221,7 @@ function LocalPlayer({ item: live, file }: { item: MediaItem; file: File }) {
         return;
       }
 
-      const url = URL.createObjectURL(file);
-      cleanups.push(() => {
-        URL.revokeObjectURL(url);
-      });
+      const url = sourceUrl(el, file, cleanups);
       // Once: a native load error falls to the remux (V52); any later error just says so.
       const state = { started: false, fellBack: false };
       listen("loadeddata", () => {
@@ -328,7 +340,7 @@ function EmbedPlayer({ item }: { item: MediaItem }) {
 }
 
 /** "Not on this device", or a kept file that needs a click for permission (V54). */
-function FileMissing({ item, located, onFile }: { item: MediaItem; located: Exclude<Located, { kind: "file" }>; onFile: (f: File) => void }) {
+function FileMissing({ item, located, onFile }: { item: MediaItem; located: Exclude<Located, { kind: "file" | "native" }>; onFile: (f: File) => void }) {
   const api = useMediaApi();
   const [busy, setBusy] = React.useState(false);
   const pick = useFilePick(async (file, handle) => {
@@ -395,7 +407,7 @@ function LocalItem({ item }: { item: MediaItem }) {
     };
   }, [item.fp]);
   if (!located) return <StageShell />;
-  if (located.kind === "file") return <LocalPlayer key={item.id} item={item} file={located.file} />;
+  if (located.kind === "file" || located.kind === "native") return <LocalPlayer key={item.id} item={item} file={located.file} />;
   return (
     <FileMissing
       item={item}

@@ -6,6 +6,7 @@
 
 import { parseBlob } from "music-metadata";
 import { diffScan, isAudioPath, relativeMusicPath, trackFrom, type SeenFile, type Track } from "./library";
+import { desktopFileUrl } from "../platform/desktop";
 import { COVERS_DIR, type MusicRequest, type MusicResponse, type ScanSource, type Stamped } from "./music-protocol";
 
 const scope = self as unknown as {
@@ -41,13 +42,26 @@ async function walk(dir: FileSystemDirectoryHandle, prefix: string, out: { seen:
 async function list(source: ScanSource, id: number, unreadable: string[]) {
   const out: { seen: SeenFile; get: () => Promise<File> }[] = [];
   if (source.kind === "dir") await walk(source.handle, "", out, unreadable, id);
-  else {
+  else if (source.kind === "native") {
+    for (const [path, size, lastModified] of source.files) {
+      if (!isAudioPath(path)) continue;
+      const name = path.slice(path.lastIndexOf("/") + 1);
+      out.push({ seen: { path, size, lastModified }, get: () => nativeFile(source.rootId, path, name, lastModified) });
+    }
+  } else {
     for (const file of source.files) {
       const rel = relativeMusicPath(file);
       if (isAudioPath(rel)) out.push({ seen: { path: rel, size: file.size, lastModified: file.lastModified }, get: () => Promise.resolve(file) });
     }
   }
   return out;
+}
+
+/** A native folder file, read whole through the shell's protocol (a song is a few MB). */
+async function nativeFile(rootId: string, path: string, name: string, lastModified: number): Promise<File> {
+  const res = await fetch(desktopFileUrl(rootId, path));
+  if (!res.ok) throw new Error("unreadable");
+  return new File([await res.blob()], name, { lastModified });
 }
 
 function hex(buf: ArrayBuffer): string {
@@ -102,6 +116,8 @@ async function scan(m: Extract<MusicRequest, { type: "scan" }>): Promise<void> {
       files.map((f) => f.seen),
       stamps(m.skipped),
     );
+    // A native listing that missed something (an unreadable folder, a drive gone) prunes nothing (V72).
+    if (m.source.kind === "native" && !m.source.complete) removed.length = 0;
     const skipped: Stamped[] = stillBad.map((f) => [f.path, f.size, f.lastModified]);
     const getters = new Map(files.map((f) => [f.seen.path, f.get]));
     let parsed = 0;

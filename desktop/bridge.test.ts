@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { canTakeCommand, MAX_CAPTURE, MAX_NOTICE_BODY, MAX_NOTICE_TITLE, MAX_VALUE, openPath, parseAudible, parseCaptureText, parseDesktopChange, parseNotice, parseSecretsAction, needsLoad, trustedSender } from "./bridge";
+import { canTakeCommand, MAX_CAPTURE, MAX_NOTICE_BODY, MAX_NOTICE_TITLE, MAX_VALUE, openPath, parseAudible, parseCaptureText, parseDesktopChange, parseNotice, parseRootKind, parseSecretsAction, needsLoad, trustedSender } from "./bridge";
 
 describe("openPath", () => {
   test("takes allowlisted pages and their keys", () => {
@@ -103,6 +103,9 @@ describe("small parsers", () => {
     expect(parseSecretsAction("import")).toBe("import");
     expect(parseSecretsAction("demo")).toBe("demo");
     expect(parseSecretsAction("delete")).toBeNull();
+    expect(parseRootKind("music")).toBe("music");
+    expect(parseRootKind("video")).toBe("video");
+    expect(parseRootKind("docs")).toBeNull();
   });
 });
 
