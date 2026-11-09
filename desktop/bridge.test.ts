@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { canTakeCommand, captureNeedsLoad, MAX_CAPTURE, MAX_NOTICE_BODY, MAX_NOTICE_TITLE, MAX_VALUE, openPath, parseAudible, parseCaptureText, parseDesktopChange, parseNotice, parseSecretsAction, trustedSender } from "./bridge";
+import { canTakeCommand, MAX_CAPTURE, MAX_NOTICE_BODY, MAX_NOTICE_TITLE, MAX_VALUE, openPath, parseAudible, parseCaptureText, parseDesktopChange, parseNotice, parseSecretsAction, needsLoad, trustedSender } from "./bridge";
 
 describe("openPath", () => {
   test("takes allowlisted pages and their keys", () => {
@@ -82,6 +82,8 @@ describe("parseDesktopChange", () => {
     expect(parseDesktopChange({ keepRunning: false })).toEqual({ keepRunning: false });
     expect(parseDesktopChange({ keepRunning: "no" })).toBeNull();
     expect(parseDesktopChange({ keepRunning: true, extra: 1 })).toBeNull();
+    expect(parseDesktopChange({ island: false })).toEqual({ island: false });
+    expect(parseDesktopChange({ island: 0 })).toBeNull();
   });
 
   test("a shortcut: a valid accelerator, written one way, or null to turn it off", () => {
@@ -104,14 +106,17 @@ describe("small parsers", () => {
   });
 });
 
-describe("captureNeedsLoad", () => {
+describe("needsLoad", () => {
   const app = "http://localhost:4123";
-  test("only the capture page on the app's origin counts as loaded", () => {
-    expect(captureNeedsLoad(`${app}/capture`, app)).toBe(false);
-    expect(captureNeedsLoad(`${app}/login?next=%2Fcapture`, app)).toBe(true);
-    expect(captureNeedsLoad("http://localhost:4999/capture", app)).toBe(true);
-    expect(captureNeedsLoad("", app)).toBe(true);
-    expect(captureNeedsLoad(`${app}/`, app)).toBe(true);
+  test("only the window's own page on the app's origin counts as loaded", () => {
+    expect(needsLoad(`${app}/capture`, app, "/capture")).toBe(false);
+    expect(needsLoad(`${app}/island`, app, "/island")).toBe(false);
+    expect(needsLoad(`${app}/login?next=%2Fcapture`, app, "/capture")).toBe(true);
+    expect(needsLoad(`${app}/login?next=%2Fisland`, app, "/island")).toBe(true);
+    expect(needsLoad(`${app}/island`, app, "/capture")).toBe(true);
+    expect(needsLoad("http://localhost:4999/capture", app, "/capture")).toBe(true);
+    expect(needsLoad("", app, "/island")).toBe(true);
+    expect(needsLoad(`${app}/`, app, "/island")).toBe(true);
   });
 });
 

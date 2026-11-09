@@ -21,6 +21,7 @@ written after the fact, one per phase, and have no git tags.
 - In the Windows app, Ctrl+Shift+Space opens a small Quick note window over whatever you're doing: type, press Enter, and it's in Notes. Alt+Space brings Wanheda forward with the command palette open.
 - In the Windows app, the keyboard's play/pause, next and previous keys control what's playing in Wanheda, even when another app had them last. When nothing in Wanheda can play, they're left alone for your other apps.
 - In the Windows app, a finished timer and new money or income alerts show as Windows notifications while Wanheda is in the background. Clicking one opens its page.
+- In the Windows app, the island floats at the top of your screen while Wanheda is in the background: what's playing, read-aloud, your timers, downloads and alerts, with their buttons. Clicks pass straight through everywhere but the island. Turn it off in Settings → Desktop.
 - Settings → Desktop, in the Windows app: keep Wanheda running when you close the window, change or turn off the two shortcuts (it tells you if another app already uses the keys), and import your .env file again or go back to demo mode.
 
 ### Changed

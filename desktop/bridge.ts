@@ -5,6 +5,7 @@
  * the app has.
  */
 
+import type { IslandCommand } from "./island";
 import { isShortcutId, parseAccelerator, type MediaCommand, type ShortcutId } from "./shortcuts";
 
 export const CHANNELS = {
@@ -30,20 +31,34 @@ export const CHANNELS = {
   captureClose: "wanheda:capture-close",
   /** page → main: whether this page takes commands (the shell's listener is mounted: signed in, in the shell). */
   commandsReady: "wanheda:commands-ready",
+  /** main window page → main: what's live, for the floating island (`IslandSnapshot`). */
+  islandPublish: "wanheda:island-publish",
+  /** main → main window page: whether the floating island is up, so the page's own island steps aside. */
+  islandFloating: "wanheda:island-floating",
+  /** main → island window: the latest snapshot. */
+  islandSnapshot: "wanheda:island-snapshot",
+  /** island window ⇄ main (invoke): the latest snapshot, once it has loaded. */
+  islandGet: "wanheda:island-get",
+  /** island window → main: whether it has anything to show, and where the island sits (`IslandReport`). */
+  islandReport: "wanheda:island-report",
+  /** main → island window: whether the cursor is over the island (its own pointer events stop while clicks pass through). */
+  islandHover: "wanheda:island-hover",
+  /** island window → main: a button (`IslandCommand`). */
+  islandCommand: "wanheda:island-command",
 } as const;
 
 /** The quick-capture page. */
 export const CAPTURE_PATH = "/capture";
 
 /**
- * Whether the capture window must load the capture page before it's shown:
- * anything but that page on the app's origin (the sign-in page it was sent
- * to while signed out, an old origin, nothing yet).
+ * Whether a helper window (quick capture, the island) must load its page
+ * again: it's on anything but `path` on the app's origin (the sign-in page it
+ * was sent to while signed out, an old origin, nothing yet).
  */
-export function captureNeedsLoad(current: string, appOrigin: string): boolean {
+export function needsLoad(current: string, appOrigin: string, path: string): boolean {
   try {
     const url = new URL(current);
-    return !(url.origin === appOrigin && url.pathname === CAPTURE_PATH);
+    return !(url.origin === appOrigin && url.pathname === path);
   } catch {
     return true;
   }
@@ -59,7 +74,11 @@ export function canTakeCommand(page: { onApp: boolean; loading: boolean; ready: 
 }
 
 /** What main asks the page to do. */
-export type Command = { kind: "palette" } | { kind: "media"; action: MediaCommand } | { kind: "capture"; text: string };
+export type Command =
+  | { kind: "palette" }
+  | { kind: "media"; action: MediaCommand }
+  | { kind: "capture"; text: string }
+  | { kind: "island"; command: Exclude<IslandCommand, { kind: "open" }> };
 
 export const NOTICE_KINDS = ["timer", "money", "income"] as const;
 export type DesktopNotice = { kind: (typeof NOTICE_KINDS)[number]; title: string; body: string; path: string | null };
@@ -99,7 +118,7 @@ export function parseSecretsAction(payload: unknown): SecretsAction | null {
   return payload === "import" || payload === "demo" ? payload : null;
 }
 
-export type DesktopChange = { keepRunning: boolean } | { shortcut: ShortcutId; accelerator: string | null };
+export type DesktopChange = { keepRunning: boolean } | { island: boolean } | { shortcut: ShortcutId; accelerator: string | null };
 
 /** One change from Settings → Desktop, or null. A shortcut is a valid accelerator, or null to turn it off. */
 export function parseDesktopChange(payload: unknown): DesktopChange | null {
@@ -107,6 +126,7 @@ export function parseDesktopChange(payload: unknown): DesktopChange | null {
   const record = payload as Record<string, unknown>;
   const keys = Object.keys(record);
   if (keys.length === 1 && typeof record.keepRunning === "boolean") return { keepRunning: record.keepRunning };
+  if (keys.length === 1 && typeof record.island === "boolean") return { island: record.island };
   if (keys.length !== 2 || !isShortcutId(record.shortcut) || !("accelerator" in record)) return null;
   if (record.accelerator === null) return { shortcut: record.shortcut, accelerator: null };
   const accelerator = parseAccelerator(record.accelerator);
@@ -118,6 +138,8 @@ export type ShortcutStatus = "on" | "taken" | "off";
 /** What Settings → Desktop shows. Never a key's value: only how many there are. */
 export type DesktopState = {
   keepRunning: boolean;
+  /** The floating island while Wanheda is in the background (V70). */
+  island: boolean;
   shortcuts: { id: ShortcutId; accelerator: string | null; status: ShortcutStatus }[];
   secrets: { mode: "own" | "demo"; names: number };
 };

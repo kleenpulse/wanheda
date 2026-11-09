@@ -12,11 +12,13 @@ export type DesktopSettings = {
   keepRunning: boolean;
   /** The "Wanheda is still running" notice was shown once already. */
   trayHintShown: boolean;
+  /** The floating island while Wanheda is in the background (V70). */
+  island: boolean;
   /** Global shortcuts (V71): an accelerator, or null when turned off. */
   shortcuts: Record<ShortcutId, string | null>;
 };
 
-export const DEFAULT_SETTINGS: DesktopSettings = { keepRunning: true, trayHintShown: false, shortcuts: { ...DEFAULT_SHORTCUTS } };
+export const DEFAULT_SETTINGS: DesktopSettings = { keepRunning: true, trayHintShown: false, island: true, shortcuts: { ...DEFAULT_SHORTCUTS } };
 
 /** Known keys with the right type win; anything else falls back to the default. */
 export function parseSettings(text: string | null): DesktopSettings {
@@ -28,8 +30,8 @@ export function parseSettings(text: string | null): DesktopSettings {
     return defaults();
   }
   const record = raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {};
-  const flag = (key: "keepRunning" | "trayHintShown") => (typeof record[key] === "boolean" ? record[key] : DEFAULT_SETTINGS[key]);
-  return { keepRunning: flag("keepRunning"), trayHintShown: flag("trayHintShown"), shortcuts: parseShortcuts(record.shortcuts) };
+  const flag = (key: "keepRunning" | "trayHintShown" | "island") => (typeof record[key] === "boolean" ? record[key] : DEFAULT_SETTINGS[key]);
+  return { keepRunning: flag("keepRunning"), trayHintShown: flag("trayHintShown"), island: flag("island"), shortcuts: parseShortcuts(record.shortcuts) };
 }
 
 function defaults(): DesktopSettings {

@@ -49,7 +49,8 @@ Desktop sign-in needs its own GitHub OAuth app ("Wanheda Desktop", an owner acti
 - Both shortcuts live in `settings.json` and can be changed or turned off in Settings → Desktop. One another app holds shows as "taken" there; two of ours can't share keys.
 - **Media keys** (`MediaPlayPause`, `MediaNextTrack`, `MediaPreviousTrack`, `MediaStop`) are registered only while the page has an audible owner (V60), paused or playing, and go to that owner through `mediaSession.command()`. A reload or any full navigation of the main window releases them until the page claims them again.
 - **Notifications**: new notification-centre rows (a timer done, money and income alerts) go to main, which shows them only while the main window is hidden, minimised or unfocused. Clicking one opens its page. The log records only the kind.
-- **Settings → Desktop** (desktop only): keep running, the shortcuts, and importing the `.env` file again or going back to demo mode (main's own dialogs confirm).
+- **Floating island** (V70, T77): a transparent window at the top centre of the main window's display, shown while the main window is hidden, minimised or unfocused and there's something live. The main window's page publishes a snapshot (music, read-aloud, transfers, alerts; `lib/island/snapshot.ts`), at most 4 times a second; timers reach the island through the shared activity store, like a second tab. Main checks the snapshot (`island.ts`) and hands it to the island window, whose buttons come back as commands (music, speech, dismiss, open). The window ignores the mouse except while main's 30 Hz cursor check finds the cursor over the island's rectangle (reported by the island page). Meanwhile the page's own island steps aside.
+- **Settings → Desktop** (desktop only): keep running, the floating island, the shortcuts, and importing the `.env` file again or going back to demo mode (main's own dialogs confirm).
 
 ## Security model (V67)
 
