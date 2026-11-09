@@ -57,6 +57,9 @@ export function useIsland(): IslandContextValue {
   return ctx;
 }
 
+/** Floating island: how long an open card waits after the cursor leaves it. */
+const LEAVE_CLOSES_MS = 900;
+
 // Ten commits a second is plenty for clocks and rings.
 const TICK_HZ = 10;
 
@@ -86,6 +89,7 @@ export function LiveActivity({
   showKey,
   cycleInterval = 6,
   contentBlur = 6,
+  pointerInside,
   className,
 }: {
   activities: IslandActivity[];
@@ -97,6 +101,12 @@ export function LiveActivity({
   cycleInterval?: number;
   /** Blur, in px, that content dissolves through on its way in and out. */
   contentBlur?: number;
+  /**
+   * The desktop's floating island (V70): whether the cursor is over it, from
+   * the shell. Its own pointer events stop while clicks pass through it, so
+   * this stands in for hover, and leaving closes an open card after a moment.
+   */
+  pointerInside?: boolean | undefined;
   className?: string;
 }) {
   const reduce = Boolean(useReducedMotion());
@@ -144,7 +154,7 @@ export function LiveActivity({
   }, [current?.id]);
 
   // The cycle stands still while anyone is looking at, pointing at or tabbed into it.
-  const held = expanded || hovered || focused;
+  const held = expanded || (pointerInside ?? hovered) || focused;
   useEffect(() => {
     if (held || activities.length < 2) {
       lastSwitch.current = now;
@@ -159,6 +169,17 @@ export function LiveActivity({
     refocusPill.current = returnFocus;
     setExpanded(false);
   }, []);
+
+  // Floating island: the cursor left an open card (a click elsewhere goes to another app, never here).
+  useEffect(() => {
+    if (pointerInside !== false || !expanded) return;
+    const t = setTimeout(() => {
+      collapse(false);
+    }, LEAVE_CLOSES_MS);
+    return () => {
+      clearTimeout(t);
+    };
+  }, [pointerInside, expanded, collapse]);
 
   // An activity that ends while its card is open closes the card.
   if (expanded && !current) setExpanded(false);
@@ -253,6 +274,7 @@ export function LiveActivity({
               scale; as a class it would stretch into an ellipse mid-morph. */}
           <motion.div
             layout
+            data-island-shape=""
             {...(expanded || reduce ? {} : { whileTap: { scale: 0.96 } })}
             className={cn(
               "pointer-events-auto relative overflow-hidden bg-island text-island-foreground outline-offset-2",

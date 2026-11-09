@@ -2,11 +2,12 @@ import { app, BrowserWindow, dialog, globalShortcut, ipcMain, type IpcMainEvent,
 import { randomBytes } from "node:crypto";
 import { readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { CAPTURE_PATH, canTakeCommand, captureNeedsLoad, CHANNELS, openPath, parseAudible, parseCaptureText, parseDesktopChange, parseNotice, parseSecretsAction, trustedSender, type Command, type DesktopNotice, type DesktopSetResult, type DesktopState, type ShortcutStatus } from "./bridge";
+import { CAPTURE_PATH, canTakeCommand, CHANNELS, needsLoad, openPath, parseAudible, parseCaptureText, parseDesktopChange, parseNotice, parseSecretsAction, trustedSender, type Command, type DesktopNotice, type DesktopSetResult, type DesktopState, type ShortcutStatus } from "./bridge";
 import { MAX_ENV_FILE, parseEnvFile, type Imported } from "./env-file";
 import { serverEnv } from "./env";
 import { hasTray, onAllWindowsClosed, onWindowClose, showTrayHint, type Lifecycle } from "./lifecycle";
 import { linkArg, linkPath, WANHEDA_SCHEME } from "./links";
+import { EMPTY_SNAPSHOT, ISLAND_PATH, ISLAND_SIZE, islandPosition, overIsland, parseIslandCommand, parseIslandReport, parseIslandSnapshot, shouldShowIsland, type IslandReport, type IslandSnapshot } from "./island";
 import { createLog } from "./log";
 import { classifyAuthUrl, classifyUrl, navigationStep, permissionAllowed } from "./policy";
 import { freePort, isPortFree, savePort, savedPort } from "./ports";
@@ -83,6 +84,13 @@ function boot(): void {
   let mediaKeysHeld = false;
   /** The main window's page said it takes commands (its shell listener is up); reset by every new page. */
   let pageReady = false;
+  /** The floating island (V70): its window, the page's latest snapshot, what the island window last reported. */
+  let islandWindow: BrowserWindow | null = null;
+  let islandSnapshot: IslandSnapshot = EMPTY_SNAPSHOT;
+  let islandReport: IslandReport = { content: false, rect: null };
+  let islandFloating = false;
+  let islandHover = false;
+  let islandTimer: ReturnType<typeof setInterval> | null = null;
   // GitHub sign-in's own window (no preload), and the contents it owns.
   let authWindow: BrowserWindow | null = null;
   const authContents = new Set<number>();
@@ -129,6 +137,12 @@ function boot(): void {
       setKeepRunning(change.keepRunning);
       return { ok: true, state: desktopState() };
     }
+    if ("island" in change) {
+      updateSettings({ island: change.island });
+      updateIsland();
+      pushState();
+      return { ok: true, state: desktopState() };
+    }
     const { shortcut, accelerator } = change;
     const clash = SHORTCUT_IDS.some((id) => id !== shortcut && accelerator !== null && settings.shortcuts[id] === accelerator);
     if (clash) return { ok: false, state: desktopState() };
@@ -155,7 +169,45 @@ function boot(): void {
   ipcMain.on(CHANNELS.commandsReady, (event, payload: unknown) => {
     if (!fromWindow(event, mainWindow)) return;
     const ready = parseAudible(payload);
-    if (ready !== null) pageReady = ready;
+    if (ready === null) return;
+    pageReady = ready;
+    if (!ready) return;
+    // The signed-in shell is up. The helper windows loaded while signed out sit on the sign-in
+    // page (the proxy sent them there): load their own pages now.
+    reloadHelpers();
+    // A new page: tell it again whether the floating island is up.
+    islandFloating = false;
+    updateIsland();
+  });
+  ipcMain.on(CHANNELS.islandPublish, (event, payload: unknown) => {
+    if (!fromWindow(event, mainWindow)) return;
+    const snapshot = parseIslandSnapshot(payload);
+    if (!snapshot) return;
+    islandSnapshot = snapshot;
+    const win = islandWindow;
+    if (win && !win.isDestroyed()) win.webContents.send(CHANNELS.islandSnapshot, snapshot);
+  });
+  ipcMain.handle(CHANNELS.islandGet, (event): IslandSnapshot => {
+    if (!fromWindow(event, islandWindow)) throw new Error("Not allowed.");
+    return islandSnapshot;
+  });
+  ipcMain.on(CHANNELS.islandReport, (event, payload: unknown) => {
+    if (!fromWindow(event, islandWindow)) return;
+    const report = parseIslandReport(payload);
+    if (!report) return;
+    islandReport = report;
+    updateIsland();
+  });
+  ipcMain.on(CHANNELS.islandCommand, (event, payload: unknown) => {
+    if (!fromWindow(event, islandWindow)) return;
+    const command = parseIslandCommand(payload);
+    if (!command) return;
+    if (command.kind === "open") {
+      showWindow();
+      openInApp(command.path);
+      return;
+    }
+    sendCommand({ kind: "island", command });
   });
   ipcMain.on(CHANNELS.captureClose, (event) => {
     if (fromWindow(event, captureWindow)) captureWindow?.hide();
@@ -218,6 +270,7 @@ function boot(): void {
     pendingLink = null;
     applyShortcuts();
     createCaptureWindow();
+    createIslandWindow();
     await mainWindow?.loadURL(`${server.origin}${first}`);
   }
 
@@ -447,6 +500,7 @@ function boot(): void {
     appOrigin = handle.origin;
     routeToken(session.defaultSession, handle.origin);
     if (captureWindow && !captureWindow.isDestroyed()) void captureWindow.loadURL(`${handle.origin}${CAPTURE_PATH}`);
+    if (islandWindow && !islandWindow.isDestroyed()) void islandWindow.loadURL(`${handle.origin}${ISLAND_PATH}`);
     handle.onExit((detail) => void serverDied(handle, detail));
     log.info(`server ready at ${handle.origin}`);
   }
@@ -601,6 +655,7 @@ function boot(): void {
     const names = Object.keys(secrets).length;
     return {
       keepRunning: settings.keepRunning,
+      island: settings.island,
       shortcuts: SHORTCUT_IDS.map((id) => ({ id, accelerator: settings.shortcuts[id], status: shortcutStatus.get(id) ?? "off" })),
       secrets: { mode: names > 0 ? "own" : "demo", names },
     };
@@ -700,6 +755,8 @@ function boot(): void {
     });
     // Above full-screen apps too.
     win.setAlwaysOnTop(true, "pop-up-menu");
+    // Its own zoom, not the main window's (same-origin windows share it by default).
+    win.webContents.setZoomMode("isolated");
     win.on("close", (event) => {
       if (quitting !== "no" || sessionEnding) return;
       event.preventDefault();
@@ -709,7 +766,7 @@ function boot(): void {
     // Sent to the sign-in page (signed out, or the session ended): sign-in belongs in the
     // main window, never in this little one.
     win.webContents.on("did-navigate", (_event, url) => {
-      if (!appOrigin || !captureNeedsLoad(url, appOrigin) || !win.isVisible()) return;
+      if (!appOrigin || !needsLoad(url, appOrigin, CAPTURE_PATH) || !win.isVisible()) return;
       win.hide();
       showWindow();
     });
@@ -718,12 +775,136 @@ function boot(): void {
     return win;
   }
 
+  /**
+   * The floating island (V70): one transparent, frameless window over every
+   * other, made at start and hidden. It never takes focus, and clicks pass
+   * through it everywhere but the island itself (`trackIslandCursor`).
+   */
+  function createIslandWindow(): BrowserWindow | null {
+    if (islandWindow && !islandWindow.isDestroyed()) return islandWindow;
+    if (!appOrigin) return null;
+    const win = new BrowserWindow({
+      width: ISLAND_SIZE.width,
+      height: ISLAND_SIZE.height,
+      show: false,
+      frame: false,
+      transparent: true,
+      backgroundColor: "#00000000",
+      hasShadow: false,
+      resizable: false,
+      movable: false,
+      minimizable: false,
+      maximizable: false,
+      fullscreenable: false,
+      focusable: false,
+      skipTaskbar: true,
+      alwaysOnTop: true,
+      title: "Wanheda island",
+      webPreferences: {
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true,
+        webviewTag: false,
+        devTools: !app.isPackaged,
+        // Hidden most of the time, yet it must follow the snapshot and measure itself.
+        backgroundThrottling: false,
+        preload: join(app.getAppPath(), "preload.js"),
+      },
+    });
+    // Above full-screen apps too (ADR-0014 (c)).
+    win.setAlwaysOnTop(true, "screen-saver");
+    win.setIgnoreMouseEvents(true);
+    // Chromium shares zoom across same-origin windows: zooming the main window would grow the
+    // island past its window and off its hit rect (CSS px vs screen points). Its own zoom stays 100 %.
+    win.webContents.setZoomMode("isolated");
+    win.on("close", (event) => {
+      if (quitting !== "no" || sessionEnding) return;
+      event.preventDefault();
+      win.hide();
+    });
+    win.webContents.on("did-navigate", () => {
+      islandReport = { content: false, rect: null };
+      updateIsland();
+    });
+    void win.loadURL(`${appOrigin}${ISLAND_PATH}`);
+    islandWindow = win;
+    return win;
+  }
+
+  /** Loads quick capture's and the island's own pages again where they've been sent elsewhere (the sign-in page). */
+  function reloadHelpers(): void {
+    if (!appOrigin) return;
+    for (const [win, path] of [[captureWindow, CAPTURE_PATH], [islandWindow, ISLAND_PATH]] as const) {
+      if (!win || win.isDestroyed() || win.isVisible()) continue;
+      if (needsLoad(win.webContents.getURL(), appOrigin, path)) void win.loadURL(`${appOrigin}${path}`);
+    }
+  }
+
+  /** Shows or hides the island for the main window's state, the setting and what's live. */
+  function updateIsland(): void {
+    const win = islandWindow;
+    const main = mainWindow;
+    if (!win || win.isDestroyed()) return;
+    const mainUp = Boolean(main && !main.isDestroyed());
+    const show = shouldShowIsland({
+      enabled: settings.island,
+      content: islandReport.content,
+      mainVisible: mainUp && Boolean(main?.isVisible()),
+      mainMinimized: mainUp && Boolean(main?.isMinimized()),
+      mainFocused: mainUp && Boolean(main?.isFocused()),
+      quitting: quitting !== "no",
+    });
+    if (show && !win.isVisible()) {
+      const display = main && !main.isDestroyed() ? screen.getDisplayMatching(main.getBounds()) : screen.getPrimaryDisplay();
+      const at = islandPosition(display.workArea);
+      win.setPosition(at.x, at.y);
+      win.showInactive();
+    } else if (!show && win.isVisible()) {
+      win.hide();
+    }
+    trackIslandCursor(show);
+    if (show !== islandFloating) {
+      islandFloating = show;
+      if (main && !main.isDestroyed()) main.webContents.send(CHANNELS.islandFloating, show);
+    }
+  }
+
+  /**
+   * While the island shows, ~30 times a second: the cursor over the island
+   * takes mouse events (hover, clicks); anywhere else they pass through to
+   * what's below. `forward: true` delivered no hover on Windows (ADR-0014 (c)).
+   */
+  function trackIslandCursor(on: boolean): void {
+    if (!on) {
+      if (islandTimer) clearInterval(islandTimer);
+      islandTimer = null;
+      setIslandHover(false);
+      return;
+    }
+    if (islandTimer) return;
+    islandTimer = setInterval(() => {
+      const win = islandWindow;
+      if (!win || win.isDestroyed()) return;
+      const [x = 0, y = 0] = win.getPosition();
+      setIslandHover(overIsland(screen.getCursorScreenPoint(), { x, y }, islandReport.rect));
+    }, 33);
+  }
+
+  function setIslandHover(over: boolean): void {
+    if (over === islandHover) return;
+    islandHover = over;
+    const win = islandWindow;
+    if (!win || win.isDestroyed()) return;
+    win.setIgnoreMouseEvents(!over);
+    win.webContents.send(CHANNELS.islandHover, over);
+  }
+
   /** Shows quick capture centred near the top of the screen the cursor is on, focused. */
   function showCapture(): void {
     const win = createCaptureWindow();
     if (!win || !appOrigin) return;
     // Loaded while signed out, it's on the sign-in page: load the capture page again now.
-    if (captureNeedsLoad(win.webContents.getURL(), appOrigin)) void win.loadURL(`${appOrigin}${CAPTURE_PATH}`);
+    if (needsLoad(win.webContents.getURL(), appOrigin, CAPTURE_PATH)) void win.loadURL(`${appOrigin}${CAPTURE_PATH}`);
     const area = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea;
     win.setPosition(Math.round(area.x + (area.width - CAPTURE_SIZE.width) / 2), Math.round(area.y + area.height * 0.2));
     win.show();
@@ -794,7 +975,14 @@ function boot(): void {
     win.webContents.on("did-navigate", () => {
       pageReady = false;
       holdMediaKeys(false);
+      // The new page publishes its own snapshot once its shell is up; until then nothing is live.
+      islandFloating = false;
+      islandSnapshot = EMPTY_SNAPSHOT;
+      if (islandWindow && !islandWindow.isDestroyed()) islandWindow.webContents.send(CHANNELS.islandSnapshot, EMPTY_SNAPSHOT);
     });
+    for (const change of ["focus", "blur", "show", "hide", "minimize", "restore"] as const) {
+      win.on(change as "focus", () => { updateIsland(); });
+    }
     win.webContents.on("render-process-gone", () => {
       pageReady = false;
       holdMediaKeys(false);
@@ -803,10 +991,18 @@ function boot(): void {
     win.on("closed", () => {
       if (captureWindow && !captureWindow.isDestroyed()) captureWindow.destroy();
       captureWindow = null;
+      trackIslandCursor(false);
+      if (islandWindow && !islandWindow.isDestroyed()) islandWindow.destroy();
+      islandWindow = null;
+      islandSnapshot = EMPTY_SNAPSHOT;
+      islandReport = { content: false, rect: null };
       pageReady = false;
       holdMediaKeys(false);
     });
     mainWindow = win;
+    // Made again after the main window really closed (keep running off, then the tray or a link):
+    // the island went with it, so it comes back with it. At start, start() makes it once the server is up.
+    if (appOrigin) createIslandWindow();
     return win;
   }
 

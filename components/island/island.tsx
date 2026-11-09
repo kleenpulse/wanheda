@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useActivitySync } from "@/components/island/activity-sync";
 import { LiveActivity, type IslandActivity } from "@/components/island/live-activity";
 import { mediaActivity } from "@/components/island/media-activity";
 import { remuxActivity } from "@/components/island/remux-activity";
@@ -9,35 +10,15 @@ import { moneyAlertActivity, useMoneyAlerts } from "@/components/island/money-al
 import { saasAlertActivity, useSaasAlerts } from "@/components/island/saas-alert-activity";
 import { speechActivity } from "@/components/island/speech-activity";
 import { orderTimers, timerActivity } from "@/components/island/timer-activity";
+import { useFloatingIsland } from "@/components/island/floating-store";
 import { transferActivity } from "@/components/island/transfer-activity";
 import { useMusicLibrary } from "@/components/media/music-library";
 import { useMusicPlayer } from "@/components/media/music-player";
 import { useRemuxStatus } from "@/components/media/remux-status";
 import { useVoiceManager } from "@/components/settings/voice-manager";
 import { rankActivities, type Ranked } from "@/lib/activity/priority";
-import { ACTIVITY_STORAGE_KEY, useActivity } from "@/lib/activity/store";
+import { useActivity } from "@/lib/activity/store";
 import { useSpeech } from "@/lib/speech/store";
-
-/**
- * Loads the activity bus from localStorage after mount (the server renders no
- * activities) and follows other tabs through the `storage` event.
- */
-function useActivitySync() {
-  const [ready, setReady] = React.useState(false);
-  React.useEffect(() => {
-    void Promise.resolve(useActivity.persist.rehydrate()).then(() => {
-      setReady(true);
-    });
-    const onStorage = (e: StorageEvent) => {
-      if (e.key === ACTIVITY_STORAGE_KEY) void useActivity.persist.rehydrate();
-    };
-    window.addEventListener("storage", onStorage);
-    return () => {
-      window.removeEventListener("storage", onStorage);
-    };
-  }, []);
-  return ready;
-}
 
 /**
  * The island at the top centre of the content column (FR-ISLAND-1). It lives
@@ -87,7 +68,10 @@ export function Island() {
   const show = ranked[0]?.item.id;
   const showKey = ranked[0]?.startedAt;
 
-  if (!ready || activities.length === 0) return null;
+  // The desktop shell's floating island is showing all this while the window is in the background (V70).
+  const floating = useFloatingIsland((s) => s.floating);
+
+  if (!ready || activities.length === 0 || floating) return null;
   return (
     <div className="pointer-events-none fixed inset-x-0 top-2 z-40 md:left-(--rail-w)">
       <LiveActivity activities={activities} show={show} showKey={showKey} />

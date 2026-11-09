@@ -3,7 +3,9 @@
 // page only; on the web, in an embed or in a child window it is undefined, so
 // every caller falls back to the web path and the web never changes behaviour.
 
-// Mirrors desktop/bridge.ts and desktop/shortcuts.ts (the shell checks every
+import type { IslandCommand, IslandSnapshot } from "@/lib/island/snapshot";
+
+// Mirrors desktop/bridge.ts, desktop/island.ts and desktop/shortcuts.ts (the shell checks every
 // payload there; these are the shapes the page sends and gets).
 
 export type DesktopShortcutId = "capture" | "palette";
@@ -13,7 +15,8 @@ export type DesktopMediaCommand = "play-pause" | "next" | "previous" | "stop";
 export type DesktopCommand =
   | { kind: "palette" }
   | { kind: "media"; action: DesktopMediaCommand }
-  | { kind: "capture"; text: string };
+  | { kind: "capture"; text: string }
+  | { kind: "island"; command: Exclude<IslandCommand, { kind: "open" }> };
 
 /** A system notification. `path` must be a page the shell may open, or null. */
 export type DesktopNotice = { kind: "timer" | "money" | "income"; title: string; body: string; path: string | null };
@@ -22,11 +25,12 @@ export type DesktopShortcutStatus = "on" | "taken" | "off";
 
 export type DesktopState = {
   keepRunning: boolean;
+  island: boolean;
   shortcuts: { id: DesktopShortcutId; accelerator: string | null; status: DesktopShortcutStatus }[];
   secrets: { mode: "own" | "demo"; names: number };
 };
 
-export type DesktopChange = { keepRunning: boolean } | { shortcut: DesktopShortcutId; accelerator: string | null };
+export type DesktopChange = { keepRunning: boolean } | { island: boolean } | { shortcut: DesktopShortcutId; accelerator: string | null };
 
 export type WanhedaDesktop = {
   readonly desktop: true;
@@ -46,6 +50,16 @@ export type WanhedaDesktop = {
     set(change: DesktopChange): Promise<{ ok: boolean; state: DesktopState }>;
     secrets(action: "import" | "demo"): Promise<DesktopState>;
     onChange(callback: (state: DesktopState) => void): () => void;
+  };
+  /** The floating island (V70). The main window publishes and hears whether it floats; the island window does the rest. */
+  island: {
+    publish(snapshot: IslandSnapshot): void;
+    onFloating(callback: (floating: boolean) => void): () => void;
+    get(): Promise<IslandSnapshot | null>;
+    onSnapshot(callback: (snapshot: IslandSnapshot) => void): () => void;
+    onHover(callback: (over: boolean) => void): () => void;
+    report(report: { content: boolean; rect: { x: number; y: number; width: number; height: number } | null }): void;
+    command(command: IslandCommand): void;
   };
   /** Quick capture's own window only; elsewhere the shell ignores it. */
   capture: {
@@ -161,5 +175,14 @@ export function isDesktopCommand(value: unknown): value is DesktopCommand {
   const c = value as Record<string, unknown>;
   if (c.kind === "palette") return true;
   if (c.kind === "media") return typeof c.action === "string" && MEDIA_COMMANDS.includes(c.action);
+  if (c.kind === "island") return isIslandPageCommand(c.command);
   return c.kind === "capture" && typeof c.text === "string" && c.text.trim() !== "";
+}
+
+function isIslandPageCommand(value: unknown): boolean {
+  if (!value || typeof value !== "object") return false;
+  const c = value as Record<string, unknown>;
+  if (c.kind === "music") return c.action === "toggle" || c.action === "next" || c.action === "previous";
+  if (c.kind === "speech") return c.action === "toggle" || c.action === "stop";
+  return c.kind === "dismiss" && typeof c.noticeId === "string" && c.noticeId !== "";
 }

@@ -53,11 +53,11 @@ describe("tray", () => {
 describe("settings", () => {
   test("defaults: keep running, no hint yet", () => {
     expect(parseSettings(null)).toEqual(DEFAULT_SETTINGS);
-    expect(DEFAULT_SETTINGS).toEqual({ keepRunning: true, trayHintShown: false, shortcuts: { capture: "Ctrl+Shift+Space", palette: "Alt+Space" } });
+    expect(DEFAULT_SETTINGS).toEqual({ keepRunning: true, trayHintShown: false, island: true, shortcuts: { capture: "Ctrl+Shift+Space", palette: "Alt+Space" } });
   });
 
   test("keeps known keys of the right type, ignores the rest", () => {
-    expect(parseSettings('{"keepRunning":false,"trayHintShown":true,"extra":1}')).toEqual({ keepRunning: false, trayHintShown: true, shortcuts: { capture: "Ctrl+Shift+Space", palette: "Alt+Space" } });
+    expect(parseSettings('{"keepRunning":false,"trayHintShown":true,"extra":1}')).toEqual({ keepRunning: false, trayHintShown: true, island: true, shortcuts: { capture: "Ctrl+Shift+Space", palette: "Alt+Space" } });
     expect(parseSettings('{"keepRunning":"no"}')).toEqual(DEFAULT_SETTINGS);
     expect(parseSettings("not json")).toEqual(DEFAULT_SETTINGS);
     expect(parseSettings("null")).toEqual(DEFAULT_SETTINGS);
@@ -74,7 +74,7 @@ describe("settings", () => {
     const dir = mkdtempSync(join(tmpdir(), "wanheda-settings-"));
     try {
       expect(loadSettings(dir)).toEqual(DEFAULT_SETTINGS);
-      const saved = { keepRunning: false, trayHintShown: true, shortcuts: { capture: "Ctrl+Alt+N", palette: null } };
+      const saved = { keepRunning: false, trayHintShown: true, island: false, shortcuts: { capture: "Ctrl+Alt+N", palette: null } };
       saveSettings(dir, saved);
       expect(loadSettings(dir)).toEqual(saved);
       expect(JSON.parse(readFileSync(join(dir, "settings.json"), "utf8"))).toEqual(saved);

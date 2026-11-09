@@ -73,6 +73,10 @@ describe("isDesktopCommand", () => {
     expect(isDesktopCommand({ kind: "palette" })).toBe(true);
     expect(isDesktopCommand({ kind: "media", action: "next" })).toBe(true);
     expect(isDesktopCommand({ kind: "capture", text: "milk" })).toBe(true);
+    expect(isDesktopCommand({ kind: "island", command: { kind: "music", action: "next" } })).toBe(true);
+    expect(isDesktopCommand({ kind: "island", command: { kind: "dismiss", noticeId: "n1" } })).toBe(true);
+    expect(isDesktopCommand({ kind: "island", command: { kind: "open", path: "/" } })).toBe(false);
+    expect(isDesktopCommand({ kind: "island", command: { kind: "speech", action: "next" } })).toBe(false);
     for (const bad of [null, "palette", { kind: "media", action: "eject" }, { kind: "capture", text: " " }, { kind: "capture" }, { kind: "quit" }]) {
       expect(isDesktopCommand(bad), JSON.stringify(bad)).toBe(false);
     }

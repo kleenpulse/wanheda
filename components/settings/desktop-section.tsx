@@ -71,6 +71,28 @@ export function DesktopSection() {
         </SettingRow>
       </SettingsCard>
 
+      <SettingsCard title="Island">
+        <SettingRow
+          label="Float the island over other apps"
+          description="While Wanheda is in the background, what's playing, your timers and alerts stay at the top of the screen. Clicks pass through everywhere but the island itself."
+        >
+          {(labelId) => (
+            <Switch
+              labelId={labelId}
+              on={state.island}
+              onChange={(on) => {
+                void desktopBridge()
+                  ?.settings.set({ island: on })
+                  .then((r) => {
+                    setState(r.state);
+                  })
+                  .catch(ignore);
+              }}
+            />
+          )}
+        </SettingRow>
+      </SettingsCard>
+
       <SettingsCard title="Shortcuts that work in any app">
         {state.shortcuts.map((s) => (
           <ShortcutRow key={s.id} shortcut={s} onState={setState} />
