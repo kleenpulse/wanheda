@@ -4,7 +4,7 @@
 |---|---|
 | Date | 2026-11-09 |
 | Phase / checkpoint | P8 side task T84 (owner request): anyone can sign up; `ADMIN_EMAILS` sees `/admin` |
-| Branch | `phase-8/open-signup-admin` (off `main` at `c366353`), uncommitted, waiting for review |
+| Branch | `phase-8/open-signup-admin` (off `main` at `c366353`), commit `6c79ce3`, PR #87 opened after wanheda-87's LGTM with nits (both taken) |
 | HEAD at start | `c366353` — Merge pull request #86 from kleenpulse:phase-8/desktop-titlebar |
 | Previous hand-off | docs/handoff/2026-11-09-phase-8-title-bar.md |
 

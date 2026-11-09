@@ -1,6 +1,6 @@
 # Latest hand-off
 
-**Newest:** [2026-11-09-phase-8-open-signup-admin.md](2026-11-09-phase-8-open-signup-admin.md). **Owner request (T84): anyone can sign up with a verified GitHub email; `ADMIN_EMAILS` (replaces `OWNER_EMAILS`) sees `/admin` with user counts, actives, sign-ups and app use. Review FIX (device stores per account, V78) applied; uncommitted on `phase-8/open-signup-admin`, waiting for wanheda-87's re-review. Migration `0013_user_activity` applied and `ADMIN_EMAILS` set in Vercel (owner's word); delete `OWNER_EMAILS` from Vercel only after merge.**
+**Newest:** [2026-11-09-phase-8-open-signup-admin.md](2026-11-09-phase-8-open-signup-admin.md). **Owner request (T84): anyone can sign up with a verified GitHub email; `ADMIN_EMAILS` (replaces `OWNER_EMAILS`) sees `/admin` with user counts, actives, sign-ups and app use. Review FIX (device stores per account, V78) and nits applied; PR #87 open on `phase-8/open-signup-admin`, waiting for the owner's merge. Migration `0013_user_activity` applied and `ADMIN_EMAILS` set in Vercel (owner's word); delete `OWNER_EMAILS` from Vercel only after merge.**
 
 **Before it:** [2026-11-09-phase-8-title-bar.md](2026-11-09-phase-8-title-bar.md). Title bar like VS Code and the island grey box fix, merged as PR #86 at `c366353`.
 
