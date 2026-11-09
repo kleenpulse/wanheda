@@ -83,6 +83,13 @@ export type WanhedaDesktop = {
     synth(voice: string, codepoints: number[], rate: number): Promise<{ samples: Float32Array; sampleRate: number; synthMs: number }>;
     drop(voice: string): Promise<void>;
   };
+  /** The main window's title bar: Windows' buttons take its colours, and its menu button opens the app menu. */
+  titleBar: {
+    /** Both as `#rrggbb`. */
+    colors(colors: { color: string; symbol: string }): void;
+    /** The menu opens at this point, in the window's CSS pixels. */
+    menu(anchor: { x: number; y: number }): void;
+  };
   /** Quick capture's own window only; elsewhere the shell ignores it. */
   capture: {
     /** True once the main window's page has it to save; false while it can't take it (signed out, loading). */

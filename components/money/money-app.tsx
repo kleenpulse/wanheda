@@ -553,7 +553,7 @@ function AddSheet({ payload, today, open, setOpen }: { payload: MoneyPayload; to
         <Dialog.Backdrop className="fixed inset-0 z-50 bg-background/40 backdrop-blur-[2px] transition-opacity duration-150 data-ending-style:opacity-0 data-starting-style:opacity-0" />
         <Dialog.Popup
           className={cn(
-            "glass-window fixed inset-x-2 bottom-2 z-50 flex max-h-[calc(100svh-1rem)] flex-col overflow-y-auto overscroll-contain rounded-card p-5 shadow-lift outline-none",
+            "glass-window fixed inset-x-2 bottom-2 z-50 flex max-h-[calc(var(--app-h)-1rem)] flex-col overflow-y-auto overscroll-contain rounded-card p-5 shadow-lift outline-none",
             "transition-[opacity,translate] duration-200 ease-out-quint data-ending-style:translate-y-6 data-ending-style:opacity-0 data-starting-style:translate-y-6 data-starting-style:opacity-0 motion-reduce:translate-y-0",
           )}
         >

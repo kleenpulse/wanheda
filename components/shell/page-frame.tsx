@@ -24,7 +24,7 @@ import { cn } from "@/lib/utils";
 
 const FILL = {
   // A floor: on a very short screen (a phone on its side) the frame stops shrinking and the page scrolls, sheet and all.
-  frame: "has-[[data-page-fill]]:h-svh has-[[data-page-fill]]:min-h-[34rem]",
+  frame: "has-[[data-page-fill]]:h-(--app-h) has-[[data-page-fill]]:min-h-[34rem]",
   sheet: "has-[[data-page-fill]]:flex has-[[data-page-fill]]:min-h-0 has-[[data-page-fill]]:flex-col",
   column: "has-[[data-page-fill]]:min-h-0 has-[[data-page-fill]]:flex-1 has-[[data-page-fill]]:pb-0",
 };
@@ -37,7 +37,7 @@ const FILL = {
  * backdrop-filter, which would trap the page's non-portaled fixed overlays.
  * The sheet must also carry `data-sheet` for the reduced-transparency rule.
  */
-export const PAGE_ROOT = "relative flex min-h-svh flex-col";
+export const PAGE_ROOT = "relative flex min-h-(--app-h) flex-col";
 export const PAGE_SHEET =
   "relative isolate flex-1 rounded-t-frame bg-sheet in-data-[wallpaper-cover=page]:bg-sheet/55 dark:border-t dark:border-glass-border";
 

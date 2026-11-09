@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Figtree, Geist, Geist_Mono, JetBrains_Mono, Poppins } from "next/font/google";
 import { MotionProvider } from "@/components/providers/motion-provider";
 import { ThemeProvider } from "@/components/providers/theme-provider";
+import { TitleBar } from "@/components/shell/title-bar";
 import { privacyBootScript } from "@/lib/money/privacy";
 import { prefsBootScript } from "@/lib/prefs/prefs";
 import { railBootScript } from "@/lib/shell/rail";
@@ -53,6 +54,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       </head>
       <body className="min-h-full flex flex-col font-sans">
         <ThemeProvider>
+          <TitleBar />
           <MotionProvider>{children}</MotionProvider>
         </ThemeProvider>
       </body>

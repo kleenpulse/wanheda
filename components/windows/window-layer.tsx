@@ -97,7 +97,7 @@ export function WindowLayer() {
   };
 
   return (
-    <div ref={ref} className="pointer-events-none fixed inset-x-0 top-0 bottom-[84px] z-25 md:left-(--rail-w)">
+    <div ref={ref} className="pointer-events-none fixed inset-x-0 top-(--tb) bottom-[84px] z-25 md:left-(--rail-w)">
       <AnimatePresence>
         {ready && bounds
           ? open.map((id, i) => {

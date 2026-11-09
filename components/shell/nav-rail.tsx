@@ -77,7 +77,7 @@ export function NavRail({
       aria-label="Primary"
       data-expanded={expanded}
       className={cn(
-        "sticky top-0 z-20 h-svh shrink-0 flex-col gap-4 overflow-x-hidden overflow-y-auto bg-band px-5 py-5 [scrollbar-width:none]",
+        "sticky top-(--tb) z-20 h-(--app-h) shrink-0 flex-col gap-4 overflow-x-hidden overflow-y-auto bg-band px-5 py-5 [scrollbar-width:none]",
         "transition-[width] duration-300 ease-out-quint motion-reduce:transition-none",
         "dark:border-r dark:border-rail-border",
         expanded ? "w-[232px]" : "w-[84px]",

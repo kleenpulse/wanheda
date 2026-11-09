@@ -57,10 +57,10 @@ function Scene({ name }: { name: SceneName }) {
       data-edge={fromBottom ? "bottom" : undefined}
       className={
         fromBottom
-          ? "wallpaper-fade-up fixed right-0 bottom-0 left-(--rail-w) h-svh"
+          ? "wallpaper-fade-up fixed right-0 bottom-0 left-(--rail-w) h-(--app-h)"
           : // One screen tall and faded out at the bottom: the scene sits behind the
             // top of the page, and a tall page never pays for a canvas it scrolls past.
-            "wallpaper-fade absolute inset-x-0 top-0 h-svh max-h-full"
+            "wallpaper-fade absolute inset-x-0 top-0 h-(--app-h) max-h-full"
       }
     >
       <Draw palette={palette} reduced={reduced} edge={prefs.auroraEdge} />
@@ -106,7 +106,7 @@ export function WallpaperMain({ children }: { children: React.ReactNode }) {
   return (
     <main data-wallpaper-cover={scene ? "page" : undefined} className="relative min-w-0 flex-1">
       {scene ? (
-        <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-svh overflow-hidden">
+        <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-(--app-h) overflow-hidden">
           <Scene key={scene} name={scene} />
         </div>
       ) : null}

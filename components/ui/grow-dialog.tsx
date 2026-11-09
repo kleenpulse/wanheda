@@ -100,18 +100,20 @@ export function GrowDialog({
     };
   }, [open, initialFocus]);
 
-  // The open panel is centred, so its centre is the viewport's: only the
-  // trigger's offset from centre and a width ratio are needed. The same values
-  // drive enter and exit, so the grow and the shrink mirror each other.
+  // The open panel is centred in the window below the desktop title bar (--tb,
+  // 0 on the web), so only the trigger's offset from that centre and a width
+  // ratio are needed. The same values drive enter and exit, so the grow and
+  // the shrink mirror each other.
   const growFrom = React.useMemo(() => {
     if (!originRect || reduce || typeof window === "undefined") return null;
     const vw = window.innerWidth;
-    const vh = window.innerHeight;
+    const tb = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--tb")) || 0;
+    const centreY = (window.innerHeight + tb) / 2;
     const width = Math.min(maxWidth, vw - 32);
     return {
       opacity: 0,
       x: originRect.left + originRect.width / 2 - vw / 2,
-      y: originRect.top + originRect.height / 2 - vh / 2,
+      y: originRect.top + originRect.height / 2 - centreY,
       scale: Math.min(0.9, Math.max(0.1, originRect.width / width)),
     };
   }, [originRect, reduce, maxWidth]);
@@ -133,7 +135,7 @@ export function GrowDialog({
               onOpenChange(false);
             }}
           />
-          <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="pointer-events-none fixed inset-x-0 top-(--tb) bottom-0 z-50 flex items-center justify-center p-4">
             <motion.div
               ref={panel}
               role="dialog"
@@ -145,7 +147,7 @@ export function GrowDialog({
               transition={reduce ? { duration: 0 } : SPRING}
               style={{ maxWidth }}
               className={cn(
-                "glass-window pointer-events-auto flex max-h-[calc(100svh-2rem)] w-full flex-col overflow-hidden rounded-card shadow-lift outline-none",
+                "glass-window pointer-events-auto flex max-h-[calc(var(--app-h)-2rem)] w-full flex-col overflow-hidden rounded-card shadow-lift outline-none",
                 className,
               )}
             >

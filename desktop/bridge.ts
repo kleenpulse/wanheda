@@ -63,6 +63,10 @@ export const CHANNELS = {
   ttsSynth: "wanheda:tts-synth",
   /** page ⇄ main (invoke): the voice was deleted; native Piper forgets it too. */
   ttsDrop: "wanheda:tts-drop",
+  /** main window page → main: the title bar's colours, so Windows' buttons match the skin (`TitleBarColors`). */
+  titleBarColors: "wanheda:title-bar-colors",
+  /** main window page → main: open the app menu under the title bar's menu button (`MenuAnchor`). */
+  titleBarMenu: "wanheda:title-bar-menu",
 } as const;
 
 /** The quick-capture page. */
@@ -232,4 +236,29 @@ export function parseTtsInstall(payload: unknown): { voice: string; model: Uint8
   if (typeof voice !== "string" || typeof config !== "string" || config.length > MAX_VOICE_CONFIG) return null;
   const bytes = model instanceof Uint8Array ? model : model instanceof ArrayBuffer ? new Uint8Array(model) : null;
   return bytes ? { voice, model: bytes, config } : null;
+}
+
+/** The title bar's background and the colour of Windows' buttons on it, as `#rrggbb`. */
+export type TitleBarColors = { color: string; symbol: string };
+
+const HEX = /^#[0-9a-f]{6}$/i;
+
+export function parseTitleBarColors(payload: unknown): TitleBarColors | null {
+  if (!payload || typeof payload !== "object") return null;
+  const { color, symbol } = payload as Record<string, unknown>;
+  if (typeof color !== "string" || typeof symbol !== "string" || !HEX.test(color) || !HEX.test(symbol)) return null;
+  return { color: color.toLowerCase(), symbol: symbol.toLowerCase() };
+}
+
+/** Where the app menu opens: the menu button's bottom-left corner, in the window's CSS pixels. */
+export type MenuAnchor = { x: number; y: number };
+
+const MAX_ANCHOR = 16_384;
+
+export function parseMenuAnchor(payload: unknown): MenuAnchor | null {
+  if (!payload || typeof payload !== "object") return null;
+  const { x, y } = payload as Record<string, unknown>;
+  const ok = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n) && n >= 0 && n <= MAX_ANCHOR;
+  if (!ok(x) || !ok(y)) return null;
+  return { x: Math.round(x), y: Math.round(y) };
 }
