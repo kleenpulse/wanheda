@@ -14,8 +14,8 @@ import { spawnSync } from "node:child_process";
 import { cpSync, readFileSync, rmSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import { KNOWN_ENV_NAMES } from "../env-file";
-import { bundleMain, bundleServer } from "./bundle";
-import { verifyServerDir } from "./verify";
+import { bundleMain, bundleServer, bundleSpeech } from "./bundle";
+import { verifyServerDir, verifySpeechDir } from "./verify";
 
 export type Stage = { app: string; server: string };
 
@@ -72,7 +72,15 @@ export async function stage(root: string): Promise<Stage> {
     homepage: "https://github.com/kleenpulse/wanheda",
   });
 
+  // Native Piper (V73): the speech bundle with sherpa's two packages next to it.
+  const speech = join(out, "speech");
+  await bundleSpeech(root, speech);
+  for (const pkg of ["sherpa-onnx-node", "sherpa-onnx-win-x64"]) {
+    cpSync(join(root, "desktop", "node_modules", pkg), join(speech, "node_modules", pkg), { recursive: true, dereference: true });
+  }
+
   verifyServerDir(server);
+  verifySpeechDir(speech);
   return { app, server };
 }
 

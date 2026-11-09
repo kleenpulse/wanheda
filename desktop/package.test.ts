@@ -25,6 +25,12 @@ describe("desktop install", () => {
     expect(pkg.devDependencies?.["electron-builder"]).toBe("26.18.1");
   });
 
+  test("native Piper is the ADR-0014 pin, a dev dependency (stage.ts copies it into speech/; electron-builder packs nothing)", () => {
+    expect(pkg.devDependencies?.["sherpa-onnx-node"]).toBe("2.0.1");
+    expect(pkg.devDependencies?.["sherpa-onnx-win-x64"]).toBe("2.0.1");
+    expect(pkg.dependencies).toBeUndefined();
+  });
+
   test("installs only take releases at least 7 days old", () => {
     expect(read("bunfig.toml")).toMatch(/^minimumReleaseAge = 604800$/m);
   });

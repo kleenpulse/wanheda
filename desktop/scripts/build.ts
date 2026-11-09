@@ -12,7 +12,7 @@ import { createHash } from "node:crypto";
 import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { buildAndStage } from "./stage";
-import { verifyServerDir } from "./verify";
+import { verifyServerDir, verifySpeechDir } from "./verify";
 
 if (process.platform !== "win32") {
   console.error("desktop:build makes the Windows installer, on Windows.");
@@ -46,6 +46,7 @@ if (packed.status !== 0) throw new Error("electron-builder failed");
 
 const unpacked = join(out, "win-unpacked");
 verifyServerDir(join(unpacked, "resources", "server"));
+verifySpeechDir(join(unpacked, "resources", "speech"));
 
 // Positions on Electron 45's fuse wire. @electron/fuses (pinned by
 // electron-builder 26) names only the first eight, so the list lives here.

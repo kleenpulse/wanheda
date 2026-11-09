@@ -55,6 +55,14 @@ export const CHANNELS = {
   filesForget: "wanheda:files-forget",
   /** main → page: a picked folder changed on disk (settled), so its index can catch up. */
   filesChanged: "wanheda:files-changed",
+  /** page ⇄ main (invoke): whether native Piper has this voice (V73). */
+  ttsHas: "wanheda:tts-has",
+  /** page ⇄ main (invoke): hand native Piper a voice the page already has (checked again against the catalog). */
+  ttsInstall: "wanheda:tts-install",
+  /** page ⇄ main (invoke): audio for phonemes (code points) in a kept voice. */
+  ttsSynth: "wanheda:tts-synth",
+  /** page ⇄ main (invoke): the voice was deleted; native Piper forgets it too. */
+  ttsDrop: "wanheda:tts-drop",
 } as const;
 
 /** The quick-capture page. */
@@ -212,4 +220,16 @@ export function openPath(path: string): string | null {
 
 export function parseRootKind(payload: unknown): "music" | "video" | null {
   return payload === "music" || payload === "video" ? payload : null;
+}
+
+/** Largest voice config taken (a real one is about 5 KB). */
+export const MAX_VOICE_CONFIG = 64 * 1024;
+
+/** A voice handed over by the page: its id, model bytes and config text. Checked against the catalog in tts.ts. */
+export function parseTtsInstall(payload: unknown): { voice: string; model: Uint8Array; config: string } | null {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return null;
+  const { voice, model, config } = payload as Record<string, unknown>;
+  if (typeof voice !== "string" || typeof config !== "string" || config.length > MAX_VOICE_CONFIG) return null;
+  const bytes = model instanceof Uint8Array ? model : model instanceof ArrayBuffer ? new Uint8Array(model) : null;
+  return bytes ? { voice, model: bytes, config } : null;
 }

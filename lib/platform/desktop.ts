@@ -75,6 +75,14 @@ export type WanhedaDesktop = {
     forget(rootId: string): Promise<void>;
     onChanged(callback: (rootId: string) => void): () => void;
   };
+  /** Native Piper (V73): sherpa-onnx in the shell's own process. Voices are handed over from this device's copies. */
+  tts: {
+    has(voice: string): Promise<boolean>;
+    /** False when the files don't match the catalog (nothing is kept). */
+    install(voice: string, model: ArrayBuffer, config: string): Promise<boolean>;
+    synth(voice: string, codepoints: number[], rate: number): Promise<{ samples: Float32Array; sampleRate: number; synthMs: number }>;
+    drop(voice: string): Promise<void>;
+  };
   /** Quick capture's own window only; elsewhere the shell ignores it. */
   capture: {
     /** True once the main window's page has it to save; false while it can't take it (signed out, loading). */

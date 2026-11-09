@@ -33,3 +33,12 @@ export async function bundleMain(root: string, outDir: string, manifest: Record<
 export async function bundleServer(root: string, serverDir: string): Promise<void> {
   await bundle(join(root, "desktop", "server", "bootstrap.ts"), serverDir, "wanheda-server.cjs", []);
 }
+
+/**
+ * The speech process → `<speechDir>/wanheda-speech.cjs`. The native addon
+ * (sherpa-onnx-node) stays external: it loads from that folder's node_modules,
+ * or desktop/node_modules in dev.
+ */
+export async function bundleSpeech(root: string, speechDir: string): Promise<void> {
+  await bundle(join(root, "desktop", "speech", "speech-process.ts"), speechDir, "wanheda-speech.cjs", ["sherpa-onnx-node"]);
+}

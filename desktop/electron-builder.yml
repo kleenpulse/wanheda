@@ -28,6 +28,13 @@ extraResources:
   - from: .stage/server/node_modules
     to: server/node_modules
     filter: ["**/*"]
+  # Native Piper (V73): the speech process and sherpa-onnx, outside the asar like the server.
+  - from: .stage/speech
+    to: speech
+    filter: ["**/*"]
+  - from: .stage/speech/node_modules
+    to: speech/node_modules
+    filter: ["**/*"]
 
 # Electron 45 has a ninth fuse, wasmTrapHandlers. It stays at its default (on):
 # it makes WebAssembly fast, and speech runs on it. This version of

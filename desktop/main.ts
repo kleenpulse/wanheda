@@ -2,13 +2,15 @@ import { app, BrowserWindow, dialog, globalShortcut, ipcMain, protocol, type Ipc
 import { randomBytes } from "node:crypto";
 import { readFileSync, statSync } from "node:fs";
 import { basename, join } from "node:path";
-import { CAPTURE_PATH, canTakeCommand, CHANNELS, needsLoad, openPath, parseAudible, parseRootKind, parseCaptureText, parseDesktopChange, parseNotice, parseSecretsAction, trustedSender, type Command, type DesktopNotice, type DesktopSetResult, type DesktopState, type ShortcutStatus } from "./bridge";
+import { CAPTURE_PATH, canTakeCommand, CHANNELS, needsLoad, openPath, parseAudible, parseRootKind, parseTtsInstall, parseCaptureText, parseDesktopChange, parseNotice, parseSecretsAction, trustedSender, type Command, type DesktopNotice, type DesktopSetResult, type DesktopState, type ShortcutStatus } from "./bridge";
 import { MAX_ENV_FILE, parseEnvFile, type Imported } from "./env-file";
 import { serverEnv } from "./env";
 import { hasTray, onAllWindowsClosed, onWindowClose, showTrayHint, type Lifecycle } from "./lifecycle";
 import { linkArg, linkPath, WANHEDA_SCHEME } from "./links";
 import { FILE_SCHEME, isRootId, MAX_ROOTS, newRootId, type Root } from "./files";
 import { listRoot, loadRoots, saveRoots, serveFile, watchRoot } from "./files-io";
+import { createSpeech } from "./tts";
+import { isVoiceId, parseSynthRequest } from "./tts-model";
 import { EMPTY_SNAPSHOT, ISLAND_PATH, ISLAND_SIZE, islandPosition, overIsland, parseIslandCommand, parseIslandReport, parseIslandSnapshot, shouldShowIsland, type IslandReport, type IslandSnapshot } from "./island";
 import { createLog } from "./log";
 import { classifyAuthUrl, classifyUrl, navigationStep, permissionAllowed } from "./policy";
@@ -96,6 +98,8 @@ function boot(): void {
   /** Native music and video folders (V72): picked in a dialog, kept here, read through `wanheda-file:`. */
   let roots: Root[] = loadRoots(userData);
   const rootWatches = new Map<string, () => void>();
+  /** Native Piper (V73): voices in userData, synthesis in its own utility process. */
+  const speech = createSpeech({ userData, speechDir: speechDir(), log });
   // GitHub sign-in's own window (no preload), and the contents it owns.
   let authWindow: BrowserWindow | null = null;
   const authContents = new Set<number>();
@@ -124,6 +128,25 @@ function boot(): void {
     { scheme: FILE_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, corsEnabled: true } },
   ]);
 
+  ipcMain.handle(CHANNELS.ttsHas, (event, payload: unknown): boolean => {
+    if (!fromWindow(event, mainWindow)) throw new Error("Not allowed.");
+    return isVoiceId(payload) && speech.has(payload);
+  });
+  ipcMain.handle(CHANNELS.ttsInstall, async (event, payload: unknown): Promise<boolean> => {
+    if (!fromWindow(event, mainWindow)) throw new Error("Not allowed.");
+    const req = parseTtsInstall(payload);
+    return req ? speech.install(req.voice, req.model, req.config) : false;
+  });
+  ipcMain.handle(CHANNELS.ttsSynth, (event, payload: unknown) => {
+    if (!fromWindow(event, mainWindow)) throw new Error("Not allowed.");
+    const req = parseSynthRequest(payload);
+    if (!req) throw new Error("Not a speech request.");
+    return speech.synth(req);
+  });
+  ipcMain.handle(CHANNELS.ttsDrop, (event, payload: unknown): void => {
+    if (!fromWindow(event, mainWindow)) throw new Error("Not allowed.");
+    if (isVoiceId(payload)) speech.drop(payload);
+  });
   ipcMain.handle(CHANNELS.filesRoots, (event): Root[] => {
     if (!fromWindow(event, mainWindow)) throw new Error("Not allowed.");
     return roots;
@@ -268,6 +291,7 @@ function boot(): void {
       }
       quitting = "done";
       globalShortcut.unregisterAll();
+      speech.stop();
       tray?.destroy();
       app.exit(0);
     });
@@ -1244,6 +1268,16 @@ function boot(): void {
       if (choice === 1) event.preventDefault();
     });
   }
+}
+
+/**
+ * Where the speech process and its native addon live: resources/speech when
+ * installed, next to the staged app in preview, and the dev bundle (sherpa
+ * then resolves from desktop/node_modules) in dev.
+ */
+function speechDir(): string {
+  if (app.isPackaged) return join(process.resourcesPath, "speech");
+  return mode === "preview" ? join(app.getAppPath(), "..", "speech") : join(app.getAppPath(), "speech");
 }
 
 /** Every display's work area, primary first. */
