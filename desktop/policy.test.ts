@@ -22,9 +22,13 @@ describe("classifyUrl", () => {
     expect(classifyUrl("https://user:pw@example.com/", app)).toEqual({ kind: "deny" });
   });
 
-  test("GitHub's OAuth authorize page starts the auth window", () => {
+  test("GitHub's and Google's OAuth authorize pages start a sign-in", () => {
     const url = "https://github.com/login/oauth/authorize?client_id=x&state=y";
-    expect(classifyUrl(url, app)).toEqual({ kind: "github-sign-in", url });
+    expect(classifyUrl(url, app)).toEqual({ kind: "oauth-sign-in", provider: "github", url });
+    const google = "https://accounts.google.com/o/oauth2/v2/auth?client_id=x&state=y";
+    expect(classifyUrl(google, app)).toEqual({ kind: "oauth-sign-in", provider: "google", url: google });
+    expect(classifyUrl("https://accounts.google.com/ServiceLogin", app).kind).toBe("external");
+    expect(classifyUrl("https://u:p@accounts.google.com/o/oauth2/v2/auth", app)).toEqual({ kind: "deny" });
     expect(classifyUrl("http://github.com/login/oauth/authorize", app).kind).toBe("external");
     expect(classifyUrl("https://github.com/settings", app).kind).toBe("external");
   });
@@ -70,7 +74,7 @@ describe("navigationStep", () => {
     expect(navigationStep({ url: `${app}/money`, ...main }, app)).toEqual({ kind: "allow" });
     expect(navigationStep({ url: "https://ads.example/x", ...main }, app)).toEqual({ kind: "external", url: "https://ads.example/x" });
     const signIn = "https://github.com/login/oauth/authorize?client_id=x";
-    expect(navigationStep({ url: signIn, ...main }, app)).toEqual({ kind: "github-sign-in", url: signIn });
+    expect(navigationStep({ url: signIn, ...main }, app)).toEqual({ kind: "oauth-sign-in", provider: "github", url: signIn });
     expect(navigationStep({ url: "file:///C:/x", ...main }, app)).toEqual({ kind: "block" });
   });
 

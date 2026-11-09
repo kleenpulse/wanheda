@@ -4,6 +4,13 @@
 // one user never sees, or replays, another's local data. Pure and import-free;
 // the shell's AccountProvider sets the scope before any store opens.
 
+/**
+ * Every device store that holds an account's data. `openScopedDexie` only
+ * opens these, so deleting an account (V79) can find all of them.
+ */
+export const ACCOUNT_STORES = ["wanheda-notes", "wanheda-money", "wanheda-reader", "wanheda-reader-keys", "wanheda-media"] as const;
+export type AccountStore = (typeof ACCOUNT_STORES)[number];
+
 export interface DeviceScope {
   /** `u.<user id>` for a signed-in user, `demo` for demo mode. */
   id: string;
@@ -22,7 +29,7 @@ export function scopeFor(account: { kind: "owner" | "demo"; id: string | null; a
 }
 
 /** `wanheda-notes` → `wanheda-notes@u.123`. */
-export function scopedName(base: string, scope: DeviceScope): string {
+export function scopedName(base: AccountStore, scope: DeviceScope): string {
   return `${base}@${scope.id}`;
 }
 

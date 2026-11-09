@@ -1,12 +1,12 @@
 import Dexie from "dexie";
-import { deviceScope, scopedName } from "./scope";
+import { ACCOUNT_STORES, deviceScope, scopedName, type AccountStore, type DeviceScope } from "./scope";
 
 /**
  * Opens a device store under this account's name (lib/device/scope.ts).
  * Rejects outside the shell (no scope) or where IndexedDB is unavailable;
  * every caller already falls back to memory on a rejection.
  */
-export async function openScopedDexie<D extends Dexie>(base: string, define: (db: D) => void): Promise<D> {
+export async function openScopedDexie<D extends Dexie>(base: AccountStore, define: (db: D) => void): Promise<D> {
   const scope = deviceScope();
   if (!scope) throw new Error(`${base}: no account scope yet`);
   const db = new Dexie(scopedName(base, scope)) as D;
@@ -14,6 +14,22 @@ export async function openScopedDexie<D extends Dexie>(base: string, define: (db
   await db.open();
   if (scope.adoptsLegacy) await adoptLegacy(base, db);
   return db;
+}
+
+/**
+ * Deletes every device store of one account (V79), after its account is
+ * deleted. Dexie closes its own connections when a delete asks, in any tab,
+ * so nothing holds it up for long; the wait is bounded all the same, and a
+ * delete still pending lands without this tab.
+ */
+export async function forgetAccountStores(scope: DeviceScope, waitMs = 2_000): Promise<void> {
+  const deletes = Promise.allSettled(ACCOUNT_STORES.map((base) => Dexie.delete(scopedName(base, scope))));
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<void>((resolve) => {
+    timer = setTimeout(resolve, waitMs);
+  });
+  await Promise.race([deletes, timeout]);
+  clearTimeout(timer);
 }
 
 const adoptedKey = (base: string) => `wanheda-adopted:${base}`;

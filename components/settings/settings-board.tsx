@@ -7,6 +7,7 @@ import { AudioLines, BookOpen, ChevronLeft, ChevronRight, Keyboard, Monitor, Pal
 import { AddPasskeyButton, SignOutButton } from "@/components/auth/account-actions";
 import { AppearanceSection, PrefsNote, TimersSection } from "@/components/settings/appearance-prefs";
 import { ConnectionsSection } from "@/components/settings/connections-section";
+import { DeleteAccountButton } from "@/components/settings/delete-account";
 import { DesktopSection } from "@/components/settings/desktop-section";
 import { MoneySection } from "@/components/settings/money-prefs";
 import { ReaderPrefsNote, ReaderSection } from "@/components/settings/reader-prefs";
@@ -326,6 +327,8 @@ function AccountSection() {
       </SettingsCard>
     );
   }
+  // Sign-up requires a verified email (signup-guard), so every account has one.
+  const email = account.email;
   return (
     <div className="flex flex-col gap-4">
       <SettingsCard title="Signed in">
@@ -339,6 +342,17 @@ function AccountSection() {
           {() => <SignOutButton />}
         </SettingRow>
       </SettingsCard>
+      {email ? (
+        <SettingsCard title="Danger zone">
+          <SettingRow
+            label="Delete account"
+            description="Deletes your account and everything in it, here and on every device. It can't be undone."
+            layout="wide"
+          >
+            {() => <DeleteAccountButton email={email} />}
+          </SettingRow>
+        </SettingsCard>
+      ) : null}
     </div>
   );
 }

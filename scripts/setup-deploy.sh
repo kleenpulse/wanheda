@@ -211,7 +211,7 @@ TOTAL_STAGES=8
 TOTAL_MINUTES=18
 
 # Must never reach Vercel Preview (SPEC C12).
-PREVIEW_FORBIDDEN="DATABASE_URL DATABASE_URL_UNPOOLED BETTER_AUTH_SECRET BETTER_AUTH_URL GITHUB_CLIENT_ID GITHUB_CLIENT_SECRET ADMIN_EMAILS"
+PREVIEW_FORBIDDEN="DATABASE_URL DATABASE_URL_UNPOOLED BETTER_AUTH_SECRET BETTER_AUTH_URL GITHUB_CLIENT_ID GITHUB_CLIENT_SECRET GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET ADMIN_EMAILS"
 
 PROJECT_NAME="wanheda"
 LOCAL_URL="http://localhost:3000"
@@ -447,6 +447,31 @@ step "Generate a new client secret and copy it."
 ask_secret PROD_GITHUB_CLIENT_SECRET "Paste the production client secret:"
 note "Kept in memory only, for the Vercel step. Not written to $ENV_FILE."
 
+# Google sign-in is optional: a second button beside GitHub. Two clients, like
+# GitHub's two apps, so the production secret never lands in $ENV_FILE.
+PROD_GOOGLE_CLIENT_ID=""
+PROD_GOOGLE_CLIENT_SECRET=""
+say "Google sign-in is optional: a second button beside GitHub."
+if confirm "Set up Google sign-in too?"; then
+  open_url "https://console.cloud.google.com/auth/overview"
+  step "First time: Branding (app name Wanheda, support email), Audience External,"
+  step "then Publish app. In Testing mode only listed test users can sign in."
+  step "Clients → Create client → Web application, name: Wanheda (local)."
+  step "Authorized redirect URI:     $LOCAL_URL/api/auth/callback/google"
+  step "Desktop app too? Add:        http://localhost:<saved port>/api/auth/callback/google"
+  ask GOOGLE_CLIENT_ID "Paste the local Client ID:"
+  ask_secret GOOGLE_CLIENT_SECRET "Paste the local client secret:"
+  if [[ -n "$GOOGLE_CLIENT_ID" && -n "$GOOGLE_CLIENT_SECRET" ]]; then
+    write_env GOOGLE_CLIENT_ID "$GOOGLE_CLIENT_ID"
+    write_env GOOGLE_CLIENT_SECRET "$GOOGLE_CLIENT_SECRET"
+  fi
+  step "Create a second Web client, name: Wanheda."
+  step "Authorized redirect URI:     $PROD_URL/api/auth/callback/google"
+  ask PROD_GOOGLE_CLIENT_ID "Paste the production Client ID:"
+  ask_secret PROD_GOOGLE_CLIENT_SECRET "Paste the production client secret:"
+  note "Kept in memory only, for the Vercel step. Not written to $ENV_FILE."
+fi
+
 # ── 6 ─────────────────────────────────────────────────────────────────────
 stage "Database URLs — Production only" 1
 say "Production uses the same Neon database as $ENV_FILE (host $(host_of "$current_db"))."
@@ -468,6 +493,7 @@ step "BETTER_AUTH_URL       $PROD_URL"
 step "NEXT_PUBLIC_APP_URL   $PROD_URL"
 step "GITHUB_CLIENT_ID      the production app's Client ID"
 step "GITHUB_CLIENT_SECRET  the production app's secret"
+step "GOOGLE_CLIENT_ID/SECRET $([[ -n "$PROD_GOOGLE_CLIENT_ID" && -n "$PROD_GOOGLE_CLIENT_SECRET" ]] && echo "the production Google client" || echo "(none: GitHub only)")"
 step "ADMIN_EMAILS          ${ADMIN_EMAILS:-(none: no Admin page)}"
 if confirm "Write these variables to Vercel Production now?"; then
   vercel_env_set BETTER_AUTH_SECRET "$(openssl rand -base64 32)" sensitive
@@ -475,11 +501,15 @@ if confirm "Write these variables to Vercel Production now?"; then
   vercel_env_set NEXT_PUBLIC_APP_URL "$PROD_URL"
   vercel_env_set GITHUB_CLIENT_ID "$PROD_GITHUB_CLIENT_ID"
   vercel_env_set GITHUB_CLIENT_SECRET "$PROD_GITHUB_CLIENT_SECRET" sensitive
+  if [[ -n "$PROD_GOOGLE_CLIENT_ID" && -n "$PROD_GOOGLE_CLIENT_SECRET" ]]; then
+    vercel_env_set GOOGLE_CLIENT_ID "$PROD_GOOGLE_CLIENT_ID"
+    vercel_env_set GOOGLE_CLIENT_SECRET "$PROD_GOOGLE_CLIENT_SECRET" sensitive
+  fi
   if [[ -n "$ADMIN_EMAILS" ]]; then vercel_env_set ADMIN_EMAILS "$ADMIN_EMAILS"; fi
 else
   SKIPPED+=("Vercel Production auth variables (re-run the wizard)")
 fi
-unset PROD_GITHUB_CLIENT_SECRET
+unset PROD_GITHUB_CLIENT_SECRET PROD_GOOGLE_CLIENT_SECRET
 say "Variables in Vercel Production (names only):"
 vercel env list production --cwd "$MAIN_ROOT" 2>/dev/null || true
 assert_preview_clean
@@ -492,7 +522,7 @@ step "bun run dev"
 open_url "$LOCAL_URL"
 step "You land on /login. Sign in with GitHub."
 step "On the home page, click 'Add passkey', then sign out and sign in with it."
-note "Any GitHub account with a verified email gets its own Wanheda; only ADMIN_EMAILS see /admin."
+note "Any GitHub (or Google, if set up) account with a verified email gets its own Wanheda; only ADMIN_EMAILS see /admin."
 pause "Press Enter when done (or to skip)"
 
 finish

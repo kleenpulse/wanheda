@@ -3,13 +3,20 @@
  * Pages from the local server (and blob: URLs they made) stay in the app;
  * http(s) links go to the system browser; everything else is dropped.
  *
- * GitHub sign-in is the one exception (V68): main opens its authorize page in
- * the system browser and finishes the sign-in in the app's window when the
- * browser comes back (desktop/oauth.ts). In dev only, the OAuth pages open in
- * a separate auth window with no preload instead (classifyAuthUrl).
+ * GitHub and Google sign-in are the one exception (V68): main opens the
+ * authorize page in the system browser and finishes the sign-in in the app's
+ * window when the browser comes back (desktop/oauth.ts). In dev only, GitHub's
+ * OAuth pages open in a separate auth window with no preload instead
+ * (classifyAuthUrl).
  */
 
-export type Destination = { kind: "app" } | { kind: "github-sign-in"; url: string } | { kind: "external"; url: string } | { kind: "deny" };
+import { authorizeProvider, type Provider } from "./oauth";
+
+export type Destination =
+  | { kind: "app" }
+  | { kind: "oauth-sign-in"; provider: Provider; url: string }
+  | { kind: "external"; url: string }
+  | { kind: "deny" };
 
 const EXTERNAL = new Set(["http:", "https:"]);
 
@@ -26,15 +33,11 @@ export function classifyUrl(raw: string, appOrigin: string | null): Destination 
   if (!url) return { kind: "deny" };
   // For blob: URLs, `origin` is the origin that made them.
   if (appOrigin && url.origin === appOrigin && (url.protocol === "http:" || url.protocol === "blob:")) return { kind: "app" };
-  if (isOAuthStart(url)) return { kind: "github-sign-in", url: url.href };
+  const provider = authorizeProvider(url);
+  if (provider) return { kind: "oauth-sign-in", provider, url: url.href };
   if (url.protocol === "blob:") return { kind: "deny" };
   if (EXTERNAL.has(url.protocol) && !url.username && !url.password) return { kind: "external", url: url.href };
   return { kind: "deny" };
-}
-
-/** GitHub's OAuth authorize page: where Better Auth sends the window to sign in. */
-function isOAuthStart(url: URL): boolean {
-  return url.protocol === "https:" && url.host === "github.com" && url.pathname === "/login/oauth/authorize";
 }
 
 /** GitHub pages a sign-in can pass through: log in, two-factor, device check, authorize. */
@@ -53,7 +56,11 @@ export function classifyAuthUrl(raw: string, appOrigin: string | null): AuthStep
   return { kind: "deny" };
 }
 
-export type NavigationStep = { kind: "allow" } | { kind: "block" } | { kind: "github-sign-in"; url: string } | { kind: "external"; url: string };
+export type NavigationStep =
+  | { kind: "allow" }
+  | { kind: "block" }
+  | { kind: "oauth-sign-in"; provider: Provider; url: string }
+  | { kind: "external"; url: string };
 
 /**
  * What a `will-navigate` or `will-redirect` does. Only the main frame is

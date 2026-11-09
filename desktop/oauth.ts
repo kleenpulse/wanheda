@@ -1,9 +1,10 @@
 /*
- * GitHub sign-in in the system browser (V68), the way VS Code and gh do it.
+ * GitHub and Google sign-in in the system browser (V68), the way VS Code and
+ * gh do it. Google refuses embedded browsers outright, so this is its only way.
  *
  * The app's window starts the sign-in (Better Auth sets its signed state
- * cookie in the app's session) and main opens GitHub's authorize page in the
- * default browser instead of letting the window go there. GitHub sends the
+ * cookie in the app's session) and main opens the provider's authorize page in
+ * the default browser instead of letting the window go there. The provider sends the
  * browser back to the local server's callback. That request has no token, so
  * the server hands its query to main and answers the tab with a short "back to
  * Wanheda" page. Main checks the query against the sign-in it started, then
@@ -13,7 +14,28 @@
 
 import { ORIGIN_HOST } from "./shared";
 
-export const CALLBACK_PATH = "/api/auth/callback/github";
+export type Provider = "github" | "google";
+
+/** Better Auth's callback for each provider: the redirect_uri the provider sends the browser back to. */
+export const CALLBACK_PATHS: Readonly<Record<Provider, string>> = {
+  github: "/api/auth/callback/github",
+  google: "/api/auth/callback/google",
+};
+
+/** Each provider's authorize page, as Better Auth builds it. */
+const AUTHORIZE: Readonly<Record<Provider, { host: string; path: string }>> = {
+  github: { host: "github.com", path: "/login/oauth/authorize" },
+  google: { host: "accounts.google.com", path: "/o/oauth2/v2/auth" },
+};
+
+/** The provider whose authorize page this is, or null. Exact host and path over https. */
+export function authorizeProvider(url: URL): Provider | null {
+  if (url.protocol !== "https:" || url.username || url.password) return null;
+  for (const provider of Object.keys(AUTHORIZE) as Provider[]) {
+    if (url.host === AUTHORIZE[provider].host && url.pathname === AUTHORIZE[provider].path) return provider;
+  }
+  return null;
+}
 /** Where the browser tab ends up: the code is gone from its address bar and history. */
 export const RETURNED_PATH = "/desktop/signed-in";
 
@@ -27,13 +49,16 @@ export const SIGN_IN_TTL_MS = 10 * 60_000;
 
 const MAX_PARAM = 1024;
 const STATE = /^[\w.~-]{16,256}$/;
-const RELAYED = ["code", "state", "error", "error_description", "error_uri"] as const;
+// `iss` (RFC 9207): Google sends it. Better Auth compares it only for a provider
+// with a top-level issuer, which its Google provider lacks; relayed for when it does.
+const RELAYED = ["code", "state", "error", "error_description", "error_uri", "iss"] as const;
 
-export type PendingSignIn = { state: string; expiresAt: number };
+export type PendingSignIn = { provider: Provider; state: string; expiresAt: number };
 
 /**
- * The sign-in a GitHub authorize URL starts, if it sends GitHub back to this
- * app's callback. Anything else (another client's redirect, no state) is null.
+ * The sign-in an authorize URL starts, if it sends the provider back to this
+ * app's callback for that provider. Anything else (another client's redirect,
+ * no state) is null.
  */
 export function signInFrom(authorizeUrl: string, appOrigin: string | null, now: number): PendingSignIn | null {
   if (!appOrigin) return null;
@@ -43,21 +68,22 @@ export function signInFrom(authorizeUrl: string, appOrigin: string | null, now: 
   } catch {
     return null;
   }
-  if (url.protocol !== "https:" || url.host !== "github.com" || url.pathname !== "/login/oauth/authorize") return null;
-  if (url.searchParams.get("redirect_uri") !== `${appOrigin}${CALLBACK_PATH}`) return null;
+  const provider = authorizeProvider(url);
+  if (!provider) return null;
+  if (url.searchParams.get("redirect_uri") !== `${appOrigin}${CALLBACK_PATHS[provider]}`) return null;
   const state = url.searchParams.get("state");
   if (!state || !STATE.test(state)) return null;
-  return { state, expiresAt: now + SIGN_IN_TTL_MS };
+  return { provider, state, expiresAt: now + SIGN_IN_TTL_MS };
 }
 
 /**
  * The callback query to load in the app's window, or null when it isn't the
- * answer to the pending sign-in: wrong or missing state, expired, neither a
- * code nor an error, a repeated or oversized parameter. Rebuilt from the known
- * parameters only.
+ * answer to the pending sign-in: another provider's callback, wrong or missing
+ * state, expired, neither a code nor an error, a repeated or oversized
+ * parameter. Rebuilt from the known parameters only.
  */
-export function callbackQuery(search: string, pending: PendingSignIn | null, now: number): string | null {
-  if (!pending || now > pending.expiresAt || search.length > 4 * MAX_PARAM) return null;
+export function callbackQuery(provider: Provider, search: string, pending: PendingSignIn | null, now: number): string | null {
+  if (!pending || pending.provider !== provider || now > pending.expiresAt || search.length > 4 * MAX_PARAM) return null;
   const params = new URLSearchParams(search);
   const out = new URLSearchParams();
   for (const key of RELAYED) {
@@ -73,11 +99,11 @@ export function callbackQuery(search: string, pending: PendingSignIn | null, now
   return out.toString();
 }
 
-export type BrowserReturn = { kind: "callback"; search: string } | { kind: "returned" } | null;
+export type BrowserReturn = { kind: "callback"; provider: Provider; search: string } | { kind: "returned" } | null;
 
 /**
- * The only requests the local server answers without the token: GitHub's
- * redirect back to the callback, and the page it then moves the tab to. Both
+ * The only requests the local server answers without the token: a provider's
+ * redirect back to its callback, and the page it then moves the tab to. Both
  * are plain GETs that must still name the server exactly (Host), so a
  * DNS-rebinding page can't reach them either. The token-carrying app request
  * to the same callback goes to Next as usual.
@@ -90,7 +116,9 @@ export function browserReturn(method: string | undefined, rawUrl: string | undef
   } catch {
     return null;
   }
-  if (url.pathname === CALLBACK_PATH) return { kind: "callback", search: url.search };
+  for (const provider of Object.keys(CALLBACK_PATHS) as Provider[]) {
+    if (url.pathname === CALLBACK_PATHS[provider]) return { kind: "callback", provider, search: url.search };
+  }
   if (url.pathname === RETURNED_PATH && url.search === "") return { kind: "returned" };
   return null;
 }

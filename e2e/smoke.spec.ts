@@ -18,7 +18,26 @@ test.describe("gated: auth configured, signed out", { tag: "@gated" }, () => {
 
     const second = await hop(request, "/login");
     expect(second.status()).toBe(200);
-    expect(await second.text()).toContain("Sign in with GitHub to open your own Wanheda.");
+    const html = await second.text();
+    expect(html).toContain("Sign in with GitHub or Google to open your own Wanheda.");
+    expect(html).toContain("Continue with GitHub");
+    expect(html).toContain("Continue with Google");
+  });
+
+  test("/login badges the way this browser last signed in, and only a known one (V81)", async ({ request }) => {
+    const badged = await (await hop(request, "/login", { cookie: "wanheda.last_sign_in=google" })).text();
+    expect(badged.match(/Last used/g)?.length).toBe(1);
+    expect(badged).toMatch(/Continue with Google(<!-- -->)?<span[^>]*><span[^>]*>Last used/);
+    for (const cookie of ["wanheda.last_sign_in=<b>x</b>", ""]) {
+      const plain = await (await hop(request, "/login", cookie ? { cookie } : undefined)).text();
+      expect(plain, cookie).not.toContain("Last used");
+    }
+  });
+
+  test("/login says the account is gone after a deletion (V79)", async ({ request }) => {
+    const res = await hop(request, "/login?deleted=1");
+    expect(res.status()).toBe(200);
+    expect(await res.text()).toContain("Account deleted");
   });
 
   test("a deep link keeps its path in ?next= and still ends in one hop", async ({ request }) => {

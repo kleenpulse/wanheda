@@ -66,6 +66,8 @@ export interface AuthSettings {
   baseURL: string | undefined;
   githubClientId: string;
   githubClientSecret: string;
+  /** Google sign-in, offered beside GitHub when both of its values are set. */
+  google: { clientId: string; clientSecret: string } | null;
 }
 
 /**
@@ -83,7 +85,20 @@ export function authSettings(): AuthSettings | null {
     baseURL: value(process.env.BETTER_AUTH_URL),
     githubClientId,
     githubClientSecret,
+    google: googleSettings(),
   };
+}
+
+/** Google's OAuth client, or null unless both values are set. GitHub stays the one required provider. */
+function googleSettings(): AuthSettings["google"] {
+  const clientId = value(process.env.GOOGLE_CLIENT_ID);
+  const clientSecret = value(process.env.GOOGLE_CLIENT_SECRET);
+  return clientId && clientSecret ? { clientId, clientSecret } : null;
+}
+
+/** Whether the sign-in page offers Google: auth is on and Google is configured. */
+export function googleSignIn(): boolean {
+  return has("auth") && authSettings()?.google != null;
 }
 
 const PREDICATES: Record<Capability, () => boolean> = {

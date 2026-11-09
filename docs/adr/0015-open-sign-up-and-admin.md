@@ -25,6 +25,25 @@ The data layer was already per user. Every table carries `user_id` (FK → `user
 - **Sign-out leaves nothing behind in the tab.** It reloads `/login` as a new page, so module-level stores and in-tab memory don't carry over. It also clears the persisted timers and mini windows, and tells other tabs to reload. Each shell tab announces its account on a BroadcastChannel and reloads if another tab speaks for a different one, because a stale tab would otherwise send its queue with the new user's cookie. The reload is best-effort (a timer can fire before the new tab announces), so the server closes it: every replayed write carries the user id of the store that queued it, and the action refuses it as a transient failure when that differs from the session user.
 - **The admin page shows counts, never content:** users, new this week and month, active today, this week and this month, live sessions, sign-ups and actives per day for 30 days, users per app (at least one row in `txn`, `connector`, `note`, `document` or `media_item`), and the 25 newest accounts with name, email, join date and last active day. All of it is read in one `db.batch` round trip.
 
+## Amendment (2026-11-09): self-service account deletion
+
+Open sign-up needs a way out, so a user can delete their own account (SPEC V79), from Settings → Account → Danger zone.
+
+- **One door.** The `deleteAccount` server action takes the user from the session, refuses demo, and checks that the typed email matches the account's. Only then does it call Better Auth's `deleteUser`. The `/delete-user` HTTP routes are listed in `disabledPaths`, so nobody can skip the typed check with a direct POST.
+- **A fresh session.** Better Auth refuses a session older than a day (`freshAge`). The dialog then offers "Sign in again", which signs out and comes back to the Account section. A stolen old cookie can't delete an account.
+- **Server data.** Every table with a `user_id` references `user` with `ON DELETE CASCADE` (sessions, OAuth accounts and passkeys included), so deleting the user row deletes everything. No per-table delete code to keep in step.
+- **Device data.** After the action succeeds, the tab deletes the account's scoped IndexedDB stores (`ACCOUNT_STORES`, V78), then clears its state like a sign-out. The order matters: the sign-out announcement reloads every shell tab, this one included. `openScopedDexie` only accepts a listed name, so a new store can't be left out. Reader files in OPFS stay: they are shared by sha256 between accounts and reachable only through a row, and the rows are gone.
+- **Not built:** export before delete, a grace period, and deletion by an admin. The confirm dialog is the pause, since nothing can bring the account back.
+
+## Amendment (2026-11-09): Google sign-in
+
+Google is a second, optional OAuth provider beside GitHub (SPEC V80).
+
+- **Optional.** With both `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` set, Better Auth gets the `google` provider and `/login` shows "Continue with Google". With either missing, nothing changes. GitHub stays the one required provider, so the gate modes (V6) are unchanged.
+- **Same rules.** Google reports `email_verified`, so the sign-up guard applies unchanged. When a Google email matches an existing account whose email is verified, Better Auth links the two, so one person keeps one Wanheda whichever button they press. `prompt=select_account` lets someone with several Google accounts pick one.
+- **Desktop.** Google refuses embedded browsers, so the system-browser flow (V68) is its only way in. The flow now knows each provider's authorize page and callback, and a return on one provider's callback never answers the other's sign-in. `desktop:dev` can't catch the browser's return, so Google there is logged and skipped; use `desktop:preview`.
+- **Setup.** One Google OAuth client per environment, like GitHub's two apps: local (plus the desktop's `http://localhost:<saved port>` callback) and production. The consent screen must be published, or only test users can sign in. Previews get neither (the wizard's preview check covers `GOOGLE_*`).
+
 ## Consequences
 
 ### In 6 months
@@ -37,7 +56,7 @@ The data layer was already per user. Every table carries `user_id` (FK → `user
 ### In 2 years
 
 - If Wanheda gets many users, per-user RLS policies (a session variable per request) become worth their cost as a second wall behind the store filters.
-- Turning R2 on (V38) needs a per-user storage quota and an upload rate limit before it ships.
+- Turning R2 on (V38) needs a per-user storage quota and an upload rate limit before it ships, and account deletion must then delete the user's objects too (V79).
 
 ## Alternatives considered
 
@@ -50,4 +69,4 @@ The data layer was already per user. Every table carries `user_id` (FK → `user
 
 - R2 uploads are switched on (quotas first).
 - Users reach the low thousands, or a second person needs admin access to anything beyond counts.
-- Anyone asks for per-user deletion or export from the admin page.
+- Anyone asks for export before deletion, or for deletion from the admin page.

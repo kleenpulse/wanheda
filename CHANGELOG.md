@@ -17,6 +17,9 @@ written after the fact, one per phase, and have no git tags.
 
 ### Added
 
+- The sign-in page marks the way you signed in last time with a small "Last used" tag, so you know which button to press.
+- You can sign in with Google as well as GitHub, on the web and in the Windows app. If your Google email is the same as your GitHub one, both buttons open the same Wanheda.
+- You can delete your account yourself, in Settings → Account → Danger zone. Type your email to confirm, and your account and everything in it are gone for good, on every device, and cleared from that browser too. If you signed in more than a day ago, Wanheda asks you to sign in again first.
 - Anyone can now make their own Wanheda: sign in with GitHub and you get an account with your own money, notes, library and media, kept apart from everyone else's.
 - An Admin page for the people listed as admins: how many users there are, who signed up and who used Wanheda each day over the last month, how many are active today and this week, and which apps they use.
 - Wanheda can run as a Windows app of its own. It opens in its own window with a tray icon, keeps playing when you close the window (Quit from the tray or the File menu stops it), and opens `wanheda://` links on the right page. On first start it asks for your `.env` file and locks the settings it knows with Windows' keychain, or starts in demo mode; File → Import .env file… and File → Use demo mode… change that later. Signing in with GitHub happens in your default browser, like other desktop apps, and Wanheda picks it up from there. The window's title bar is Wanheda's own and follows your theme; its ☰ button opens the File, Edit, View and Window menus.

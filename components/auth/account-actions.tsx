@@ -6,6 +6,8 @@ import { buttonClass } from "@/components/ui/button";
 import { ACTIVITY_STORAGE_KEY } from "@/lib/activity/store";
 import { authClient } from "@/lib/auth/client";
 import { announceAccount } from "@/lib/device/account-channel";
+import { forgetAccountStores } from "@/lib/device/dexie";
+import { deviceScope } from "@/lib/device/scope";
 import { WINDOWS_STORAGE_KEY } from "@/lib/windows/store";
 
 /** Ends the session. False on an error response or a network failure, so callers can recover. */
@@ -25,7 +27,25 @@ export async function signOutOk(): Promise<boolean> {
  * signs in next (ADR-0015). The account's IndexedDB stores stay, under its own
  * name, for when it comes back.
  */
-export function leaveAfterSignOut(): void {
+export function leaveAfterSignOut(to = "/login"): void {
+  clearTab();
+  window.location.replace(to);
+}
+
+/**
+ * After the account is deleted (V79): as a sign-out, and this account's
+ * IndexedDB stores are deleted too, since nobody can come back for them.
+ * Stores first: the announcement reloads every shell tab, this one included
+ * (its own AccountProvider hears it), which would cut the deletes short.
+ */
+export async function leaveAfterDelete(): Promise<void> {
+  const scope = deviceScope();
+  if (scope?.userId) await forgetAccountStores(scope);
+  clearTab();
+  window.location.replace("/login?deleted=1");
+}
+
+function clearTab(): void {
   announceAccount(null);
   try {
     localStorage.removeItem(ACTIVITY_STORAGE_KEY);
@@ -33,7 +53,6 @@ export function leaveAfterSignOut(): void {
   } catch {
     // Storage blocked: nothing was kept there either.
   }
-  window.location.replace("/login");
 }
 
 export function SignOutButton() {

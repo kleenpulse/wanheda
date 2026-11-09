@@ -2,6 +2,7 @@ import { utilityProcess } from "electron";
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { join } from "node:path";
 import type { Log } from "./log";
+import { CALLBACK_PATHS, type Provider } from "./oauth";
 import { LISTEN_HOST, originFor, TOKEN_HEADER } from "./shared";
 
 export type ServerHandle = {
@@ -11,8 +12,8 @@ export type ServerHandle = {
   stop(): Promise<void>;
   /** Called if the server exits without being asked to. */
   onExit(listener: (detail: string) => void): void;
-  /** GitHub's redirect reached the server in the system browser (desktop/oauth.ts); never in dev. */
-  onOAuthCallback(listener: (search: string) => void): void;
+  /** A provider's redirect reached the server in the system browser (desktop/oauth.ts); never in dev. */
+  onOAuthCallback(listener: (provider: Provider, search: string) => void): void;
 };
 
 /** A start failure with a message meant for the owner. */
@@ -21,7 +22,9 @@ export class ServerStartError extends Error {}
 /* ── Packaged / preview: the standalone server in a utility process ──────── */
 
 type Report = { type: "ready"; port: number } | { type: "failed"; message: string };
-type Message = Report | { type: "oauth-callback"; search: unknown };
+type Message = Report | { type: "oauth-callback"; provider: unknown; search: unknown };
+
+const isProvider = (value: unknown): value is Provider => typeof value === "string" && Object.hasOwn(CALLBACK_PATHS, value);
 
 export async function startStandaloneServer(opts: { serverDir: string; port: number; env: Record<string, string>; log: Log }): Promise<ServerHandle> {
   const child = utilityProcess.fork(join(opts.serverDir, "wanheda-server.cjs"), [], {
@@ -35,12 +38,13 @@ export async function startStandaloneServer(opts: { serverDir: string; port: num
   child.stderr?.on("data", onData);
   const exited = new Promise<number>((resolve) => child.once("exit", resolve));
 
-  const callbackListeners: ((search: string) => void)[] = [];
+  const callbackListeners: ((provider: Provider, search: string) => void)[] = [];
   const report = await new Promise<Report>((resolve) => {
     const timer = setTimeout(() => { resolve({ type: "failed", message: "timed out" }); }, 90_000);
     child.on("message", (message: Message) => {
       if (message.type === "oauth-callback") {
-        if (typeof message.search === "string") for (const listener of callbackListeners) listener(message.search);
+        const { provider, search } = message;
+        if (isProvider(provider) && typeof search === "string") for (const listener of callbackListeners) listener(provider, search);
         return;
       }
       clearTimeout(timer);
