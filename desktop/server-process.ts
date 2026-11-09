@@ -11,6 +11,8 @@ export type ServerHandle = {
   stop(): Promise<void>;
   /** Called if the server exits without being asked to. */
   onExit(listener: (detail: string) => void): void;
+  /** GitHub's redirect reached the server in the system browser (desktop/oauth.ts); never in dev. */
+  onOAuthCallback(listener: (search: string) => void): void;
 };
 
 /** A start failure with a message meant for the owner. */
@@ -19,6 +21,7 @@ export class ServerStartError extends Error {}
 /* ── Packaged / preview: the standalone server in a utility process ──────── */
 
 type Report = { type: "ready"; port: number } | { type: "failed"; message: string };
+type Message = Report | { type: "oauth-callback"; search: unknown };
 
 export async function startStandaloneServer(opts: { serverDir: string; port: number; env: Record<string, string>; log: Log }): Promise<ServerHandle> {
   const child = utilityProcess.fork(join(opts.serverDir, "wanheda-server.cjs"), [], {
@@ -32,9 +35,14 @@ export async function startStandaloneServer(opts: { serverDir: string; port: num
   child.stderr?.on("data", onData);
   const exited = new Promise<number>((resolve) => child.once("exit", resolve));
 
+  const callbackListeners: ((search: string) => void)[] = [];
   const report = await new Promise<Report>((resolve) => {
     const timer = setTimeout(() => { resolve({ type: "failed", message: "timed out" }); }, 90_000);
-    child.on("message", (message: Report) => {
+    child.on("message", (message: Message) => {
+      if (message.type === "oauth-callback") {
+        if (typeof message.search === "string") for (const listener of callbackListeners) listener(message.search);
+        return;
+      }
       clearTimeout(timer);
       resolve(message);
     });
@@ -59,6 +67,7 @@ export async function startStandaloneServer(opts: { serverDir: string; port: num
     port: report.port,
     origin: originFor(report.port),
     onExit: (listener) => void listeners.push(listener),
+    onOAuthCallback: (listener) => void callbackListeners.push(listener),
     async stop() {
       if (stopping) return;
       stopping = true;
@@ -110,6 +119,8 @@ export async function startDevServer(opts: { repoRoot: string; port: number; tok
     port: opts.port,
     origin,
     onExit: (listener) => void listeners.push(listener),
+    // `next dev` has no token gate, so the browser never comes back through it: dev signs in in the auth window.
+    onOAuthCallback: () => undefined,
     async stop() {
       if (stopping) return;
       stopping = true;

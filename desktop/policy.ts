@@ -3,9 +3,10 @@
  * Pages from the local server (and blob: URLs they made) stay in the app;
  * http(s) links go to the system browser; everything else is dropped.
  *
- * GitHub sign-in is the one exception (V68, ADR-0014): its OAuth pages open
- * in a separate auth window with no preload, so the session cookie lands in
- * the app's own session, not the system browser's.
+ * GitHub sign-in is the one exception (V68): main opens its authorize page in
+ * the system browser and finishes the sign-in in the app's window when the
+ * browser comes back (desktop/oauth.ts). In dev only, the OAuth pages open in
+ * a separate auth window with no preload instead (classifyAuthUrl).
  */
 
 export type Destination = { kind: "app" } | { kind: "github-sign-in"; url: string } | { kind: "external"; url: string } | { kind: "deny" };

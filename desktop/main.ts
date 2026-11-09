@@ -13,6 +13,7 @@ import { createSpeech } from "./tts";
 import { isVoiceId, parseSynthRequest } from "./tts-model";
 import { EMPTY_SNAPSHOT, ISLAND_PATH, ISLAND_SIZE, islandPosition, overIsland, parseIslandCommand, parseIslandReport, parseIslandSnapshot, shouldShowIsland, type IslandReport, type IslandSnapshot } from "./island";
 import { createLog } from "./log";
+import { CALLBACK_PATH, callbackQuery, signInFrom, type PendingSignIn } from "./oauth";
 import { classifyAuthUrl, classifyUrl, navigationStep, permissionAllowed } from "./policy";
 import { freePort, isPortFree, savePort, savedPort } from "./ports";
 import { electronSealer } from "./sealer";
@@ -100,7 +101,9 @@ function boot(): void {
   const rootWatches = new Map<string, () => void>();
   /** Native Piper (V73): voices in userData, synthesis in its own utility process. */
   const speech = createSpeech({ userData, speechDir: speechDir(), log });
-  // GitHub sign-in's own window (no preload), and the contents it owns.
+  // GitHub sign-in: the one started in the system browser, waiting for GitHub to send it back.
+  let pendingSignIn: PendingSignIn | null = null;
+  // Dev only: GitHub sign-in's own window (no preload), and the contents it owns.
   let authWindow: BrowserWindow | null = null;
   const authContents = new Set<number>();
   let quitting: "no" | "closing" | "done" = "no";
@@ -561,6 +564,11 @@ function boot(): void {
     if (captureWindow && !captureWindow.isDestroyed()) void captureWindow.loadURL(`${handle.origin}${CAPTURE_PATH}`);
     if (islandWindow && !islandWindow.isDestroyed()) void islandWindow.loadURL(`${handle.origin}${ISLAND_PATH}`);
     handle.onExit((detail) => void serverDied(handle, detail));
+    handle.onOAuthCallback((search) => {
+      if (handle === server) finishSignIn(search);
+    });
+    // A sign-in started against another server (or origin) can't finish on this one.
+    pendingSignIn = null;
     log.info(`server ready at ${handle.origin}`);
   }
 
@@ -1124,7 +1132,43 @@ function boot(): void {
   }
 
   /**
-   * GitHub's OAuth pages in their own window (V68, ADR-0014): no preload, the
+   * GitHub sign-in (V68). Packaged and preview: GitHub's pages open in the
+   * default browser, like VS Code's and gh's sign-in, and the server hands the
+   * browser's return to finishSignIn. Dev (`next dev`, no token gate to catch
+   * that return): the auth window below.
+   */
+  function startGitHubSignIn(url: string): void {
+    if (mode === "dev") {
+      openAuthWindow(url);
+      return;
+    }
+    const started = signInFrom(url, appOrigin, Date.now());
+    if (!started) {
+      log.info("sign-in: GitHub's page doesn't come back to this app; not opened");
+      return;
+    }
+    pendingSignIn = started;
+    void shell.openExternal(url);
+    log.info("sign-in: GitHub opened in the browser");
+  }
+
+  /** The browser came back from GitHub: finish in the app's window, which holds the state cookie and the token. */
+  function finishSignIn(search: string): void {
+    const query = callbackQuery(search, pendingSignIn, Date.now());
+    if (!query || !appOrigin) {
+      log.info("sign-in: a callback that doesn't answer this app's sign-in was ignored");
+      return;
+    }
+    pendingSignIn = null;
+    showWindow();
+    const target = mainWindow;
+    if (!target || target.isDestroyed()) return;
+    void target.loadURL(`${appOrigin}${CALLBACK_PATH}?${query}`);
+    log.info("sign-in: back from the browser");
+  }
+
+  /**
+   * Dev only. GitHub's OAuth pages in their own window (V68, ADR-0014): no preload, the
    * app's session (so the callback's cookie lands where the app reads it),
    * and only GitHub's sign-in pages and the app's callback. Reaching the
    * app's origin ends it: the window closes and the main window goes there.
@@ -1237,7 +1281,7 @@ function boot(): void {
           },
         };
       }
-      if (destination.kind === "github-sign-in") openAuthWindow(destination.url);
+      if (destination.kind === "github-sign-in") startGitHubSignIn(destination.url);
       else if (destination.kind === "external") void shell.openExternal(destination.url);
       return { action: "deny" };
     });
@@ -1245,7 +1289,7 @@ function boot(): void {
       const step = navigationStep({ url: event.url, isMainFrame: event.isMainFrame, isAuth: isAuth() }, appOrigin);
       if (step.kind === "allow") return;
       event.preventDefault();
-      if (step.kind === "github-sign-in") openAuthWindow(step.url);
+      if (step.kind === "github-sign-in") startGitHubSignIn(step.url);
       else if (step.kind === "external") void shell.openExternal(step.url);
     };
     contents.on("will-navigate", (event) => { guard(event); });
