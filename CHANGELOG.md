@@ -17,6 +17,7 @@ written after the fact, one per phase, and have no git tags.
 
 ### Added
 
+- The sign-in page shows a giant WANHEDA made of particles. Point at or tab to a sign-in button and it reshapes into PASSKEY, GITHUB or GOOGLE, then settles still.
 - Click the sidebar's right edge to open or close it. The Collapse button now shows only while your pointer is over the sidebar.
 - Theatre mode keeps the sidebar collapsed to give the video the full width. Trying to open it shows a short note beside your pointer explaining why, and your usual sidebar setting comes back when you leave theatre mode.
 - With the sidebar open, the Wanheda name at the top is filled with a slow, living glow in your accent colour. It pours in each time you open the sidebar, follows your theme, and holds still if you prefer reduced motion.

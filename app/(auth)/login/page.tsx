@@ -3,6 +3,7 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
+import { AuthSwarmSlot, AuthWordProvider } from "@/components/auth/auth-word";
 import { SignInPanel } from "@/components/auth/sign-in-panel";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { buttonClass } from "@/components/ui/button";
@@ -16,17 +17,23 @@ export const metadata: Metadata = { title: "Sign in · Wanheda" };
 // No global data fetch runs here while signed out (SPEC V8, rawstash §B14).
 export default function LoginPage({ searchParams }: PageProps<"/login">) {
   return (
-    <main className="flex flex-1 items-center justify-center p-6">
-      <section className="bento entrance w-full max-w-sm p-8">
-        <div className="flex items-start justify-between gap-3">
-          <p className="readout">Wanheda · Sign in</p>
-          <ThemeToggle />
+    <AuthWordProvider>
+      <main className="relative flex flex-1 items-center justify-center p-6">
+        {/* The sign-in swarm (V82): page shell, outside the Suspense, under the card. */}
+        <div className="pointer-events-none absolute inset-x-0 bottom-0">
+          <AuthSwarmSlot />
         </div>
-        <Suspense fallback={<LoginFallback />}>
-          <LoginBody searchParams={searchParams} />
-        </Suspense>
-      </section>
-    </main>
+        <section className="bento entrance relative z-10 w-full max-w-sm p-8">
+          <div className="flex items-start justify-between gap-3">
+            <p className="readout">Wanheda · Sign in</p>
+            <ThemeToggle />
+          </div>
+          <Suspense fallback={<LoginFallback />}>
+            <LoginBody searchParams={searchParams} />
+          </Suspense>
+        </section>
+      </main>
+    </AuthWordProvider>
   );
 }
 
