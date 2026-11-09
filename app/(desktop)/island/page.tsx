@@ -9,8 +9,9 @@ export const metadata: Metadata = { title: "Island · Wanheda" };
 export default function IslandPage() {
   return (
     <>
-      {/* The window is see-through: no page colour behind the island. */}
-      <style>{"html,body{background:transparent!important}"}</style>
+      {/* The window is see-through: no page colour behind the island, and no Nebula vignette
+          (body::before's inset shadow would tint the whole small window grey). */}
+      <style>{"html,body{background:transparent!important}body::before{content:none!important}"}</style>
       <FloatingIsland />
     </>
   );
