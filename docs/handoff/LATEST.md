@@ -1,6 +1,6 @@
 # Latest hand-off
 
-**Newest:** [2026-11-09-phase-8-account-deletion.md](2026-11-09-phase-8-account-deletion.md). **Owner request (T85): self-service account deletion in Settings → Account → Danger zone (typed email, one server action, Better Auth `deleteUser` with its HTTP routes closed, cascade deletes, device stores wiped), plus optional Google sign-in beside GitHub (web and desktop browser flow). Uncommitted on `phase-8/account-deletion`, waiting for the Reviewer. Owner: `OWNER_EMAILS` can now be deleted from Vercel (#87 merged).**
+**Newest:** [2026-11-09-phase-8-account-deletion.md](2026-11-09-phase-8-account-deletion.md). **Owner request (T85): self-service account deletion in Settings → Account → Danger zone (typed email, one server action, Better Auth `deleteUser` with its HTTP routes closed, cascade deletes, device stores wiped), plus optional Google sign-in beside GitHub (web and desktop browser flow). PR #88 open on `phase-8/account-deletion` (`fc79885`) after the Reviewer's LGTM with nits, waiting for the owner's merge. Owner: `OWNER_EMAILS` can now be deleted from Vercel (#87 merged).**
 
 **Before it:** [2026-11-09-phase-8-open-signup-admin.md](2026-11-09-phase-8-open-signup-admin.md). Open sign-up, `ADMIN_EMAILS`, `/admin`, per-account device stores, merged as PR #87 at `fcf3b4c`.
 

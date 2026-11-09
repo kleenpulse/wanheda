@@ -4,7 +4,7 @@
 |---|---|
 | Date | 2026-11-09 |
 | Phase / checkpoint | P8 side task T85 (owner request): a user can delete their own account; then, in the same PR, Google sign-in beside GitHub |
-| Branch | `phase-8/account-deletion` (off `main` at `fcf3b4c`), **uncommitted**, waiting for the Reviewer |
+| Branch | `phase-8/account-deletion` (off `main` at `fcf3b4c`), commit `fc79885`, PR #88 opened after wanheda-87's LGTM with nits (all taken), waiting for the owner's merge |
 | HEAD at start | `fcf3b4c` — Merge pull request #87 from kleenpulse/phase-8/open-signup-admin |
 | Previous hand-off | docs/handoff/2026-11-09-phase-8-open-signup-admin.md |
 
