@@ -3,6 +3,7 @@
 import { create } from "zustand";
 import { dismissToast, toast } from "@/components/ui/toaster";
 import { piper } from "@/lib/speech/piper";
+import { nativePiper } from "@/lib/speech/piper-native";
 import { voicePref } from "@/lib/speech/prefs";
 import { CATALOG, catalogVoice, DEFAULT_VOICE, hasPartial, installedVoices, installVoice, isInstalled, removeVoice, voiceSize } from "@/lib/speech/voices";
 
@@ -139,6 +140,7 @@ export const useVoiceManager = create<VoiceManagerState>()((set, get) => {
     try {
       await withVoiceLock(id, true, async () => {
         piper.drop(id);
+        nativePiper.drop(id);
         await removeVoice(id);
         // removeVoice is quiet about each entry: check the browser really let go.
         if ((await isInstalled(id)) || (await hasPartial(id))) throw new Error("still on the device");

@@ -71,6 +71,13 @@ contextBridge.exposeInMainWorld("wanheda", {
     forget: (rootId: string): Promise<void> => ipcRenderer.invoke(CHANNELS.filesForget, rootId),
     onChanged: (callback: (rootId: string) => void) => subscribe(CHANNELS.filesChanged, isString, callback),
   },
+  tts: {
+    has: (voice: string): Promise<boolean> => ipcRenderer.invoke(CHANNELS.ttsHas, voice),
+    install: (voice: string, model: ArrayBuffer, config: string): Promise<boolean> => ipcRenderer.invoke(CHANNELS.ttsInstall, { voice, model, config }),
+    synth: (voice: string, codepoints: number[], rate: number): Promise<{ samples: Float32Array; sampleRate: number; synthMs: number }> =>
+      ipcRenderer.invoke(CHANNELS.ttsSynth, { voice, codepoints, rate }),
+    drop: (voice: string): Promise<void> => ipcRenderer.invoke(CHANNELS.ttsDrop, voice),
+  },
   capture: {
     save: (text: string): Promise<boolean> => ipcRenderer.invoke(CHANNELS.capture, text),
     close(): void {

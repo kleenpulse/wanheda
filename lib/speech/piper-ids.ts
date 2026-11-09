@@ -92,3 +92,11 @@ export function parseVoiceConfig(raw: unknown): PiperVoiceConfig | null {
     espeak: { voice: espeak },
   };
 }
+
+/**
+ * Phonemes as the Unicode code points native Piper takes (sherpa-onnx's
+ * `phonemeCodepoints`, V73), decomposed (NFD) the way its tokens are keyed.
+ */
+export function phonemeCodepoints(phonemes: string): number[] {
+  return Array.from(phonemes.normalize("NFD"), (c) => c.codePointAt(0) ?? 0).filter((c) => c > 0);
+}

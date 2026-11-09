@@ -59,6 +59,13 @@ Desktop sign-in needs its own GitHub OAuth app ("Wanheda Desktop", an owner acti
 - The music scan lists the folder through main and reads each song through its URL; a listing that missed something (an unreadable folder, a drive gone) prunes nothing. Videos are fingerprinted from two ranges and played straight from the URL; where each one is, by fp, is kept on the device.
 - Each folder is watched (`fs.watch`, recursive); once changes settle for 1.5 s, the page catches its index up.
 
+## Native speech (T79, V73)
+
+- Read-aloud on desktop runs Piper in sherpa-onnx, in its own utility process (`speech/speech-process.ts`, bundled to `wanheda-speech.cjs`), about 13× faster than real time on the owner's laptop. Phonemes are still made in the page (a small worker with `phonemizer` and `piper-ids.ts`) and sent as code points.
+- Voices aren't downloaded again: the page hands over the copy it already has in OPFS, and main keeps it only if both files match the catalog's size and sha256 (`tts-catalog.ts`, kept equal to `lib/speech/voices.ts` by a test). Main appends sherpa's 7 metadata entries to the model and writes `tokens.txt` (`tts-model.ts`), in `userData/voices/<id>/`.
+- Any failure other than a stop switches that session back to WASM Piper, so speech never goes silent. The process starts on first use, stops after 3 minutes idle, and logs units, audio time, synth time and the real-time factor when it stops.
+- Installed: `resources/speech/` holds the bundle and the two sherpa packages, outside the asar; `scripts/verify.ts` allows only sherpa's five native files there.
+
 ## Security model (V67)
 
 - Every window is sandboxed and context-isolated, with no Node.js and no webviews. DevTools are off in the installed app.

@@ -38,6 +38,44 @@ export function problemsIn(dir: string): string[] {
   return problems;
 }
 
+/** The speech folder's only native files: sherpa-onnx and onnxruntime for Windows x64 (ADR-0014). */
+const SPEECH_NATIVE = new Set([
+  "node_modules/sherpa-onnx-win-x64/sherpa-onnx.node",
+  "node_modules/sherpa-onnx-win-x64/sherpa-onnx-c-api.dll",
+  "node_modules/sherpa-onnx-win-x64/sherpa-onnx-cxx-api.dll",
+  "node_modules/sherpa-onnx-win-x64/onnxruntime.dll",
+  "node_modules/sherpa-onnx-win-x64/onnxruntime_providers_shared.dll",
+]);
+
+const SPEECH_REQUIRED = ["wanheda-speech.cjs", "node_modules/sherpa-onnx-node/package.json", ...SPEECH_NATIVE];
+
+/** A speech folder (V73): the bundle and the two sherpa packages, no links, and no native file but sherpa's own. */
+export function speechProblemsIn(dir: string): string[] {
+  const problems: string[] = [];
+  const walk = (path: string) => {
+    for (const name of readdirSync(path)) {
+      const full = join(path, name);
+      const rel = relative(dir, full).split(sep).join("/");
+      const stat = lstatSync(full);
+      if (stat.isSymbolicLink()) problems.push(`link: ${rel}`);
+      else if (stat.isDirectory()) {
+        if (rel !== "node_modules" && !/^node_modules\/sherpa-onnx-(node|win-x64)(\/|$)/.test(rel)) problems.push(`not for shipping: ${rel}`);
+        else walk(full);
+      } else if (/\.(node|dll|exe)$/i.test(name) && !SPEECH_NATIVE.has(rel)) problems.push(`native binary: ${rel}`);
+      else if (!rel.startsWith("node_modules/") && rel !== "wanheda-speech.cjs") problems.push(`not for shipping: ${rel}`);
+    }
+  };
+  walk(dir);
+  for (const file of SPEECH_REQUIRED) if (!existsSync(join(dir, file))) problems.push(`missing: ${file}`);
+  return problems;
+}
+
+export function verifySpeechDir(dir: string): void {
+  const problems = speechProblemsIn(dir);
+  if (problems.length > 0) throw new Error(`The speech folder isn't fit to ship (${dir}):\n  ${problems.slice(0, 40).join("\n  ")}`);
+  console.log(`verified ${dir}`);
+}
+
 export function verifyServerDir(dir: string): void {
   const problems = problemsIn(dir);
   if (problems.length > 0) throw new Error(`The server folder isn't fit to ship (${dir}):\n  ${problems.slice(0, 40).join("\n  ")}`);

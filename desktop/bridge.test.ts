@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { canTakeCommand, MAX_CAPTURE, MAX_NOTICE_BODY, MAX_NOTICE_TITLE, MAX_VALUE, openPath, parseAudible, parseCaptureText, parseDesktopChange, parseNotice, parseRootKind, parseSecretsAction, needsLoad, trustedSender } from "./bridge";
+import { canTakeCommand, MAX_CAPTURE, MAX_NOTICE_BODY, MAX_NOTICE_TITLE, MAX_VALUE, openPath, parseAudible, parseCaptureText, parseDesktopChange, parseNotice, parseRootKind, parseSecretsAction, parseTtsInstall, needsLoad, trustedSender } from "./bridge";
 
 describe("openPath", () => {
   test("takes allowlisted pages and their keys", () => {
@@ -106,6 +106,11 @@ describe("small parsers", () => {
     expect(parseRootKind("music")).toBe("music");
     expect(parseRootKind("video")).toBe("video");
     expect(parseRootKind("docs")).toBeNull();
+    const model = new Uint8Array([1, 2]);
+    expect(parseTtsInstall({ voice: "v", model, config: "{}" })).toEqual({ voice: "v", model, config: "{}" });
+    expect(parseTtsInstall({ voice: "v", model: model.buffer, config: "{}" })?.model).toEqual(model);
+    expect(parseTtsInstall({ voice: "v", model: [1, 2], config: "{}" })).toBeNull();
+    expect(parseTtsInstall({ voice: "v", model, config: "x".repeat(70_000) })).toBeNull();
   });
 });
 

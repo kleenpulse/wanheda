@@ -7,7 +7,7 @@
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { bundleMain } from "./bundle";
+import { bundleMain, bundleSpeech } from "./bundle";
 import { buildAndStage, stage } from "./stage";
 
 const root = resolve(import.meta.dirname, "../..");
@@ -25,6 +25,8 @@ if (preview) {
 } else {
   entry = join(root, "desktop", ".dev");
   await bundleMain(root, entry);
+  // sherpa resolves from desktop/node_modules, up the tree from .dev/speech.
+  await bundleSpeech(root, join(entry, "speech"));
 }
 
 const env: Record<string, string | undefined> = { ...process.env, WANHEDA_DESKTOP_MODE: preview ? "preview" : "dev", WANHEDA_REPO_ROOT: root };

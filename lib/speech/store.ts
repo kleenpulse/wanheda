@@ -3,6 +3,7 @@ import { nudgeVolume, volumeGain, type Volume } from "@/lib/media/volume";
 import { clampRate, isAbort, type EngineId } from "./engine";
 import { startExitLog, type ExitLog } from "./exit-log";
 import { piper } from "./piper";
+import { synthPreferNative } from "./piper-native";
 import { SpeechPlayer } from "./player";
 import { SpeechQueue, type QueueStats } from "./queue";
 import { ratePref, speechVolumePref, voicePref } from "./prefs";
@@ -110,7 +111,8 @@ class PiperDriver implements Driver {
       sink: player,
       synth: (text, rate, signal) => {
         log?.mark("synth-sent");
-        const out = piper.synth(text, voice, { rate, signal });
+        // The desktop's native Piper while it works (V73), else WASM Piper.
+        const out = synthPreferNative(text, voice, { rate, signal }, () => piper.synth(text, voice, { rate, signal }));
         if (log) void out.then(() => log.mark("synth-back"), () => undefined);
         return out;
       },

@@ -1,5 +1,6 @@
 import type { DocKind } from "@/lib/reader/reader";
 import { piper } from "./piper";
+import { nativePiper } from "./piper-native";
 import { useSpeech } from "./store";
 import { isInstalled } from "./voices";
 
@@ -22,7 +23,8 @@ export function prewarmVoice(kind: DocKind): void {
   const run = () => {
     const { voice } = useSpeech.getState();
     void isInstalled(voice)
-      .then((here) => (here ? piper.warm(voice) : undefined))
+      // The desktop's native Piper gets the voice handed over now (V73); the WASM model never loads there.
+      .then((here) => (here ? (nativePiper.usable() ? nativePiper.warm(voice) : piper.warm(voice)) : undefined))
       .catch(() => undefined);
   };
   if (typeof window.requestIdleCallback === "function") window.requestIdleCallback(run, { timeout: 5000 });

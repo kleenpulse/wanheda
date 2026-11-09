@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseVoiceConfig, phonemeIds, punctuationPhonemes, textToPhonemes, type PhonemeIdMap } from "./piper-ids";
+import { parseVoiceConfig, phonemeCodepoints, phonemeIds, punctuationPhonemes, textToPhonemes, type PhonemeIdMap } from "./piper-ids";
 
 // A fake phonemizer: words become their lowercase letters, so the punctuation handling is what's visible.
 const fake = (text: string) => Promise.resolve(text.trim().toLowerCase().split(/\s+/));
@@ -66,5 +66,14 @@ describe("parseVoiceConfig", () => {
     expect(parseVoiceConfig({ ...ok, espeak: { voice: "de" } })).toBeNull();
     expect(parseVoiceConfig({ ...ok, espeak: { voice: 7 } })).toBeNull();
     expect(parseVoiceConfig({ ...ok, phoneme_type: "text" })).toBeNull();
+  });
+});
+
+describe("phonemeCodepoints", () => {
+  it("decomposes and lists code points", () => {
+    expect(phonemeCodepoints("hə")).toEqual([104, 601]);
+    // A precomposed letter with a mark splits into base + combining mark.
+    expect(phonemeCodepoints("é")).toEqual([101, 769]);
+    expect(phonemeCodepoints("")).toEqual([]);
   });
 });
