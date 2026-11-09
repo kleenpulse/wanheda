@@ -1,4 +1,7 @@
-import Dexie, { type Table } from "dexie";
+import type Dexie from "dexie";
+import type { Table } from "dexie";
+import { openScopedDexie } from "@/lib/device/dexie";
+import { deviceScope } from "@/lib/device/scope";
 import { PdfPasswords, type PasswordBackend } from "@/lib/reader/pdf-password";
 
 // The device's PDF passwords (V40): a small IndexedDB database of its own,
@@ -11,14 +14,21 @@ interface PasswordRow {
   password: string;
 }
 
-let backend: Promise<PasswordBackend | null> | null = null;
+let backend: { scope: string; store: Promise<PasswordBackend | null> } | null = null;
 
+/** This account's remembered passwords (`wanheda-reader-keys@<scope>`, ADR-0015); reopens if the account changes. */
 function device(): Promise<PasswordBackend | null> {
-  backend ??= (async () => {
-    if (typeof indexedDB === "undefined") return null;
-    const db = new Dexie("wanheda-reader-keys") as Dexie & { pdfPasswords: Table<PasswordRow, string> };
-    db.version(1).stores({ pdfPasswords: "sha256" });
-    await db.open();
+  const scope = deviceScope();
+  if (!scope || typeof indexedDB === "undefined") return Promise.resolve(null);
+  if (backend?.scope !== scope.id) backend = { scope: scope.id, store: openPasswords() };
+  return backend.store;
+}
+
+function openPasswords(): Promise<PasswordBackend | null> {
+  return (async () => {
+    const db = await openScopedDexie<Dexie & { pdfPasswords: Table<PasswordRow, string> }>("wanheda-reader-keys", (d) => {
+      d.version(1).stores({ pdfPasswords: "sha256" });
+    });
     return {
       get: async (sha256) => (await db.pdfPasswords.get(sha256))?.password,
       put: async (sha256, password) => {
@@ -27,7 +37,6 @@ function device(): Promise<PasswordBackend | null> {
       delete: (sha256) => db.pdfPasswords.delete(sha256),
     } satisfies PasswordBackend;
   })().catch(() => null);
-  return backend;
 }
 
 const owner = new PdfPasswords(device);

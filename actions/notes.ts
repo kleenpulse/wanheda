@@ -2,6 +2,7 @@
 
 import { z } from "zod";
 import { requireOwner } from "@/lib/auth/owner";
+import { queuedForAnother } from "@/lib/auth/queued";
 import { noteWriteSchema, type Note } from "@/lib/notes/notes";
 import { deleteNote as deleteStoredNote, saveNote as saveStoredNote } from "@/lib/notes/store";
 
@@ -18,9 +19,10 @@ export type SaveNoteResult =
 export type DeleteNoteResult = { ok: true } | { ok: false; reason: "demo" | "invalid" | "failed" };
 
 /** One write by SPEC V23. Returns the note as it now stands on the server. */
-export async function saveNote(input: unknown): Promise<SaveNoteResult> {
+export async function saveNote(input: unknown, asUser?: string): Promise<SaveNoteResult> {
   const owner = await requireOwner();
   if (owner.kind === "demo") return { ok: false, reason: "demo" };
+  if (queuedForAnother(owner, asUser)) return { ok: false, reason: "failed" };
   const parsed = noteWriteSchema.safeParse(input);
   if (!parsed.success) return { ok: false, reason: "invalid" };
   try {
@@ -41,9 +43,10 @@ const deleteSchema = z.object({ id: z.uuid() }).strict();
  * Deletes an archived note for good. A note already gone, or taken out of the
  * archive on another device, counts as done: retrying would never change it.
  */
-export async function deleteNote(input: unknown): Promise<DeleteNoteResult> {
+export async function deleteNote(input: unknown, asUser?: string): Promise<DeleteNoteResult> {
   const owner = await requireOwner();
   if (owner.kind === "demo") return { ok: false, reason: "demo" };
+  if (queuedForAnother(owner, asUser)) return { ok: false, reason: "failed" };
   const parsed = deleteSchema.safeParse(input);
   if (!parsed.success) return { ok: false, reason: "invalid" };
   try {

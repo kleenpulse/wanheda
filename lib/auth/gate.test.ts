@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { decideOwner, decideProxy, isPublicPath, safeNextPath } from "./gate";
 
-const OWNERS: ReadonlySet<string> = new Set(["owner@example.com"]);
-const OWNER = { id: "u1", email: "Owner@Example.com", name: "Owner" };
+const ADMINS: ReadonlySet<string> = new Set(["admin@example.com"]);
+const ADMIN = { id: "u1", email: "Admin@Example.com", name: "Admin" };
 const STRANGER = { id: "u2", email: "someone@example.com", name: "Someone" };
 
 describe("decideProxy", () => {
@@ -82,32 +82,26 @@ describe("safeNextPath", () => {
 
 describe("decideOwner", () => {
   it("is demo in demo mode, whatever the session", () => {
-    expect(decideOwner({ mode: "demo", user: STRANGER, owners: OWNERS })).toEqual({ kind: "demo" });
+    expect(decideOwner({ mode: "demo", user: STRANGER, admins: ADMINS })).toEqual({ kind: "demo" });
   });
 
-  it("is locked in locked mode, even for the owner", () => {
-    expect(decideOwner({ mode: "locked", user: OWNER, owners: OWNERS })).toEqual({ kind: "locked" });
+  it("is locked in locked mode, even for an admin", () => {
+    expect(decideOwner({ mode: "locked", user: ADMIN, admins: ADMINS })).toEqual({ kind: "locked" });
   });
 
   it("is anonymous without a session", () => {
-    expect(decideOwner({ mode: "gated", user: null, owners: OWNERS })).toEqual({ kind: "anonymous" });
+    expect(decideOwner({ mode: "gated", user: null, admins: ADMINS })).toEqual({ kind: "anonymous" });
   });
 
-  it("admits the owner, case-insensitively", () => {
-    expect(decideOwner({ mode: "gated", user: OWNER, owners: OWNERS })).toEqual({ kind: "owner", user: OWNER });
+  it("admits anyone with a valid session to their own data", () => {
+    expect(decideOwner({ mode: "gated", user: STRANGER, admins: ADMINS })).toEqual({ kind: "owner", user: STRANGER, admin: false });
   });
 
-  it("refuses a valid session whose email is not on the allowlist", () => {
-    expect(decideOwner({ mode: "gated", user: STRANGER, owners: OWNERS })).toEqual({
-      kind: "not-owner",
-      user: STRANGER,
-    });
+  it("marks an admin, case-insensitively", () => {
+    expect(decideOwner({ mode: "gated", user: ADMIN, admins: ADMINS })).toEqual({ kind: "owner", user: ADMIN, admin: true });
   });
 
-  it("refuses the owner once their email leaves the allowlist", () => {
-    expect(decideOwner({ mode: "gated", user: OWNER, owners: new Set() })).toEqual({
-      kind: "not-owner",
-      user: OWNER,
-    });
+  it("drops admin at once when the email leaves the list, and keeps the user signed in", () => {
+    expect(decideOwner({ mode: "gated", user: ADMIN, admins: new Set() })).toEqual({ kind: "owner", user: ADMIN, admin: false });
   });
 });

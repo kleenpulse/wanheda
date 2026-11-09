@@ -12,7 +12,8 @@ import { WanhedaMark } from "@/components/shell/wanheda-mark";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Kbd } from "@/components/ui/kbd";
 import { Tip, TooltipGroup } from "@/components/ui/tooltip";
-import { MODULES, SYSTEM_PAGES, isActive, type ModuleManifest } from "@/lib/modules";
+import { MODULES, isActive, systemPages, type ModuleManifest } from "@/lib/modules";
+import { useAccount } from "@/components/shell/account";
 import { TAB_SPRING } from "@/lib/motion";
 import { AppIcon } from "@/components/shell/app-icon";
 import { cn } from "@/lib/utils";
@@ -40,6 +41,7 @@ export function NavRail({
   className?: string;
 }) {
   const pathname = usePathname();
+  const system = systemPages(useAccount().admin);
   const indicatorId = React.useId();
   // The pill moves on click, not on route commit. Waiting for usePathname
   // starts the spring when the new page renders, and a busy main thread drops
@@ -52,7 +54,7 @@ export function NavRail({
     setPendingRoute(null);
   }
   const activeRoute =
-    pendingRoute ?? [...MODULES, ...SYSTEM_PAGES].find((m) => isActive(pathname, m.route))?.route ?? null;
+    pendingRoute ?? [...MODULES, ...system].find((m) => isActive(pathname, m.route))?.route ?? null;
 
   const hidden = expanded ? "opacity-100" : "pointer-events-none opacity-0";
   const tip: TipFn = (text, el) => (expanded ? el : <Tip label={text} render={el} />);
@@ -101,7 +103,7 @@ export function NavRail({
         </div>
 
         <div className="mt-auto flex flex-col gap-3">
-          <div className="-mx-1.5 flex flex-col gap-1.5 px-1.5">{SYSTEM_PAGES.map(link)}</div>
+          <div className="-mx-1.5 flex flex-col gap-1.5 px-1.5">{system.map(link)}</div>
           {tip(
             expanded ? (
               "Collapse"

@@ -4,9 +4,13 @@ Domain terms used in `FRD.md`, `SPEC.md`, the ADRs and the code. Alphabetical. W
 
 **Account.** A place money sits: cash, bank, card, wallet or crypto. Each account has one currency and an opening balance (`account` table).
 
+**Active user.** Someone who used Wanheda on a given UTC day: any signed-in read or action marks the day in `user_activity` (one row per user per day, nothing else kept). "Active this week" counts distinct users over the last 7 days. Not to be confused with an **Activity** on the island.
+
 **Activity.** One live thing the island can show: media playing, speech, a timer or pomodoro, a transfer, a sync, a money alert or an agent session. Each has an id, a kind and a priority.
 
 **Activity bus.** The zustand store (`lib/activity/store.ts`) that holds the live activities. Modules call `publish()` and `end(id)`, and the island reads from it. It syncs across tabs with `BroadcastChannel` and, on desktop, over IPC.
+
+**Admin.** A signed-in user whose email is in `ADMIN_EMAILS`. Admins see `/admin`: user counts, active users, sign-ups and which apps people use, never anyone's content (ADR-0015).
 
 **ARPA.** Average revenue per account: MRR divided by active customers.
 
@@ -73,6 +77,8 @@ Domain terms used in `FRD.md`, `SPEC.md`, the ADRs and the code. Alphabetical. W
 **MRR movement.** One change to MRR for one customer: new, expansion, contraction, churn or reactivation. Movements are derived from billing events in `mrr_movement` and can be rebuilt from scratch.
 
 **Outbox.** An IndexedDB queue (Dexie) where writes wait until the server has them: one for notes and quick capture, one for money (transactions, accounts and subscriptions). It flushes when the connection comes back, and nothing leaves it until the server answers.
+
+**Owner.** Whoever is signed in. Anyone can sign up, and each user owns their own data; `requireOwner()` returns that user and every store filters by their id (ADR-0015). Before 2026-11-09 it meant the one allowlisted person.
 
 **Palette.** The command palette (Ctrl/⌘+K). It opens apps, runs module commands, searches, and does quick actions like "add expense 4500 food".
 

@@ -1,16 +1,12 @@
 import { APIError } from "better-auth/api";
-import { isAllowedOwner } from "./allowlist";
 
 /**
- * Runs before Better Auth creates a user. Only a verified email on the owner
- * allowlist gets an account; everyone else is refused before any row exists.
- * An empty allowlist refuses everyone (fail closed, SPEC V6).
+ * Runs before Better Auth creates a user. Anyone may sign up (ADR-0015), but
+ * only with a verified email: it is the account's identity and the admin
+ * check reads it, so an unverified one is refused before any row exists.
  */
-export function assertOwnerSignup(
-  user: { email: string; emailVerified: boolean },
-  owners: ReadonlySet<string>,
-): void {
-  if (!user.emailVerified || !isAllowedOwner(user.email, owners)) {
-    throw new APIError("FORBIDDEN", { message: "This Wanheda belongs to someone else." });
+export function assertVerifiedSignup(user: { email: string; emailVerified: boolean }): void {
+  if (!user.emailVerified || !user.email.trim()) {
+    throw new APIError("FORBIDDEN", { message: "Verify your email with GitHub first, then sign in again." });
   }
 }

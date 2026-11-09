@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | Accepted |
+| Status | Accepted; sign-up allowlist superseded by [ADR-0015](0015-open-sign-up-and-admin.md) (2026-11-09) |
 | Date | 2026-11-04 |
 | Deciders | Isaac Gideon (owner) |
 

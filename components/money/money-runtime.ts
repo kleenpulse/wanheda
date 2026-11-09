@@ -2,6 +2,7 @@ import type { QueryClient } from "@tanstack/react-query";
 import { create } from "zustand";
 import { archiveAccount, deleteSubscription, deleteTxn, saveAccount, saveCategory, saveSubscription, saveTxn } from "@/actions/money";
 import { deleteBudget, deleteRule, saveBudget, saveRule } from "@/actions/plans";
+import { queueOwner } from "@/lib/device/scope";
 import { toast } from "@/components/ui/toaster";
 import { budgetWriteOf, upsertBudgetIn, type Budget } from "@/lib/money/budgets";
 import { formatMoney } from "@/lib/money/currency";
@@ -151,32 +152,34 @@ function describePlan(w: { budget: Budget } | { rule: Rule }): string {
 }
 
 /** Sends one op through its server action. A thrown request counts as failed. */
+/** Each replayed write carries the account whose store queued it (V78). */
 function sendOp(op: MoneyOp): Promise<MoneyResult> {
+  const asUser = queueOwner();
   switch (op.kind) {
     case "category-save":
-      return saveCategory(categoryWriteOf(op.category));
+      return saveCategory(categoryWriteOf(op.category), asUser);
     case "budget-save":
-      return saveBudget(budgetWriteOf(op.budget));
+      return saveBudget(budgetWriteOf(op.budget), asUser);
     case "budget-delete":
-      return deleteBudget({ id: op.budget.id });
+      return deleteBudget({ id: op.budget.id }, asUser);
     case "rule-save":
-      return saveRule(ruleWriteOf(op.rule));
+      return saveRule(ruleWriteOf(op.rule), asUser);
     case "rule-delete":
-      return deleteRule({ id: op.rule.id });
+      return deleteRule({ id: op.rule.id }, asUser);
     case "sub-save":
-      return saveSubscription(subscriptionWriteOf(op.subscription));
+      return saveSubscription(subscriptionWriteOf(op.subscription), asUser);
     case "sub-delete":
-      return deleteSubscription({ id: op.subscription.id });
+      return deleteSubscription({ id: op.subscription.id }, asUser);
     case "txn-save":
-      return saveTxn(writeOf(op.txn));
+      return saveTxn(writeOf(op.txn), asUser);
     case "txn-delete":
-      return deleteTxn({ id: op.txn.id });
+      return deleteTxn({ id: op.txn.id }, asUser);
     case "account-save": {
       const a = op.account;
-      return saveAccount({ id: a.id, name: a.name, kind: a.kind, currency: a.currency, openingMinor: a.openingMinor });
+      return saveAccount({ id: a.id, name: a.name, kind: a.kind, currency: a.currency, openingMinor: a.openingMinor }, asUser);
     }
     case "account-archive":
-      return archiveAccount({ id: op.account.id, archived: op.account.archived });
+      return archiveAccount({ id: op.account.id, archived: op.account.archived }, asUser);
   }
 }
 

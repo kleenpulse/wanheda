@@ -102,6 +102,16 @@ describe("deleteSubscription", () => {
   });
 });
 
+describe("a write queued under another account (V78)", () => {
+  it("is refused as a transient failure and writes nothing", async () => {
+    requireOwner.mockResolvedValue(owner);
+    expect(await saveTxn(WRITE, "user-2")).toEqual({ ok: false, reason: "failed" });
+    expect(await deleteTxn({ id: ID }, "user-2")).toEqual({ ok: false, reason: "failed" });
+    expect(saveStored).not.toHaveBeenCalled();
+    expect(deleteStored).not.toHaveBeenCalled();
+  });
+});
+
 describe("saveTxn", () => {
   it("saves nothing in demo", async () => {
     requireOwner.mockResolvedValue({ kind: "demo" });

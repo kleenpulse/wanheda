@@ -44,10 +44,10 @@ describe("secrets", () => {
 
   test("round trip, and the file never holds the values in plain text", async () => {
     const store = memoryStore();
-    await saveSecrets(store, fakeSealer(), { DATABASE_URL: "postgres://x", OWNER_EMAILS: "me@example.com" });
+    await saveSecrets(store, fakeSealer(), { DATABASE_URL: "postgres://x", ADMIN_EMAILS: "me@example.com" });
     expect(store.data?.toString()).not.toContain("postgres://x");
     expect(JSON.parse(store.data?.toString() ?? "")).toMatchObject({ v: 1, backend: "win32" });
-    expect(await loadSecrets(store, fakeSealer())).toEqual({ kind: "ok", values: { DATABASE_URL: "postgres://x", OWNER_EMAILS: "me@example.com" } });
+    expect(await loadSecrets(store, fakeSealer())).toEqual({ kind: "ok", values: { DATABASE_URL: "postgres://x", ADMIN_EMAILS: "me@example.com" } });
   });
 
   test("demo mode is an empty record", async () => {

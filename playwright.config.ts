@@ -33,7 +33,7 @@ const GATED_ENV = {
   BETTER_AUTH_URL: `http://localhost:${GATED_PORT}`,
   GITHUB_CLIENT_ID: "e2e-client-id",
   GITHUB_CLIENT_SECRET: "e2e-client-secret",
-  OWNER_EMAILS: "owner@example.test",
+  ADMIN_EMAILS: "admin@example.test",
 };
 
 const LOCKED_ENV = {
@@ -43,7 +43,7 @@ const LOCKED_ENV = {
   BETTER_AUTH_URL: "",
   GITHUB_CLIENT_ID: "",
   GITHUB_CLIENT_SECRET: "",
-  OWNER_EMAILS: "",
+  ADMIN_EMAILS: "",
 };
 
 // Zero env: no database and no auth (FRD Phase 0 exit: "builds and runs with

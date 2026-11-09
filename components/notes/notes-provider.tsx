@@ -5,6 +5,7 @@ import type { Route } from "next";
 import { keepPreviousData, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { create } from "zustand";
 import { deleteNote, saveNote } from "@/actions/notes";
+import { queueOwner } from "@/lib/device/scope";
 import { useAccount } from "@/components/shell/account";
 import { toast } from "@/components/ui/toaster";
 import { fetchJson } from "@/lib/fetch-json";
@@ -210,8 +211,9 @@ function createNotesRuntime(qc: QueryClient, demo: boolean): NotesRuntime {
   const outbox = new Outbox({
     store,
     sync: !demo,
-    sendSave: (write) => saveNote(write),
-    sendDelete: (id) => deleteNote({ id }),
+    // The store's own account goes with each replayed write (V78).
+    sendSave: (write) => saveNote(write, queueOwner()),
+    sendDelete: (id) => deleteNote({ id }, queueOwner()),
     onEvent: (event) => {
       applyEvent(event);
       post({ t: "event", event });

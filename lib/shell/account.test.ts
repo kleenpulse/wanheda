@@ -18,6 +18,7 @@ describe("initials", () => {
 describe("accountMode", () => {
   it("names the demo as seed data", () => {
     expect(accountMode(DEMO_ACCOUNT)).toBe("Demo · seed data");
-    expect(accountMode({ kind: "owner", name: "A", email: "a@example.com" })).toBe("Owner");
+    expect(accountMode({ kind: "owner", id: "u1", name: "A", email: "a@example.com", admin: false })).toBe("Signed in");
+    expect(accountMode({ kind: "owner", id: "u1", name: "A", email: "a@example.com", admin: true })).toBe("Admin");
   });
 });

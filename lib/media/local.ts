@@ -1,10 +1,13 @@
 // Where a local media file lives on this device (V54). Bytes are never
 // copied: a 4 GB video stays where it is. With File System Access the file's
-// handle is kept in IndexedDB (`wanheda-media`, per device), so the file opens
-// again after a reload once permission is granted; a file from a plain
-// <input> is only known to this tab.
+// handle is kept in IndexedDB (`wanheda-media@<account>`, per device and per
+// account, ADR-0015), so the file opens again after a reload once permission
+// is granted; a file from a plain <input> is only known to this tab.
 
-import Dexie, { type EntityTable } from "dexie";
+import type Dexie from "dexie";
+import type { EntityTable } from "dexie";
+import { openScopedDexie } from "@/lib/device/dexie";
+import { deviceScope } from "@/lib/device/scope";
 import { desktopFileUrl, desktopFiles, type DesktopRoot } from "@/lib/platform/desktop";
 import type { Track } from "./library";
 import type { TrackStat } from "./stats";
@@ -39,12 +42,18 @@ type MediaDb = Dexie & {
   nativeFiles: EntityTable<NativeRow, "fp">;
 };
 
-let dbPromise: Promise<MediaDb | null> | null = null;
+let opened: { scope: string; db: Promise<MediaDb | null> } | null = null;
 
+/** This account's media store, or null outside the shell or without IndexedDB. Reopens if the account changes. */
 export function db(): Promise<MediaDb | null> {
-  dbPromise ??= (async () => {
-    if (typeof indexedDB === "undefined") return null;
-    const d = new Dexie("wanheda-media") as MediaDb;
+  const scope = deviceScope();
+  if (!scope || typeof indexedDB === "undefined") return Promise.resolve(null);
+  if (opened?.scope !== scope.id) opened = { scope: scope.id, db: openMedia() };
+  return opened.db;
+}
+
+function openMedia(): Promise<MediaDb | null> {
+  return openScopedDexie<MediaDb>("wanheda-media", (d) => {
     d.version(1).stores({ handles: "fp" });
     d.version(2).stores({ handles: "fp", progress: "itemId, pending" });
     // The music index is per device (FRD §8): never on the server.
@@ -54,10 +63,7 @@ export function db(): Promise<MediaDb | null> {
     d.version(5).stores({ handles: "fp", progress: "itemId, pending", tracks: "path", folders: "key", skipped: "path", trackStats: "path, lastPlayedAt" });
     // The desktop app's native video files (V72), by fp.
     d.version(6).stores({ handles: "fp", progress: "itemId, pending", tracks: "path", folders: "key", skipped: "path", trackStats: "path, lastPlayedAt", nativeFiles: "fp" });
-    await d.open();
-    return d;
-  })().catch(() => null);
-  return dbPromise;
+  }).catch(() => null);
 }
 
 /** This tab's files by fp: every pick lands here, FSA or not. */

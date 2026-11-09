@@ -1,5 +1,5 @@
 import type { GateMode } from "@/lib/capabilities";
-import { isAllowedOwner } from "./allowlist";
+import { isListed } from "./allowlist";
 
 // The access decisions, with no IO, so every branch is unit-tested. proxy.ts
 // and owner.ts gather the inputs and act on the result.
@@ -72,22 +72,24 @@ export interface SessionUser {
   name: string;
 }
 
+/**
+ * Who is asking. "owner" is any signed-in user: each one owns their own data
+ * (ADR-0015). `admin` is re-read from ADMIN_EMAILS on every call, so taking an
+ * email off the list removes the admin page at once.
+ */
 export type OwnerDecision =
   | { kind: "demo" }
-  | { kind: "owner"; user: SessionUser }
+  | { kind: "owner"; user: SessionUser; admin: boolean }
   | { kind: "anonymous" }
-  | { kind: "not-owner"; user: SessionUser }
   | { kind: "locked" };
 
-/** The allowlist is re-read on every call, so removing an email locks it out at once. */
 export function decideOwner(input: {
   mode: GateMode;
   user: SessionUser | null;
-  owners: ReadonlySet<string>;
+  admins: ReadonlySet<string>;
 }): OwnerDecision {
   if (input.mode === "demo") return { kind: "demo" };
   if (input.mode === "locked") return { kind: "locked" };
   if (!input.user) return { kind: "anonymous" };
-  if (!isAllowedOwner(input.user.email, input.owners)) return { kind: "not-owner", user: input.user };
-  return { kind: "owner", user: input.user };
+  return { kind: "owner", user: input.user, admin: isListed(input.user.email, input.admins) };
 }

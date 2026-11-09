@@ -1,4 +1,6 @@
-import Dexie, { type Table } from "dexie";
+import type Dexie from "dexie";
+import type { Table } from "dexie";
+import { openScopedDexie } from "@/lib/device/dexie";
 import type { ProgressWrite, ReaderPayload } from "./reader";
 
 /*
@@ -95,10 +97,13 @@ class DexieReaderStore implements ReaderLocalStore {
   }
 }
 
-/** Opens the device store. Rejects where IndexedDB is unavailable; the caller falls back to memory. */
+/**
+ * Opens this account's device store (`wanheda-reader@<scope>`, ADR-0015).
+ * Rejects where IndexedDB is unavailable or no account is set; the caller falls back to memory.
+ */
 export async function openReaderStore(): Promise<ReaderLocalStore> {
-  const db = new Dexie("wanheda-reader") as ReaderDb;
-  db.version(1).stores({ progress: "documentId", meta: "key" });
-  await db.open();
+  const db = await openScopedDexie<ReaderDb>("wanheda-reader", (d) => {
+    d.version(1).stores({ progress: "documentId", meta: "key" });
+  });
   return new DexieReaderStore(db);
 }

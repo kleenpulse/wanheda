@@ -3,6 +3,7 @@
 import { after } from "next/server";
 import { z } from "zod";
 import { requireOwner } from "@/lib/auth/owner";
+import { queuedForAnother } from "@/lib/auth/queued";
 import { accountWriteSchema, categoryWriteSchema, txnWriteSchema } from "@/lib/money/money";
 import { budgetAlertsForSave, raiseMoneyAlerts } from "@/lib/money/alerts";
 import type { AccountWriteResult, CategorySaveResult, SubDeleteResult, SubSaveResult, TxnDeleteResult, TxnSaveResult } from "@/lib/money/outbox";
@@ -29,9 +30,10 @@ export type AccountResult = AccountWriteResult;
 export type RemoveCategoryResult = { ok: true; kind: "archived" | "deleted" | "missing" } | { ok: false; reason: "demo" | "invalid" | "failed" };
 
 /** Creates or edits one txn. The server sets its currency from the account. Budget alerts it makes due come back with it (V31). */
-export async function saveTxn(input: unknown): Promise<SaveTxnResult> {
+export async function saveTxn(input: unknown, asUser?: string): Promise<SaveTxnResult> {
   const owner = await requireOwner();
   if (owner.kind === "demo") return { ok: false, reason: "demo" };
+  if (queuedForAnother(owner, asUser)) return { ok: false, reason: "failed" };
   const parsed = txnWriteSchema.safeParse(input);
   if (!parsed.success) return { ok: false, reason: "invalid" };
   try {
@@ -49,9 +51,10 @@ export async function saveTxn(input: unknown): Promise<SaveTxnResult> {
 const idSchema = z.object({ id: z.uuid() }).strict();
 
 /** Deletes one txn. Already gone counts as done, so a retry settles. */
-export async function deleteTxn(input: unknown): Promise<DoneResult> {
+export async function deleteTxn(input: unknown, asUser?: string): Promise<DoneResult> {
   const owner = await requireOwner();
   if (owner.kind === "demo") return { ok: false, reason: "demo" };
+  if (queuedForAnother(owner, asUser)) return { ok: false, reason: "failed" };
   const parsed = idSchema.safeParse(input);
   if (!parsed.success) return { ok: false, reason: "invalid" };
   try {
@@ -63,9 +66,10 @@ export async function deleteTxn(input: unknown): Promise<DoneResult> {
 }
 
 /** Creates or renames a category the owner made (a name typed for "Other" in the form). */
-export async function saveCategory(input: unknown): Promise<CategorySaveResult> {
+export async function saveCategory(input: unknown, asUser?: string): Promise<CategorySaveResult> {
   const owner = await requireOwner();
   if (owner.kind === "demo") return { ok: false, reason: "demo" };
+  if (queuedForAnother(owner, asUser)) return { ok: false, reason: "failed" };
   const parsed = categoryWriteSchema.safeParse(input);
   if (!parsed.success) return { ok: false, reason: "invalid" };
   try {
@@ -94,9 +98,10 @@ export async function removeCategory(input: unknown): Promise<RemoveCategoryResu
 }
 
 /** Creates or edits an account (FR-MONEY-1). The currency is fixed once created. */
-export async function saveAccount(input: unknown): Promise<AccountResult> {
+export async function saveAccount(input: unknown, asUser?: string): Promise<AccountResult> {
   const owner = await requireOwner();
   if (owner.kind === "demo") return { ok: false, reason: "demo" };
+  if (queuedForAnother(owner, asUser)) return { ok: false, reason: "failed" };
   const parsed = accountWriteSchema.safeParse(input);
   if (!parsed.success) return { ok: false, reason: "invalid" };
   try {
@@ -112,9 +117,10 @@ export async function saveAccount(input: unknown): Promise<AccountResult> {
 const archiveSchema = z.object({ id: z.uuid(), archived: z.boolean() }).strict();
 
 /** Archives or restores an account. Archiving keeps its txns and its balance. */
-export async function archiveAccount(input: unknown): Promise<AccountResult> {
+export async function archiveAccount(input: unknown, asUser?: string): Promise<AccountResult> {
   const owner = await requireOwner();
   if (owner.kind === "demo") return { ok: false, reason: "demo" };
+  if (queuedForAnother(owner, asUser)) return { ok: false, reason: "failed" };
   const parsed = archiveSchema.safeParse(input);
   if (!parsed.success) return { ok: false, reason: "invalid" };
   try {
@@ -132,9 +138,10 @@ export async function archiveAccount(input: unknown): Promise<AccountResult> {
  * checked against the owner. A reminder the save makes due (V31) is raised
  * now and returned, so the centre and the island show it without a reload.
  */
-export async function saveSubscription(input: unknown): Promise<SubSaveResult> {
+export async function saveSubscription(input: unknown, asUser?: string): Promise<SubSaveResult> {
   const owner = await requireOwner();
   if (owner.kind === "demo") return { ok: false, reason: "demo" };
+  if (queuedForAnother(owner, asUser)) return { ok: false, reason: "failed" };
   const parsed = subscriptionWriteSchema.safeParse(input);
   if (!parsed.success) return { ok: false, reason: "invalid" };
   try {
@@ -150,9 +157,10 @@ export async function saveSubscription(input: unknown): Promise<SubSaveResult> {
 }
 
 /** Deletes a subscription. Already gone counts as done, so a retry settles. */
-export async function deleteSubscription(input: unknown): Promise<SubDeleteResult> {
+export async function deleteSubscription(input: unknown, asUser?: string): Promise<SubDeleteResult> {
   const owner = await requireOwner();
   if (owner.kind === "demo") return { ok: false, reason: "demo" };
+  if (queuedForAnother(owner, asUser)) return { ok: false, reason: "failed" };
   const parsed = idSchema.safeParse(input);
   if (!parsed.success) return { ok: false, reason: "invalid" };
   try {

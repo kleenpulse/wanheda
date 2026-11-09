@@ -28,6 +28,23 @@ beforeEach(() => {
   deleteStored.mockReset();
 });
 
+describe("a write queued under another account (V78)", () => {
+  it("is refused as a transient failure and writes nothing", async () => {
+    requireOwner.mockResolvedValue(owner);
+    expect(await saveNote(WRITE, "user-2")).toEqual({ ok: false, reason: "failed" });
+    expect(await deleteNote({ id: ID }, "user-2")).toEqual({ ok: false, reason: "failed" });
+    expect(saveStored).not.toHaveBeenCalled();
+    expect(deleteStored).not.toHaveBeenCalled();
+  });
+
+  it("goes through when it is the session's own", async () => {
+    requireOwner.mockResolvedValue(owner);
+    saveStored.mockResolvedValue({ kind: "saved", note: { id: ID } });
+    await saveNote(WRITE, "user-1");
+    expect(saveStored).toHaveBeenCalledOnce();
+  });
+});
+
 describe("saveNote", () => {
   it("saves nothing in demo", async () => {
     requireOwner.mockResolvedValue({ kind: "demo" });

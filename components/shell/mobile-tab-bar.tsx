@@ -8,7 +8,8 @@ import { AccountMenu } from "@/components/shell/account-menu";
 import { usePalette } from "@/components/shell/palette-store";
 import { activeInk, idleInk } from "@/components/shell/styles";
 import { Menu, MenuContent, MenuLinkItem, MenuTrigger } from "@/components/ui/menu";
-import { MODULES, SYSTEM_PAGES, isActive } from "@/lib/modules";
+import { MODULES, isActive, systemPages } from "@/lib/modules";
+import { useAccount } from "@/components/shell/account";
 import { splitTabs, tabCapacity } from "@/lib/shell/tab-overflow";
 import { AppIcon } from "@/components/shell/app-icon";
 import { cn } from "@/lib/utils";
@@ -16,7 +17,6 @@ import { cn } from "@/lib/utils";
 const item =
   "relative inline-flex size-11 shrink-0 items-center justify-center rounded-full outline-none transition-[background-color,color,transform] focus-visible:ring-2 focus-visible:ring-ring active:scale-95 [&_svg]:size-[18px]";
 
-const ROUTES = [...MODULES, ...SYSTEM_PAGES];
 /** Search and the account menu: always on the bar, after the routes. */
 const PINNED = 2;
 /** The bar's horizontal padding (px-2), left out of the room the tabs share. */
@@ -32,6 +32,8 @@ const TOUCH_ROW = "h-12 gap-3 rounded-[14px] px-3 text-[15px] [&_svg]:size-5";
  */
 export function MobileTabBar() {
   const pathname = usePathname();
+  const admin = useAccount().admin;
+  const routes = React.useMemo(() => [...MODULES, ...systemPages(admin)], [admin]);
   const openPalette = usePalette((s) => s.setOpen);
   const bar = React.useRef<HTMLElement>(null);
   // Unknown until measured: everything renders (the server's HTML), then the first layout pass trims it before paint.
@@ -51,8 +53,8 @@ export function MobileTabBar() {
     };
   }, []);
 
-  const active = ROUTES.findIndex((r) => isActive(pathname, r.route));
-  const { bar: shown, more } = capacity === null ? { bar: ROUTES, more: [] } : splitTabs(ROUTES, capacity, PINNED, active);
+  const active = routes.findIndex((r) => isActive(pathname, r.route));
+  const { bar: shown, more } = capacity === null ? { bar: routes, more: [] } : splitTabs(routes, capacity, PINNED, active);
 
   return (
     <nav
