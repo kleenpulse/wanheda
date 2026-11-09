@@ -17,7 +17,7 @@ written after the fact, one per phase, and have no git tags.
 
 ### Added
 
-- Wanheda can run as a Windows app of its own. It opens in its own window with a tray icon, keeps playing when you close the window (Quit from the tray or the File menu stops it), and opens `wanheda://` links on the right page. On first start it asks for your `.env` file and locks the settings it knows with Windows' keychain, or starts in demo mode; File → Import .env file… and File → Use demo mode… change that later. Signing in with GitHub opens in a small window of its own.
+- Wanheda can run as a Windows app of its own. It opens in its own window with a tray icon, keeps playing when you close the window (Quit from the tray or the File menu stops it), and opens `wanheda://` links on the right page. On first start it asks for your `.env` file and locks the settings it knows with Windows' keychain, or starts in demo mode; File → Import .env file… and File → Use demo mode… change that later. Signing in with GitHub happens in your default browser, like other desktop apps, and Wanheda picks it up from there.
 - In the Windows app, Ctrl+Shift+Space opens a small Quick note window over whatever you're doing: type, press Enter, and it's in Notes. Alt+Space brings Wanheda forward with the command palette open.
 - In the Windows app, the keyboard's play/pause, next and previous keys control what's playing in Wanheda, even when another app had them last. When nothing in Wanheda can play, they're left alone for your other apps.
 - In the Windows app, a finished timer and new money or income alerts show as Windows notifications while Wanheda is in the background. Clicking one opens its page.
