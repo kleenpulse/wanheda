@@ -62,8 +62,8 @@ const fake = vi.hoisted(() => {
 
 vi.mock("dexie", () => ({ default: fake.FakeDexie }));
 
-const { openScopedDexie } = await import("./dexie");
-const { scopeFor, setDeviceScope } = await import("./scope");
+const { forgetAccountStores, openScopedDexie } = await import("./dexie");
+const { ACCOUNT_STORES, scopeFor, setDeviceScope } = await import("./scope");
 
 type Db = InstanceType<typeof fake.FakeDexie>;
 const define = (d: Db) => {
@@ -155,5 +155,26 @@ describe("the old unscoped store", () => {
     const db = await open();
     expect(await db.table("outbox").toArray()).toEqual([]);
     expect(fake.dbs.has("wanheda-notes")).toBe(true);
+  });
+});
+
+describe("forgetAccountStores", () => {
+  it("deletes every store of the deleted account and nobody else's", async () => {
+    for (const base of ACCOUNT_STORES) {
+      fake.dbs.set(`${base}@u.A`, new Map());
+      fake.dbs.set(`${base}@u.B`, new Map());
+    }
+    fake.dbs.set("wanheda-notes", new Map());
+    await forgetAccountStores(scopeFor({ kind: "owner", id: "A", admin: true }));
+    expect([...fake.dbs.keys()].sort()).toEqual(["wanheda-notes", ...ACCOUNT_STORES.map((b) => `${b}@u.B`)].sort());
+  });
+
+  it("does not wait forever on a delete another tab holds up", async () => {
+    vi.useFakeTimers();
+    vi.spyOn(fake.FakeDexie, "delete").mockReturnValue(new Promise<void>(() => undefined));
+    const done = forgetAccountStores(scopeFor({ kind: "owner", id: "A", admin: false }), 500);
+    await vi.advanceTimersByTimeAsync(500);
+    await expect(done).resolves.toBeUndefined();
+    vi.useRealTimers();
   });
 });

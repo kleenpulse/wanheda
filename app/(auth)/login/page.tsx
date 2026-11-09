@@ -1,12 +1,15 @@
 import type { Metadata, Route } from "next";
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { SignInPanel } from "@/components/auth/sign-in-panel";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { buttonClass } from "@/components/ui/button";
 import { safeNextPath } from "@/lib/auth/gate";
+import { LAST_METHOD_COOKIE, parseLastMethod } from "@/lib/auth/last-method";
 import { getOwner } from "@/lib/auth/owner";
+import { googleSignIn } from "@/lib/capabilities";
 
 export const metadata: Metadata = { title: "Sign in · Wanheda" };
 
@@ -32,9 +35,15 @@ function first(value: string | string[] | undefined): string | undefined {
 }
 
 async function LoginBody({ searchParams }: { searchParams: PageProps<"/login">["searchParams"] }) {
-  const [owner, params] = await Promise.all([getOwner(), searchParams]);
+  const [owner, params, jar] = await Promise.all([getOwner(), searchParams, cookies()]);
   const next = safeNextPath(first(params.next));
   const errorCode = first(params.error);
+  // Set by the account deletion (V79) on its way out.
+  const deleted = first(params.deleted) === "1";
+  const google = googleSignIn();
+  const last = parseLastMethod(jar.get(LAST_METHOD_COOKIE)?.value);
+  // A method no longer offered (Google switched off) gets no badge.
+  const lastUsed = last === "google" && !google ? null : last;
 
   // A valid session goes straight in: one redirect, never a loop (SPEC V8).
   if (owner.kind === "owner") redirect(next as Route);
@@ -66,11 +75,15 @@ async function LoginBody({ searchParams }: { searchParams: PageProps<"/login">["
 
   return (
     <>
-      <h1 className="font-display mt-3 text-[28px] leading-tight tracking-[-0.02em]">Welcome</h1>
-      <p className="mt-3 text-[15px] leading-relaxed text-pretty text-ink-2">
-        Sign in with GitHub to open your own Wanheda. New here? The same button makes your account.
+      <h1 className="font-display mt-3 text-[28px] leading-tight tracking-[-0.02em]">{deleted ? "Account deleted" : "Welcome"}</h1>
+      <p role={deleted ? "status" : undefined} className="mt-3 text-[15px] leading-relaxed text-pretty text-ink-2">
+        {deleted
+          ? "Your account and everything in it are gone. You can make a new one with the same button any time."
+          : google
+            ? "Sign in with GitHub or Google to open your own Wanheda. New here? Either button makes your account."
+            : "Sign in with GitHub to open your own Wanheda. New here? The same button makes your account."}
       </p>
-      <SignInPanel next={next} error={errorCode ? "Sign-in failed. Try again." : null} />
+      <SignInPanel next={next} error={errorCode ? "Sign-in failed. Try again." : null} google={google} lastUsed={lastUsed} />
     </>
   );
 }

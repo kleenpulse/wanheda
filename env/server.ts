@@ -45,6 +45,9 @@ export function createServerEnv(runtimeEnv: RuntimeEnv) {
       BETTER_AUTH_URL: z.url().optional(),
       GITHUB_CLIENT_ID: z.string().min(1).optional(),
       GITHUB_CLIENT_SECRET: z.string().min(1).optional(),
+      // Google sign-in, beside GitHub. Optional: both or neither (lib/capabilities.ts).
+      GOOGLE_CLIENT_ID: z.string().min(1).optional(),
+      GOOGLE_CLIENT_SECRET: z.string().min(1).optional(),
       // Who sees the admin page (ADR-0015). Optional: anyone may sign up either way.
       ADMIN_EMAILS: emailList.optional(),
       // Home board weather (Open-Meteo, keyless). All three or none.
@@ -78,6 +81,8 @@ export function createServerEnv(runtimeEnv: RuntimeEnv) {
       BETTER_AUTH_URL: runtimeEnv.BETTER_AUTH_URL,
       GITHUB_CLIENT_ID: runtimeEnv.GITHUB_CLIENT_ID,
       GITHUB_CLIENT_SECRET: runtimeEnv.GITHUB_CLIENT_SECRET,
+      GOOGLE_CLIENT_ID: runtimeEnv.GOOGLE_CLIENT_ID,
+      GOOGLE_CLIENT_SECRET: runtimeEnv.GOOGLE_CLIENT_SECRET,
       ADMIN_EMAILS: runtimeEnv.ADMIN_EMAILS,
       WEATHER_LATITUDE: runtimeEnv.WEATHER_LATITUDE,
       WEATHER_LONGITUDE: runtimeEnv.WEATHER_LONGITUDE,

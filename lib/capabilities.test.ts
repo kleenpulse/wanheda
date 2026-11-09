@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { adminEmails, authSettings, gateMode, has } from "./capabilities";
+import { adminEmails, authSettings, gateMode, googleSignIn, has } from "./capabilities";
 
 const VARS = [
   "DATABASE_URL",
@@ -7,6 +7,8 @@ const VARS = [
   "BETTER_AUTH_URL",
   "GITHUB_CLIENT_ID",
   "GITHUB_CLIENT_SECRET",
+  "GOOGLE_CLIENT_ID",
+  "GOOGLE_CLIENT_SECRET",
   "ADMIN_EMAILS",
 ] as const;
 
@@ -129,5 +131,33 @@ describe("files (reader R2, SPEC V38)", () => {
     expect(has("files")).toBe(false);
     setEnv(DB);
     expect(has("files")).toBe(true);
+  });
+});
+
+describe("Google sign-in", () => {
+  const GOOGLE = { GOOGLE_CLIENT_ID: "g-id", GOOGLE_CLIENT_SECRET: "g-secret" };
+
+  it("is offered with full auth and both Google values", () => {
+    setEnv({ ...DB, ...AUTH, ...GOOGLE });
+    expect(googleSignIn()).toBe(true);
+    expect(authSettings()?.google).toEqual({ clientId: "g-id", clientSecret: "g-secret" });
+  });
+
+  it.each(["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"] as const)("is off with %s unset, and GitHub still works", (name) => {
+    setEnv({ ...DB, ...AUTH, ...GOOGLE, [name]: "" });
+    expect(googleSignIn()).toBe(false);
+    expect(authSettings()?.google).toBeNull();
+    expect(gateMode()).toBe("gated");
+  });
+
+  it("does not stand in for GitHub: Google alone leaves Wanheda locked", () => {
+    setEnv({ ...DB, ...AUTH, ...GOOGLE, GITHUB_CLIENT_ID: "" });
+    expect(gateMode()).toBe("locked");
+    expect(googleSignIn()).toBe(false);
+  });
+
+  it("is off in demo, where nobody signs in", () => {
+    setEnv({ ...AUTH, ...GOOGLE });
+    expect(googleSignIn()).toBe(false);
   });
 });

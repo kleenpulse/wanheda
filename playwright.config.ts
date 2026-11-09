@@ -33,6 +33,8 @@ const GATED_ENV = {
   BETTER_AUTH_URL: `http://localhost:${GATED_PORT}`,
   GITHUB_CLIENT_ID: "e2e-client-id",
   GITHUB_CLIENT_SECRET: "e2e-client-secret",
+  GOOGLE_CLIENT_ID: "e2e-google-id",
+  GOOGLE_CLIENT_SECRET: "e2e-google-secret",
   ADMIN_EMAILS: "admin@example.test",
 };
 
@@ -43,6 +45,8 @@ const LOCKED_ENV = {
   BETTER_AUTH_URL: "",
   GITHUB_CLIENT_ID: "",
   GITHUB_CLIENT_SECRET: "",
+  GOOGLE_CLIENT_ID: "",
+  GOOGLE_CLIENT_SECRET: "",
   ADMIN_EMAILS: "",
 };
 

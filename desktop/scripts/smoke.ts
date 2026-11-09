@@ -14,7 +14,7 @@ import { request } from "node:http";
 import { join, resolve } from "node:path";
 import { contentSecurityPolicy, CSP_HEADER } from "../../lib/security/csp";
 import { IMPORTED_NAMES } from "../env-file";
-import { CALLBACK_PATH, RETURNED_PATH } from "../oauth";
+import { CALLBACK_PATHS, RETURNED_PATH } from "../oauth";
 import { baseEnv } from "../env";
 import { LISTEN_HOST, ORIGIN_HOST, TOKEN_HEADER } from "../shared";
 
@@ -54,9 +54,9 @@ try {
       for (const line of buffer.split("\n")) {
         const report = /^\{"wanheda":(.*)\}\s*$/.exec(line.trim());
         if (!report?.[1]) continue;
-        const message = JSON.parse(report[1]) as { type: string; port?: number; message?: string; search?: string };
+        const message = JSON.parse(report[1]) as { type: string; port?: number; message?: string; provider?: string; search?: string };
         if (message.type === "oauth-callback") {
-          callbacks.push(message.search ?? "");
+          callbacks.push(`${message.provider ?? ""} ${message.search ?? ""}`);
           continue;
         }
         clearTimeout(timer);
@@ -80,13 +80,15 @@ try {
     ["127.0.0.1 Host", await status({ host: `${LISTEN_HOST}:${port}`, [TOKEN_HEADER]: token }), 403],
   ];
   const search = "?code=smoke&state=smoke-state-0123456789";
-  const back = await answer(port, { host: own }, `${CALLBACK_PATH}${search}`);
+  const back = await answer(port, { host: own }, `${CALLBACK_PATHS.github}${search}`);
+  const backGoogle = await answer(port, { host: own }, `${CALLBACK_PATHS.google}${search}`);
   await new Promise((done) => setTimeout(done, 200));
   checks.push(
     ["browser back from GitHub moves on", back.status === 303 && back.location === RETURNED_PATH ? 1 : 0, 1],
-    ["its query goes to the shell", callbacks.length === 1 && callbacks[0] === search ? 1 : 0, 1],
+    ["browser back from Google moves on", backGoogle.status === 303 && backGoogle.location === RETURNED_PATH ? 1 : 0, 1],
+    ["each query goes to the shell with its provider", callbacks.join("|") === `github ${search}|google ${search}` ? 1 : 0, 1],
     ["the page after it", (await answer(port, { host: own }, RETURNED_PATH)).status, 200],
-    ["browser return, foreign Host", (await answer(port, { host: "evil.test" }, `${CALLBACK_PATH}${search}`)).status, 403],
+    ["browser return, foreign Host", (await answer(port, { host: "evil.test" }, `${CALLBACK_PATHS.github}${search}`)).status, 403],
   );
   for (const [name, got, want] of checks) {
     console.log(`${got === want ? "ok  " : "FAIL"} ${name}: ${got} (want ${want})`);

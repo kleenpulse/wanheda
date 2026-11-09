@@ -14,7 +14,7 @@ import { isVoiceId, parseSynthRequest } from "./tts-model";
 import { EMPTY_SNAPSHOT, ISLAND_PATH, ISLAND_SIZE, islandPosition, overIsland, parseIslandCommand, parseIslandReport, parseIslandSnapshot, shouldShowIsland, type IslandReport, type IslandSnapshot } from "./island";
 import { createLog } from "./log";
 import { menuKey, type MenuKey } from "./menu-keys";
-import { CALLBACK_PATH, callbackQuery, signInFrom, type PendingSignIn } from "./oauth";
+import { CALLBACK_PATHS, callbackQuery, signInFrom, type PendingSignIn, type Provider } from "./oauth";
 import { classifyAuthUrl, classifyUrl, navigationStep, permissionAllowed } from "./policy";
 import { freePort, isPortFree, savePort, savedPort } from "./ports";
 import { electronSealer } from "./sealer";
@@ -583,8 +583,8 @@ function boot(): void {
     if (captureWindow && !captureWindow.isDestroyed()) void captureWindow.loadURL(`${handle.origin}${CAPTURE_PATH}`);
     if (islandWindow && !islandWindow.isDestroyed()) void islandWindow.loadURL(`${handle.origin}${ISLAND_PATH}`);
     handle.onExit((detail) => void serverDied(handle, detail));
-    handle.onOAuthCallback((search) => {
-      if (handle === server) finishSignIn(search);
+    handle.onOAuthCallback((provider, search) => {
+      if (handle === server) finishSignIn(provider, search);
     });
     // A sign-in started against another server (or origin) can't finish on this one.
     pendingSignIn = null;
@@ -1183,29 +1183,31 @@ function boot(): void {
   }
 
   /**
-   * GitHub sign-in (V68). Packaged and preview: GitHub's pages open in the
-   * default browser, like VS Code's and gh's sign-in, and the server hands the
-   * browser's return to finishSignIn. Dev (`next dev`, no token gate to catch
-   * that return): the auth window below.
+   * GitHub or Google sign-in (V68). Packaged and preview: the provider's pages
+   * open in the default browser, like VS Code's and gh's sign-in, and the
+   * server hands the browser's return to finishSignIn. Dev (`next dev`, no
+   * token gate to catch that return): GitHub uses the auth window below;
+   * Google refuses embedded browsers, so it needs a preview or packaged build.
    */
-  function startGitHubSignIn(url: string): void {
+  function startOAuthSignIn(provider: Provider, url: string): void {
     if (mode === "dev") {
-      openAuthWindow(url);
+      if (provider === "github") openAuthWindow(url);
+      else log.info("sign-in: Google needs the system browser, which dev can't catch coming back; use desktop:preview");
       return;
     }
     const started = signInFrom(url, appOrigin, Date.now());
     if (!started) {
-      log.info("sign-in: GitHub's page doesn't come back to this app; not opened");
+      log.info(`sign-in: ${provider}'s page doesn't come back to this app; not opened`);
       return;
     }
     pendingSignIn = started;
     void shell.openExternal(url);
-    log.info("sign-in: GitHub opened in the browser");
+    log.info(`sign-in: ${provider} opened in the browser`);
   }
 
-  /** The browser came back from GitHub: finish in the app's window, which holds the state cookie and the token. */
-  function finishSignIn(search: string): void {
-    const query = callbackQuery(search, pendingSignIn, Date.now());
+  /** The browser came back from the provider: finish in the app's window, which holds the state cookie and the token. */
+  function finishSignIn(provider: Provider, search: string): void {
+    const query = callbackQuery(provider, search, pendingSignIn, Date.now());
     if (!query || !appOrigin) {
       log.info("sign-in: a callback that doesn't answer this app's sign-in was ignored");
       return;
@@ -1214,7 +1216,7 @@ function boot(): void {
     showWindow();
     const target = mainWindow;
     if (!target || target.isDestroyed()) return;
-    void target.loadURL(`${appOrigin}${CALLBACK_PATH}?${query}`);
+    void target.loadURL(`${appOrigin}${CALLBACK_PATHS[provider]}?${query}`);
     log.info("sign-in: back from the browser");
   }
 
@@ -1332,7 +1334,7 @@ function boot(): void {
           },
         };
       }
-      if (destination.kind === "github-sign-in") startGitHubSignIn(destination.url);
+      if (destination.kind === "oauth-sign-in") startOAuthSignIn(destination.provider, destination.url);
       else if (destination.kind === "external") void shell.openExternal(destination.url);
       return { action: "deny" };
     });
@@ -1340,7 +1342,7 @@ function boot(): void {
       const step = navigationStep({ url: event.url, isMainFrame: event.isMainFrame, isAuth: isAuth() }, appOrigin);
       if (step.kind === "allow") return;
       event.preventDefault();
-      if (step.kind === "github-sign-in") startGitHubSignIn(step.url);
+      if (step.kind === "oauth-sign-in") startOAuthSignIn(step.provider, step.url);
       else if (step.kind === "external") void shell.openExternal(step.url);
     };
     contents.on("will-navigate", (event) => { guard(event); });

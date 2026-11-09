@@ -39,9 +39,11 @@ Terminals inside VS Code carry `ELECTRON_RUN_AS_NODE`. The scripts drop it, but 
 - **File → Import .env file…** replaces them, and **File → Use demo mode…** forgets them. Both restart the server on the same port.
 - If the keychain changed or can't open the file, Wanheda asks Quit or Start fresh. The old file stays next to the new one as `secrets.json.broken-<time>`.
 
-## GitHub sign-in
+## GitHub and Google sign-in
 
-Desktop sign-in needs its own GitHub OAuth app ("Wanheda Desktop", an owner action), with callback `http://localhost:<saved port>/api/auth/callback/github`. Put its id and secret in the `.env` file you import.
+Desktop sign-in needs its own GitHub OAuth app ("Wanheda Desktop", an owner action), with callback `http://localhost:<saved port>/api/auth/callback/github`. Put its id and secret in the `.env` file you import. Google is optional: add `http://localhost:<saved port>/api/auth/callback/google` as a redirect URI on a Google Web client, and put `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in the same file.
+
+Both work the same way below; GitHub is named for short. Main knows each provider's authorize page and callback, and a pending sign-in only accepts the callback of the provider it started.
 
 Sign-in happens in the default browser, the way VS Code and `gh` do it (`oauth.ts`):
 
@@ -49,7 +51,7 @@ Sign-in happens in the default browser, the way VS Code and `gh` do it (`oauth.t
 2. GitHub sends the browser back to `http://localhost:<port>/api/auth/callback/github`. That request has no token, so the server doesn't hand it to Next. It passes the query to main and moves the tab to `/desktop/signed-in`, a script-free "Back to Wanheda" page, so the code leaves the address bar. These two GETs are the only tokenless requests the server takes, and they still need the exact Host.
 3. Main loads the callback in the app's window, where the state cookie and token are, and Better Auth finishes there. It does this only when the query answers the pending sign-in (same `state`, a code or an error, known parameters only). Anything else is ignored and logged, including the return of an older tab after "Open GitHub again"; its page says to start again from the app.
 
-`desktop:dev` runs `next dev`, which has no token gate to catch the browser's return, so dev signs in in a separate window instead: no preload, the app's session, GitHub's sign-in pages only, and it closes when it reaches the app.
+`desktop:dev` runs `next dev`, which has no token gate to catch the browser's return, so dev signs in in a separate window instead: no preload, the app's session, GitHub's sign-in pages only, and it closes when it reaches the app. Google refuses embedded windows, so Google sign-in in dev is skipped (logged); use `desktop:preview`.
 
 ## Native features (T76, V71)
 

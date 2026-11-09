@@ -3,7 +3,7 @@ import http, { type IncomingMessage, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
 import { createRequire } from "node:module";
 import { join } from "node:path";
-import { browserReturn, RETURNED_HEADERS, RETURNED_HTML, RETURNED_PATH } from "../oauth";
+import { browserReturn, RETURNED_HEADERS, RETURNED_HTML, RETURNED_PATH, type Provider } from "../oauth";
 import { LISTEN_HOST, ORIGIN_HOST, originFor, TOKEN_HEADER } from "../shared";
 import { checkRequest } from "./guard";
 
@@ -21,7 +21,7 @@ import { checkRequest } from "./guard";
  * drains (at most 3 s), closes Next, then exits.
  */
 
-type Report = { type: "ready"; port: number } | { type: "failed"; message: string } | { type: "oauth-callback"; search: string };
+type Report = { type: "ready"; port: number } | { type: "failed"; message: string } | { type: "oauth-callback"; provider: Provider; search: string };
 type Handlers = {
   requestHandler(req: IncomingMessage, res: ServerResponse): Promise<void>;
   server?: { close(): Promise<void> };
@@ -120,7 +120,7 @@ async function start(): Promise<void> {
     if (back) {
       // The shell decides whether it answers the sign-in it started; the tab learns nothing either way.
       if (back.kind === "callback") {
-        report({ type: "oauth-callback", search: back.search });
+        report({ type: "oauth-callback", provider: back.provider, search: back.search });
         res.writeHead(303, { location: RETURNED_PATH, "cache-control": "no-store", "referrer-policy": "no-referrer" });
         res.end();
       } else {
