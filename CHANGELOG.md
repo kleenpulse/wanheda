@@ -15,6 +15,8 @@ written after the fact, one per phase, and have no git tags.
 
 ## [Unreleased]
 
+## [0.7.4] - 2026-11-11
+
 ### Changed
 
 - A long note no longer stretches the Notes page. The note fits the screen and scrolls inside its card, in Write and Read alike, with its tags kept in view at the bottom. The list of notes scrolls on its own too, the way Music's list does.
