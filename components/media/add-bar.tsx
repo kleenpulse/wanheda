@@ -13,11 +13,12 @@ import { useMediaApi } from "./use-media";
 
 // Adding to the video library (T61, T70): paste a link, open a file, or open a
 // folder. Nothing is uploaded (V54). On the Videos tab, beside the player, and
-// in Home's first-run card.
+// in Home's first-run card. A file or a link opens once added; a folder only
+// joins the library (user 2026-11-11: an import must not start playing).
 
 const plural = (n: number, one: string) => `${n.toLocaleString("en-GB")} ${n === 1 ? one : `${one}s`}`;
 
-export function AddBar({ onAdded }: { onAdded: (item: MediaItem) => void }) {
+export function AddBar({ onAdded }: { /** One file or link was added (never a folder's videos). */ onAdded: (item: MediaItem) => void }) {
   const api = useMediaApi();
   const [link, setLink] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
@@ -45,7 +46,7 @@ export function AddBar({ onAdded }: { onAdded: (item: MediaItem) => void }) {
         return;
       }
       setAdding({ done: 0, of: videos.length });
-      const { first, added, known, copies, failed } = await api.addFolder(videos, (done) => {
+      const { added, known, copies, failed } = await api.addFolder(videos, (done) => {
         setAdding({ done, of: videos.length });
       }, name);
       const notes = [
@@ -62,8 +63,6 @@ export function AddBar({ onAdded }: { onAdded: (item: MediaItem) => void }) {
               : `Couldn't add the videos in ${name}`,
         body: notes.length > 0 ? notes.join(" ") : "They play from this folder on this device; nothing is uploaded.",
       });
-      // Opening plays, so only when nothing is open yet.
-      if (first && !new URLSearchParams(window.location.search).get("m")) onAdded(first);
     } catch {
       toast({ title: `Couldn't read ${name}`, body: "The browser wouldn't open it. Anything added before it stopped stays in your list." });
     } finally {

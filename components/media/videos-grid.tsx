@@ -1,24 +1,26 @@
 "use client";
 
 import * as React from "react";
-import { Search } from "lucide-react";
+import { ArrowLeft, Search } from "lucide-react";
 import { buttonClass } from "@/components/ui/button";
-import { displayTitle, folderGroups, pageGroups } from "@/lib/media/episodes";
+import { replaceUrlParams, useUrlParam } from "@/hooks/use-url-param";
+import { displayTitle, folderGroups, LOOSE_LABEL } from "@/lib/media/episodes";
 import { continueList, watchLaterList } from "@/lib/media/playback";
 import type { MediaItem } from "@/lib/media/types";
 import { cn } from "@/lib/utils";
 import { AddBar } from "./add-bar";
-import { VideoCard } from "./media-cards";
+import { FolderCard, VideoCard } from "./media-cards";
 import { useMedia, useMediaApi } from "./use-media";
-import { openWatch } from "./watch-nav";
+import { FOLDER_PARAM, openFolder, openWatch } from "./watch-nav";
 
-// The Videos tab (T73): the library as a card grid, Continue, Watch later and
-// then a shelf per folder the videos were added from, with a search and the
-// AddBar on top. A card opens the Watch view; a
-// file dropped anywhere on the tab joins the library and opens.
+// The Videos tab (T73): Continue, Watch later, then the library as the folders
+// its videos were added from, and the loose videos after them, with a search
+// and the AddBar on top. A folder opens in place (`?folder=`, so Back returns
+// to the folders); a card opens the Watch view; a file dropped anywhere on the
+// tab joins the library and opens.
 
 const GRID = "grid grid-cols-[repeat(auto-fill,minmax(min(100%,15rem),1fr))] gap-x-4 gap-y-6";
-/** The shelves show this many at first: a 2000-item library mounts in pages, not at once. */
+/** A list shows this many at first: a 2000-item library mounts in pages, not at once. */
 const PAGE = 48;
 
 const fold = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
@@ -46,18 +48,25 @@ export function VideosGrid() {
   const api = useMediaApi();
   const items = data?.items ?? null;
   const [query, setQuery] = React.useState("");
-  const [shown, setShown] = React.useState(PAGE);
+  /** How many of the list are mounted, and for which folder ("" = none): a move in or out starts at one page again, Back and Forward included. */
+  const [page, setPage] = React.useState({ at: "", n: PAGE });
   const [dragging, setDragging] = React.useState(false);
 
   const words = React.useMemo(() => fold(query).split(/\s+/).filter(Boolean), [query]);
   const found = React.useMemo(() => (items && words.length > 0 ? items.filter((i) => matches(i, words)) : null), [items, words]);
   const going = React.useMemo(() => (items ? continueList(items) : []), [items]);
   const later = React.useMemo(() => (items ? watchLaterList(items) : []), [items]);
-  /** The folders' shelves, cut to the page: the last one shown may be part of its folder. */
+  /** The library as its folders, and the loose videos under the key "". */
   const groups = React.useMemo(() => (items ? folderGroups(items) : []), [items]);
-  const shelves = React.useMemo(() => pageGroups(groups, shown), [groups, shown]);
-  /** One shelf of loose videos is the whole library: "All", as before. Asked of the library, not of the page. */
-  const plain = groups.length === 1 && groups[0]?.key === "";
+  const folders = React.useMemo(() => groups.filter((g) => g.key !== ""), [groups]);
+  const loose = React.useMemo(() => groups.find((g) => g.key === "")?.items ?? [], [groups]);
+  /** The folder open now. One that's gone (its last video removed, an old link) reads as none. */
+  const folderKey = useUrlParam(FOLDER_PARAM);
+  const open = folderKey ? (folders.find((g) => g.key === folderKey) ?? null) : null;
+  const at = open?.key ?? "";
+  const shown = page.at === at ? page.n : PAGE;
+  /** The one list on screen that pages: the matches, the open folder's videos, or the loose videos. */
+  const listed = found ?? open?.items ?? loose;
 
   const card = (item: MediaItem) => (
     <VideoCard
@@ -136,6 +145,22 @@ export function VideosGrid() {
         <Group title={`${String(found.length)} ${found.length === 1 ? "match" : "matches"}`}>
           {found.length > 0 ? <div className={GRID}>{found.slice(0, shown).map(card)}</div> : <p className="text-[13px] text-ink-2">Nothing matches.</p>}
         </Group>
+      ) : open ? (
+        <div className="flex flex-col gap-4">
+          <button
+            type="button"
+            className={buttonClass("ghost", "pill-sm", "self-start bg-foreground/6 text-foreground dark:bg-card-nested")}
+            onClick={() => {
+              replaceUrlParams({ [FOLDER_PARAM]: null });
+            }}
+          >
+            <ArrowLeft aria-hidden />
+            All folders
+          </button>
+          <Group title={open.label} count={open.items.length}>
+            <div className={GRID}>{open.items.slice(0, shown).map(card)}</div>
+          </Group>
+        </div>
       ) : (
         <>
           {going.length > 0 ? (
@@ -148,22 +173,39 @@ export function VideosGrid() {
               <div className={GRID}>{later.map(card)}</div>
             </Group>
           ) : null}
-          {shelves.map((g) => (
-            <Group key={g.key} title={plain ? "All" : g.label} count={g.count}>
-              <div className={GRID}>{g.items.map(card)}</div>
+          {folders.length > 0 ? (
+            <Group title="Folders" count={folders.length}>
+              <div className={GRID}>
+                {folders.map((g) => (
+                  <FolderCard
+                    key={g.key}
+                    label={g.label}
+                    items={g.items}
+                    onOpen={() => {
+                      openFolder(g.key);
+                    }}
+                  />
+                ))}
+              </div>
             </Group>
-          ))}
+          ) : null}
+          {loose.length > 0 ? (
+            // With no folders the loose videos are the whole library: "All", as before.
+            <Group title={folders.length > 0 ? LOOSE_LABEL : "All"} count={loose.length}>
+              <div className={GRID}>{loose.slice(0, shown).map(card)}</div>
+            </Group>
+          ) : null}
         </>
       )}
-      {items && (found ?? items).length > shown ? (
+      {items && listed.length > shown ? (
         <button
           type="button"
           className={buttonClass("ghost", "pill-sm", "self-center bg-foreground/6 text-foreground dark:bg-card-nested")}
           onClick={() => {
-            setShown((n) => n + PAGE * 2);
+            setPage({ at, n: shown + PAGE * 2 });
           }}
         >
-          Show more <span className="tabular">({(found ?? items).length - shown} left)</span>
+          Show more <span className="tabular">({listed.length - shown} left)</span>
         </button>
       ) : null}
     </div>

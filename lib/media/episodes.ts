@@ -253,10 +253,10 @@ export function showsOf(items: readonly MediaItem[]): Show[] {
   return out.sort((a, b) => b.lastAt.localeCompare(a.lastAt) || a.show.localeCompare(b.show));
 }
 
-/** One shelf of the Videos tab: the videos added from one folder, or one show's loose episodes. */
+/** One folder of the Videos tab: the videos added from one folder on disk, or one show's loose episodes. `key` is "" for the loose videos. */
 export type FolderGroup = { key: string; label: string; items: MediaItem[] };
 
-/** The label of the shelf for loose videos (no folder, no show). */
+/** The Videos tab's heading for loose videos (no folder, no show), when there are folders beside them. */
 export const LOOSE_LABEL = "Other videos";
 
 /** "Videos/Night.Harbor.S02.1080p.WEB-DL" → "Night Harbor S02"; "Hometown/Season 1" → "Hometown · Season 1". */
@@ -275,15 +275,15 @@ const byName = new Intl.Collator(undefined, { numeric: true, sensitivity: "base"
 
 /**
  * The library as the folders it was added from, so a folder of videos stays
- * together. A video with no folder joins its show's shelf when the show has
+ * together. A video with no folder joins its show's group when the show has
  * two or more such episodes (as `showsOf` counts a show), else the loose one.
- * Shelves come in library order (the newest add first); inside one, films by
+ * Groups come in library order (the newest add first); inside one, films by
  * name, then episodes in season and episode order.
  */
 export function folderGroups(items: readonly MediaItem[]): FolderGroup[] {
   type Row = { item: MediaItem; ep: Episode | null };
   const rows = items.map((item): Row => ({ item, ep: episodeOf(item) }));
-  /** Loose episodes per show: one on its own is no shelf. */
+  /** Loose episodes per show: one on its own is no group. */
   const loose = new Map<string, number>();
   for (const { item, ep } of rows) if (ep && !item.meta.folder) loose.set(ep.showKey, (loose.get(ep.showKey) ?? 0) + 1);
   const groups = new Map<string, { label: string; rows: Row[] }>();
@@ -303,17 +303,4 @@ export function folderGroups(items: readonly MediaItem[]): FolderGroup[] {
     return a.ep.showKey.localeCompare(b.ep.showKey) || a.ep.season - b.ep.season || a.ep.episode - b.ep.episode || byName.compare(a.item.title, b.item.title);
   };
   return [...groups].map(([key, g]) => ({ key, label: g.label, items: g.rows.sort(order).map((r) => r.item) }));
-}
-
-/** The first `limit` videos across the shelves, each with its full count: the last shelf shown may be part of its folder. */
-export function pageGroups(groups: readonly FolderGroup[], limit: number): (FolderGroup & { count: number })[] {
-  const out: (FolderGroup & { count: number })[] = [];
-  let left = limit;
-  for (const g of groups) {
-    if (left <= 0) break;
-    const items = g.items.slice(0, left);
-    left -= items.length;
-    out.push({ key: g.key, label: g.label, items, count: g.items.length });
-  }
-  return out;
 }

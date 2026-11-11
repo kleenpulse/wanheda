@@ -7,6 +7,7 @@ import { useMusicPlayer } from "./music-player";
 import { MusicView, useMusicLibraryLoad } from "./music-view";
 import { NowPlayingBar } from "./now-playing-bar";
 import { VideosGrid } from "./videos-grid";
+import { FOLDER_PARAM } from "./watch-nav";
 import { WatchView } from "./watch-view";
 
 // /media (T61–T64, T73): Home | Videos | Music, and the Watch view over any
@@ -38,7 +39,7 @@ export function MediaTabs() {
       options={TABS}
       onChange={(v) => {
         // A tab closes the Watch view too: the player is one click from any of them.
-        replaceUrlParams({ tab: v === "home" ? null : v, m: null, b: null, g: null, sort: null });
+        replaceUrlParams({ tab: v === "home" ? null : v, m: null, b: null, g: null, sort: null, [FOLDER_PARAM]: null });
       }}
     />
   );

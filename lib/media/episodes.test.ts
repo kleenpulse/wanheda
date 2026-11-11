@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cleanTitle, displayTitle, folderFor, folderGroups, folderLabel, LOOSE_LABEL, pageGroups, parseEpisode, playOrder, railItems, seasonsOf, showsOf, upNext } from "./episodes";
+import { cleanTitle, displayTitle, folderFor, folderGroups, folderLabel, LOOSE_LABEL, parseEpisode, playOrder, railItems, seasonsOf, showsOf, upNext } from "./episodes";
 import type { MediaItem } from "./types";
 
 describe("parseEpisode", () => {
@@ -182,7 +182,7 @@ describe("showsOf (Media Home's Shows)", () => {
   });
 });
 
-describe("folderGroups (the Videos tab's shelves)", () => {
+describe("folderGroups (the Videos tab's folders)", () => {
   it("keeps a folder's videos together, in episode order", () => {
     const items = [
       at("b2", "Beyond.Time.S01E45.mkv", "local", "Videos/AX beyond time"),
@@ -218,15 +218,5 @@ describe("folderGroups (the Videos tab's shelves)", () => {
     expect(folderLabel("Hometown/Season 1")).toBe("Hometown · Season 1");
     expect(folderLabel("Videos")).toBe("Videos");
     expect(folderLabel("Night.Harbor.2021")).toBe("Night Harbor 2021");
-  });
-});
-
-describe("pageGroups", () => {
-  it("cuts the shelves to a page and keeps each one's full count", () => {
-    const groups = folderGroups([at("a1", "A.S01E01.mkv", "local", "A"), at("a2", "A.S01E02.mkv", "local", "A"), at("b1", "B.S01E01.mkv", "local", "B"), at("b2", "B.S01E02.mkv", "local", "B"), at("c1", "C.S01E01.mkv", "local", "C")]);
-    expect(pageGroups(groups, 3).map((g) => [g.label, g.items.map((i) => i.id), g.count])).toEqual([
-      ["A", ["a1", "a2"], 2],
-      ["B", ["b1"], 2],
-    ]);
   });
 });

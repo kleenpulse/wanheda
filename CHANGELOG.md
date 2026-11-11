@@ -21,7 +21,8 @@ written after the fact, one per phase, and have no git tags.
 
 ### Changed
 
-- Videos you add from a folder now stay together in the Videos tab: each folder gets its own shelf, named after the folder, with its episodes in order. Before, they were all mixed into one long list.
+- Videos you add from a folder now stay in that folder. The Videos tab shows your folders as tiles; open one to see its videos, with episodes in order, and go back to all folders with one click. Before, every video was mixed into one long list.
+- Adding a folder of videos no longer starts playing one of them. It just adds them.
 
 ## [0.7.2] - 2026-11-11
 

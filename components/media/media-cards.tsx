@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { BookmarkCheck, BookmarkPlus, Music, Pause, Play, Trash2 } from "lucide-react";
+import { BookmarkCheck, BookmarkPlus, Folder, Music, Pause, Play, Trash2 } from "lucide-react";
 import { buttonClass } from "@/components/ui/button";
 import { timeLeft } from "@/lib/media/cinema";
 import { displayTitle, episodeOf, type Show } from "@/lib/media/episodes";
@@ -133,6 +133,34 @@ export function VideoCard({
         </span>
       ) : null}
     </div>
+  );
+}
+
+/** A folder of videos: its first video's picture on a stack, its name and how many it holds. A click opens the folder. */
+export function FolderCard({ label, items, onOpen }: { label: string; items: readonly MediaItem[]; onOpen: () => void }) {
+  const cover = items[0];
+  if (!cover) return null;
+  const count = `${String(items.length)} ${items.length === 1 ? "video" : "videos"}`;
+  return (
+    <button type="button" {...{ [SHELF_CARD]: "" }} onClick={onOpen} aria-label={`Open the folder ${label}, ${count}`} className={CARD}>
+      <span className="relative block pt-2.5">
+        {/* Two sheets behind the picture: a stack, in the surface's own tint (no borders). */}
+        <span aria-hidden className="absolute inset-x-7 top-0 h-4 rounded-t-[10px] bg-foreground/5 dark:bg-card" />
+        <span aria-hidden className="absolute inset-x-3.5 top-1.5 h-4 rounded-t-[12px] bg-foreground/10 dark:bg-card-nested" />
+        <span className="relative block overflow-hidden rounded-[14px]">
+          <Thumb item={cover} className={cn("w-full", LIFT)}>
+            <span aria-hidden className="absolute bottom-2.5 left-2.5 flex items-center gap-1.5 rounded-pill bg-island/70 px-2.5 py-1 text-xs text-island-foreground">
+              <Folder className="size-3.5" />
+              <span className="tabular">{items.length}</span>
+            </span>
+          </Thumb>
+        </span>
+      </span>
+      <span className="flex min-w-0 flex-col gap-0.5 px-0.5">
+        <span className="truncate text-sm font-medium text-foreground">{label}</span>
+        <span className="tabular truncate text-xs text-ink-2">{count}</span>
+      </span>
+    </button>
   );
 }
 
