@@ -11,7 +11,7 @@ The Windows desktop app: an Electron shell around the same Next.js server the we
 | `bun run desktop:preview` | Builds the production server, stages it, and opens it in Electron. Add `--no-build` (`bun desktop/scripts/dev.ts --preview --no-build`) to reuse the last build. |
 | `bun run desktop:stage` | Builds and stages only (`desktop/.stage/`). |
 | `bun run desktop:smoke` | Boots the staged server under Node. It checks that the app's request gets 200 and the CSP, and that a missing or wrong token, a foreign `Host` or `127.0.0.1` get 403. |
-| `bun run desktop:build` | Stages, makes the NSIS installer in `desktop/.out/`, checks the server folder and Electron's fuses, and writes `SHA256SUMS.txt`. Windows only. |
+| `bun run desktop:build` | Stages, makes the NSIS installer in `desktop/.out/`, checks the server folder and Electron's fuses, and writes `SHA256SUMS.txt`. Windows only. Installers for release come only from CI (`.github/workflows/desktop.yml`); see [RELEASING.md](RELEASING.md). |
 | `bun run desktop:typecheck` | Type-checks this folder (CI runs it). |
 
 Set `WANHEDA_DEBUG_PORT=9222` to open the Chrome DevTools Protocol on that port. It works in dev and preview only; the installed app refuses to start with a debugging port.
