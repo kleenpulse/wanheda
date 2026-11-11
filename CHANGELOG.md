@@ -19,6 +19,10 @@ written after the fact, one per phase, and have no git tags.
 
 - The desktop app now plays videos with Dolby Digital, Dolby Digital Plus or DTS sound. It converts the sound as the video plays, without re-encoding the picture and without writing anything to disk, and seeking works as usual. On the web, such a file now tells you the desktop app can play it.
 
+### Changed
+
+- Videos you add from a folder now stay together in the Videos tab: each folder gets its own shelf, named after the folder, with its episodes in order. Before, they were all mixed into one long list.
+
 ## [0.7.2] - 2026-11-11
 
 ### Added

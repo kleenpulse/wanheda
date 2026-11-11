@@ -41,6 +41,11 @@ The desktop app can now play a video whose sound Chrome can't decode (AC3, E-AC3
   - ffmpeg dying mid-stream reads as a clean end, so the film stops short with no message. The fix must hold the stream's end until the exit code is known ("exit" and stdout's "close" come in either order), and needs the Electron harness.
 - After the nits: tripwire, both typechecks clean; 179 files, 1815 tests pass; forged-commit check clean.
 
+## Also on this branch (after the review)
+
+- Videos tab: the library is shown as one shelf per folder the videos were added from (the owner reported imports losing their folders). `folderGroups`, `folderLabel` and `pageGroups` in `lib/media/episodes.ts`, used by `components/media/videos-grid.tsx`. Reviewer: FIX, then LGTM. Not seen on screen by the Builder (no browser tool this session).
+- A test clip for T80 is at `D:UsersskyepVideos	80-test-eac3.mkv` (3 min, HEVC 10-bit video, E-AC3 sound only). The owner's Videos folder has no AC3 or DTS file; its 13 E-AC3 episodes default to an AAC track, so they never convert.
+
 ## In progress / not finished
 
 - PR #95 is open and unmerged.

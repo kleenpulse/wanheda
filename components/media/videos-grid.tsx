@@ -3,7 +3,7 @@
 import * as React from "react";
 import { Search } from "lucide-react";
 import { buttonClass } from "@/components/ui/button";
-import { displayTitle } from "@/lib/media/episodes";
+import { displayTitle, folderGroups, pageGroups } from "@/lib/media/episodes";
 import { continueList, watchLaterList } from "@/lib/media/playback";
 import type { MediaItem } from "@/lib/media/types";
 import { cn } from "@/lib/utils";
@@ -13,11 +13,12 @@ import { useMedia, useMediaApi } from "./use-media";
 import { openWatch } from "./watch-nav";
 
 // The Videos tab (T73): the library as a card grid, Continue, Watch later and
-// All, with a search and the AddBar on top. A card opens the Watch view; a
+// then a shelf per folder the videos were added from, with a search and the
+// AddBar on top. A card opens the Watch view; a
 // file dropped anywhere on the tab joins the library and opens.
 
 const GRID = "grid grid-cols-[repeat(auto-fill,minmax(min(100%,15rem),1fr))] gap-x-4 gap-y-6";
-/** All shows this many at first: a 2000-item library mounts in pages, not at once. */
+/** The shelves show this many at first: a 2000-item library mounts in pages, not at once. */
 const PAGE = 48;
 
 const fold = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
@@ -28,10 +29,13 @@ function matches(item: MediaItem, words: readonly string[]): boolean {
   return words.every((w) => hay.includes(w));
 }
 
-function Group({ title, children }: { title: string; children: React.ReactNode }) {
+function Group({ title, count, children }: { title: string; count?: number; children: React.ReactNode }) {
   return (
     <section className="flex flex-col gap-3" aria-label={title}>
-      <h2 className="readout">{title}</h2>
+      <h2 className="readout">
+        {title}
+        {count === undefined ? null : <span className="tabular ml-2 text-ink-3">{count}</span>}
+      </h2>
       {children}
     </section>
   );
@@ -49,6 +53,11 @@ export function VideosGrid() {
   const found = React.useMemo(() => (items && words.length > 0 ? items.filter((i) => matches(i, words)) : null), [items, words]);
   const going = React.useMemo(() => (items ? continueList(items) : []), [items]);
   const later = React.useMemo(() => (items ? watchLaterList(items) : []), [items]);
+  /** The folders' shelves, cut to the page: the last one shown may be part of its folder. */
+  const groups = React.useMemo(() => (items ? folderGroups(items) : []), [items]);
+  const shelves = React.useMemo(() => pageGroups(groups, shown), [groups, shown]);
+  /** One shelf of loose videos is the whole library: "All", as before. Asked of the library, not of the page. */
+  const plain = groups.length === 1 && groups[0]?.key === "";
 
   const card = (item: MediaItem) => (
     <VideoCard
@@ -139,9 +148,11 @@ export function VideosGrid() {
               <div className={GRID}>{later.map(card)}</div>
             </Group>
           ) : null}
-          <Group title="All">
-            <div className={GRID}>{items.slice(0, shown).map(card)}</div>
-          </Group>
+          {shelves.map((g) => (
+            <Group key={g.key} title={plain ? "All" : g.label} count={g.count}>
+              <div className={GRID}>{g.items.map(card)}</div>
+            </Group>
+          ))}
         </>
       )}
       {items && (found ?? items).length > shown ? (
