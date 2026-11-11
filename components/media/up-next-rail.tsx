@@ -20,6 +20,10 @@ import { Thumb } from "./thumb";
 // and dim the further round they are. It turns with the scroll: the cards'
 // view timelines in globals.css (`.rail-drum`), no script. Without view
 // timelines, or with reduced motion, the flat stack below is what shows.
+//
+// The rail snaps (user 2026-11-11): wherever a scroll stops, a card settles at
+// the middle, in the window and in full screen alike. The ends rest as near
+// the middle as the list allows.
 
 /** "11. Episode 11" for an episode, the cleaned title otherwise. */
 export function cardTitle(item: MediaItem): string {
@@ -64,6 +68,7 @@ function RailCard({ item, current, liveS, drum, onPick }: { item: MediaItem; cur
       data-rail-card
       className={cn(
         "group/card relative w-full shrink-0 overflow-hidden rounded-[14px] text-left outline-none transition-[opacity,scale,box-shadow] duration-200 ease-out-quint focus-visible:ring-2 focus-visible:ring-island-foreground/80",
+        "snap-center",
         current ? "scale-100 opacity-100 shadow-lift" : "scale-[0.94] opacity-70 hover:scale-[0.97] hover:opacity-100 focus-visible:opacity-100",
       )}
     >
@@ -167,8 +172,8 @@ export function UpNextRail({
       <div
         ref={list}
         className={cn(
-          "-mx-2 flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto overscroll-contain scroll-fade px-2 py-2 scrollbar-none",
-          // The wheel itself (the turn, the room for the first and last card to reach the middle, the rest on a card) is globals.css's.
+          "-mx-2 flex min-h-0 flex-1 snap-y snap-mandatory flex-col gap-1 overflow-y-auto overscroll-contain scroll-fade px-2 py-2 scrollbar-none",
+          // The wheel itself (the turn, and the room for the first and last card to reach the middle) is globals.css's.
           drum && "rail-drum",
         )}
         onKeyDown={(e) => {
