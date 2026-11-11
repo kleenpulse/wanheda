@@ -156,7 +156,15 @@ export function NotesApp() {
           </section>
           {selected ? (
             <div className="min-w-0 @4xl:sticky @4xl:top-6">
-              <NoteEditor key={selected.id} note={selected} onBack={url.close} backLabel="Board" />
+              {/* Capped at the board's height; the note's body scrolls inside. */}
+              <NoteEditor
+                key={selected.id}
+                note={selected}
+                onBack={url.close}
+                backLabel="Board"
+                onClose={url.close}
+                className="min-h-[min(70svh,640px)] @4xl:h-[min(74svh,820px)] @4xl:min-h-[420px]"
+              />
             </div>
           ) : null}
         </div>
@@ -166,8 +174,14 @@ export function NotesApp() {
   }
 
   return (
-    <div ref={rootRef} className="grid gap-4 @4xl:grid-cols-[minmax(280px,360px)_minmax(0,1fr)] @4xl:items-start">
-      <section aria-label="Notes" className={cn("flex min-w-0 flex-col gap-3", selected && "hidden @4xl:flex")}>
+    // Fills the page as Music does (page-frame.tsx): the list and the note scroll, the page doesn't.
+    // The pb is page-frame.tsx's FLOATING_BAR_CLEARANCE, so the note's card ends above the dock.
+    <div
+      ref={rootRef}
+      data-page-fill
+      className="grid min-h-0 flex-1 auto-rows-fr gap-4 pb-[calc(76px+2rem)] @4xl:grid-cols-[minmax(280px,360px)_minmax(0,1fr)]"
+    >
+      <section aria-label="Notes" className={cn("flex min-h-0 min-w-0 flex-col gap-3", selected && "hidden @4xl:flex")}>
         {viewBar}
         <label className="relative block">
           <span className="sr-only">Filter notes</span>
@@ -187,7 +201,8 @@ export function NotesApp() {
         {loading && !notes.length ? (
           <ListSkeleton />
         ) : shown.length ? (
-          <ul className="flex flex-col gap-2">
+          // -m-1 p-1: room for the open row's ring inside the scroller's clip.
+          <ul className="-m-1 flex min-h-0 flex-col gap-2 overflow-y-auto overscroll-contain scroll-fade p-1">
             {shown.map((n) => (
               <li key={n.id}>
                 <NoteRow
@@ -222,15 +237,13 @@ export function NotesApp() {
       </section>
 
       {selected ? (
-        <div className="min-w-0 @4xl:sticky @4xl:top-6">
-          <NoteEditor key={selected.id} note={selected} onBack={url.close} />
-        </div>
+        <NoteEditor key={selected.id} note={selected} onBack={url.close} className="min-h-0 min-w-0" />
       ) : url.id && !loading ? (
         <div className="bento flex">
           <EmptyState title="That note is gone" body="It was deleted, or it lives on another account." />
         </div>
       ) : (
-        <div className="bento hidden min-h-[min(70svh,640px)] @4xl:flex">
+        <div className="bento hidden @4xl:flex">
           <EmptyState title="Pick a note" body="Or start a new one. Everything saves as you type." />
         </div>
       )}

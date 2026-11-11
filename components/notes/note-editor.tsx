@@ -42,7 +42,21 @@ export const STATUS_LABEL: Record<NoteStatus, string> = {
 type Mode = "write" | "read";
 
 /** One note, edited in place: title, Markdown body (write or read, checklists tick in read), tags, pin, archive, history. */
-export function NoteEditor({ note, onBack, backLabel = "Notes" }: { note: Note; onBack?: () => void; backLabel?: string }) {
+export function NoteEditor({
+  note,
+  onBack,
+  backLabel = "Notes",
+  onClose,
+  className,
+}: {
+  note: Note;
+  onBack?: () => void;
+  backLabel?: string;
+  /** Wide sheets: an × in the header, and Esc, close the note (the back button covers narrow ones). */
+  onClose?: () => void;
+  /** Sizes the card; the body scrolls inside it once the card has a height cap. */
+  className?: string;
+}) {
   const api = useNotesApi();
   const status = useNoteStatus(note.id);
   const conflict = useNoteConflict();
@@ -61,6 +75,20 @@ export function NoteEditor({ note, onBack, backLabel = "Notes" }: { note: Note; 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [note.id]);
 
+  // Esc closes the note, unless something on top (a menu, a dialog, an IME) took the key first.
+  React.useEffect(() => {
+    if (!onClose) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || e.defaultPrevented || e.isComposing) return;
+      if (document.querySelector('[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"]')) return;
+      onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [onClose]);
+
   const toggleTask = React.useCallback(
     (offset: number) => {
       api.update(note.id, { bodyMd: toggleTaskAt(note.bodyMd, offset) }, { immediate: true });
@@ -69,7 +97,7 @@ export function NoteEditor({ note, onBack, backLabel = "Notes" }: { note: Note; 
   );
 
   return (
-    <article aria-label="Note" className="bento flex min-h-[min(70svh,640px)] flex-col p-0">
+    <article aria-label="Note" className={cn("bento flex flex-col p-0", className)}>
       <div className="flex flex-wrap items-center gap-2 border-b border-border/70 px-4 py-3 dark:border-glass-border">
         {onBack ? (
           <button type="button" onClick={onBack} className={buttonClass("ghost", "pill-sm", "-ml-1 pl-2 @4xl:hidden")}>
@@ -142,6 +170,12 @@ export function NoteEditor({ note, onBack, backLabel = "Notes" }: { note: Note; 
           </Tip>
         ) : null}
         <CopyNote note={note} />
+        {onClose ? (
+          <Tip type="button" onClick={onClose} className={buttonClass("ghost", "circle-sm", "hidden @4xl:inline-flex")} label="Close (Esc)">
+            <X aria-hidden strokeWidth={1.75} />
+            <span className="sr-only">Close note</span>
+          </Tip>
+        ) : null}
       </div>
 
       {conflict?.id === note.id ? (
@@ -167,7 +201,8 @@ export function NoteEditor({ note, onBack, backLabel = "Notes" }: { note: Note; 
         />
       ) : null}
 
-      <div className="flex flex-1 flex-col gap-3 px-5 pt-4 pb-5 md:px-6">
+      {/* The body scrolls on its own; the tags stay put under it. */}
+      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain scroll-fade px-5 pt-4 pb-3 md:px-6">
         <input
           value={note.title}
           maxLength={TITLE_MAX}
@@ -194,13 +229,15 @@ export function NoteEditor({ note, onBack, backLabel = "Notes" }: { note: Note; 
             onBlur={api.flushAll}
             placeholder={"Write in Markdown. A checklist is “- [ ] buy SSD”."}
             aria-label="Note body, Markdown"
-            className="min-h-64 w-full flex-1 resize-none bg-transparent font-mono text-[13.5px] leading-relaxed text-foreground outline-none field-sizing-content placeholder:text-ink-3"
+            className="min-h-64 w-full shrink-0 grow resize-none bg-transparent font-mono text-[13.5px] leading-relaxed text-foreground outline-none field-sizing-content placeholder:text-ink-3"
           />
         ) : note.bodyMd.trim() ? (
-          <NoteMarkdown body={note.bodyMd} onToggleTask={toggleTask} className="flex-1" />
+          <NoteMarkdown body={note.bodyMd} onToggleTask={toggleTask} className="shrink-0 grow" />
         ) : (
-          <p className="flex-1 text-[14px] text-ink-3">Nothing written yet.</p>
+          <p className="grow text-[14px] text-ink-3">Nothing written yet.</p>
         )}
+      </div>
+      <div className="shrink-0 px-5 pb-5 md:px-6">
         <TagEditor
           tags={note.tags}
           onChange={(tags) => {
