@@ -8,6 +8,13 @@ import { DEFAULT_PREFS, parsePrefs, type Prefs } from "./prefs";
 // Prefs persistence. Callers pass the owner's id from requireOwner(), never a
 // client-sent one (SPEC V7).
 
+/**
+ * What a row made by another setting's first save starts with. The columns'
+ * own defaults are older than DEFAULT_PREFS, and an owner with no row is shown
+ * DEFAULT_PREFS: without this, saving a reader setting would change their skin.
+ */
+const NEW_ROW = { skin: DEFAULT_PREFS.skin, accent: DEFAULT_PREFS.accent };
+
 export type LoadedPrefs =
   /** `reader`: the saved reader prefs, field by field; null when none were ever saved. */
   | { kind: "loaded"; prefs: Prefs; reader: Partial<ReaderPrefs> | null }
@@ -58,7 +65,7 @@ export async function saveReaderPrefs(userId: string, reader: ReaderPrefs): Prom
   if (!db) return false;
   await db
     .insert(userPrefs)
-    .values({ userId, reader })
+    .values({ userId, ...NEW_ROW, reader })
     .onConflictDoUpdate({ target: userPrefs.userId, set: { reader, updatedAt: sql`now()` } });
   return true;
 }
@@ -69,7 +76,7 @@ export async function saveBaseCurrency(userId: string, currency: string): Promis
   if (!db) return false;
   await db
     .insert(userPrefs)
-    .values({ userId, baseCurrency: currency })
+    .values({ userId, ...NEW_ROW, baseCurrency: currency })
     .onConflictDoUpdate({ target: userPrefs.userId, set: { baseCurrency: currency, updatedAt: sql`now()` } });
   return true;
 }

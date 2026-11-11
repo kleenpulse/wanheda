@@ -9,6 +9,7 @@ import { TIMER_MODES, type TimerMode } from "@/lib/activity/timer";
 // skin and accent before React loads, the same way the rail does. Demo mode
 // has only the cookie.
 
+/** `default` is the stored name of the Ember & Nebula pair, the first skin. What a new owner gets is `DEFAULT_PREFS.skin`. */
 export const SKINS = ["default", "bench"] as const;
 export type Skin = (typeof SKINS)[number];
 
@@ -81,9 +82,14 @@ export const AURORA_EDGE_LABELS: Record<AuroraEdge, string> = { top: "Top", bott
 
 export const TIMER_MODE_LABELS: Record<TimerMode, string> = { single: "One per length", multiple: "Allow repeats" };
 
+/**
+ * What an owner with nothing saved gets: Bench with the Gold accent (owner
+ * 2026-11-11). It stands in for a missing or bad value only. A saved `default`
+ * skin, or a saved null accent ("Skin's own"), is a choice and is kept.
+ */
 export const DEFAULT_PREFS: Prefs = {
-  skin: "default",
-  accent: null,
+  skin: "bench",
+  accent: "#e6c27a",
   wallpaper: "none",
   timerMode: "single",
   wallpaperScope: "home",
@@ -117,12 +123,12 @@ export function parseWallpaperPages(raw: unknown): WallpaperPages {
   return out;
 }
 
-/** Field by field: a bad or missing field falls back to its default, the rest survive. */
+/** Field by field: a bad or missing field falls back to its default, the rest survive. A null accent is the skin's own, and survives. */
 export function parsePrefs(raw: unknown): Prefs {
   const r = typeof raw === "object" && raw !== null ? (raw as Record<string, unknown>) : {};
   return {
     skin: oneOf(SKINS, r.skin, DEFAULT_PREFS.skin),
-    accent: parseAccent(r.accent),
+    accent: r.accent === null ? null : (parseAccent(r.accent) ?? DEFAULT_PREFS.accent),
     wallpaper: oneOf(WALLPAPERS, r.wallpaper, DEFAULT_PREFS.wallpaper),
     timerMode: oneOf(TIMER_MODES, r.timerMode, DEFAULT_PREFS.timerMode),
     wallpaperScope: oneOf(WALLPAPER_SCOPES, r.wallpaperScope, DEFAULT_PREFS.wallpaperScope),
@@ -213,6 +219,7 @@ function decodePages(value: string | undefined): Record<string, string> {
  * `skin.accent.wallpaper.timerMode.scope.cover.pages.auroraEdge`, accent without `#` or
  * `-`: cookie-safe, no encoding. The boot script reads only the first two, and
  * a cookie from before the wallpaper fields decodes them to their defaults.
+ * `-` is the skin's own accent, chosen; a missing accent is the default one.
  */
 export function encodePrefs(p: Prefs): string {
   return [p.skin, p.accent ? p.accent.slice(1) : "-", p.wallpaper, p.timerMode, p.wallpaperScope, p.wallpaperCover, encodePages(p.wallpaperPages), p.auroraEdge].join(".");
@@ -222,7 +229,7 @@ export function decodePrefs(value: string | undefined | null): Prefs {
   const [skin, accent, wallpaper, timerMode, wallpaperScope, wallpaperCover, pages, auroraEdge] = (value ?? "").split(".");
   return parsePrefs({
     skin,
-    accent: accent && accent !== "-" ? `#${accent}` : null,
+    accent: accent === "-" ? null : accent ? `#${accent}` : undefined,
     wallpaper,
     timerMode,
     wallpaperScope,
@@ -258,11 +265,15 @@ export function applyPrefs(el: HTMLElement, p: Pick<Prefs, "skin" | "accent">): 
 }
 
 /**
- * An inline <head> script: skin and accent from the cookie before first
- * paint. It validates both itself (a fixed skin list, six hex digits), so a
- * tampered cookie can't inject anything into the page's style.
+ * An inline <head> script: skin and accent before first paint, from the
+ * cookie, and the defaults for what it lacks (no cookie yet, or a bad field),
+ * the way `decodePrefs` reads it (an accent in capitals included). It
+ * validates both itself (a fixed skin list, six hex digits), so a tampered
+ * cookie can't inject anything into the page's style.
  */
 export function prefsBootScript(): string {
-  const skins = JSON.stringify(SKINS.filter((s) => s !== "default"));
-  return `try{var m=/(?:^|;\\s*)${PREFS_COOKIE}=([^;]*)/.exec(document.cookie);if(m){var p=m[1].split("."),d=document.documentElement;if(${skins}.indexOf(p[0])>=0)d.setAttribute("${SKIN_ATTR}",p[0]);if(/^[0-9a-f]{6}$/.test(p[1]||"")){d.style.setProperty("${ACCENT_VAR}","#"+p[1]);d.setAttribute("${ACCENT_ATTR}","")}}}catch(e){}`;
+  const skins = JSON.stringify(SKINS);
+  const skin = JSON.stringify(DEFAULT_PREFS.skin);
+  const accent = JSON.stringify(DEFAULT_PREFS.accent?.slice(1) ?? "");
+  return `try{var d=document.documentElement,m=/(?:^|;\\s*)${PREFS_COOKIE}=([^;]*)/.exec(document.cookie),p=m?m[1].split("."):[],s=${skins}.indexOf(p[0])>=0?p[0]:${skin},q=(p[1]||"").toLowerCase(),a=/^[0-9a-f]{6}$/.test(q)?q:q==="-"?"":${accent};if(s!=="default")d.setAttribute("${SKIN_ATTR}",s);if(a){d.style.setProperty("${ACCENT_VAR}","#"+a);d.setAttribute("${ACCENT_ATTR}","")}}catch(e){}`;
 }

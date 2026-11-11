@@ -10,6 +10,8 @@ export const userPrefs = pgTable("user_prefs", {
   userId: text("user_id")
     .primaryKey()
     .references(() => user.id, { onDelete: "cascade" }),
+  // These two column defaults are the first ones. What a new owner gets is
+  // DEFAULT_PREFS (lib/prefs/prefs.ts): lib/prefs/store.ts writes it into every row it creates.
   skin: text("skin").notNull().default("default"),
   accent: text("accent"),
   wallpaper: text("wallpaper").notNull().default("none"),

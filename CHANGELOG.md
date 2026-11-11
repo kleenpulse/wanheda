@@ -26,6 +26,7 @@ written after the fact, one per phase, and have no git tags.
 - Adding a folder of videos no longer starts playing one of them. It just adds them.
 - The Videos tab has one box where it had two. Type words and it searches your videos; paste a link and it offers to add it, and tells you what kind of link it is or that it's already in your library. Paste a file's path and it finds that file in your library. Search now also matches folder names.
 - In Media, Open a file and Open a folder now sit on the same line as the link box, right after its + button.
+- Wanheda now starts in the graphite Bench skin with the Gold accent: on a new account, on a new device and on the sign-in page. A look you've already picked in Settings stays as it is.
 - In full screen, Up Next is now a drum. The episode in the middle faces you, and the ones above and below lean back, shrink and dim like the faces of a wheel. One notch of the mouse wheel, or an arrow key, turns it by one episode, and it opens on the episode you're playing.
 - Up Next snaps. Wherever you stop scrolling, an episode settles into place, in the normal player as well as in full screen, and one notch of the mouse wheel moves exactly one episode. In full screen every episode comes to the middle; in the normal player the first and last rest at the ends of the list.
 

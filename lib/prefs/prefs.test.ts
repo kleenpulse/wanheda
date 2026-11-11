@@ -33,6 +33,9 @@ const CUSTOM: Prefs = {
   auroraEdge: "bottom",
 };
 
+/** Ember & Nebula with the skin's own accent, as a choice: what the defaults were before Bench and Gold. */
+const EMBER: Prefs = { ...DEFAULT_PREFS, skin: "default", accent: null };
+
 /** The generated <head> script as a function of `document`: what the browser runs inline. */
 // eslint-disable-next-line @typescript-eslint/no-implied-eval -- evaluates our own generated script against a stub
 const runBoot = new Function("document", prefsBootScript()) as (doc: unknown) => void;
@@ -66,8 +69,19 @@ describe("parseAccent", () => {
 describe("parsePrefs", () => {
   it("keeps good fields and defaults bad ones, one by one", () => {
     expect(parsePrefs(CUSTOM)).toEqual(CUSTOM);
-    expect(parsePrefs({ ...CUSTOM, skin: "neon", wallpaper: 3 })).toEqual({ ...CUSTOM, skin: "default", wallpaper: "none" });
+    expect(parsePrefs({ ...CUSTOM, skin: "neon", wallpaper: 3 })).toEqual({ ...CUSTOM, skin: DEFAULT_PREFS.skin, wallpaper: "none" });
     expect(parsePrefs(null)).toEqual(DEFAULT_PREFS);
+  });
+
+  it("starts a new owner on Bench with the Gold accent", () => {
+    expect(DEFAULT_PREFS.skin).toBe("bench");
+    expect(ACCENT_PRESETS.find((p) => p.hex === DEFAULT_PREFS.accent)?.name).toBe("Gold");
+  });
+
+  it("keeps a chosen Ember & Nebula skin and a chosen own-accent: only a bad or missing one is defaulted", () => {
+    expect(parsePrefs(EMBER)).toEqual(EMBER);
+    expect(parsePrefs({ ...EMBER, skin: undefined }).skin).toBe(DEFAULT_PREFS.skin);
+    for (const bad of [undefined, "red", "#12ab9", 7]) expect(parsePrefs({ ...EMBER, accent: bad }).accent).toBe(DEFAULT_PREFS.accent);
   });
 
   it("defaults a bad aurora edge on its own", () => {
@@ -185,6 +199,13 @@ describe("the prefs cookie", () => {
     });
   });
 
+  it("keeps Ember & Nebula and the own-accent choice through the cookie", () => {
+    expect(encodePrefs(EMBER).startsWith("default.-.")).toBe(true);
+    expect(decodePrefs(encodePrefs(EMBER))).toEqual(EMBER);
+    // A cookie cut short: the skin it names is kept, the accent it lacks is the default one.
+    expect(decodePrefs("default")).toEqual({ ...DEFAULT_PREFS, skin: "default" });
+  });
+
   it("decodes junk or nothing to defaults", () => {
     expect(decodePrefs(undefined)).toEqual(DEFAULT_PREFS);
     expect(decodePrefs("a.b.c.d.e")).toEqual(DEFAULT_PREFS);
@@ -200,23 +221,36 @@ describe("prefsBootScript", () => {
     expect(style.get(ACCENT_VAR)).toBe("#12ab9f");
   });
 
-  it("sets nothing for the default skin and no accent", () => {
-    const { attrs, style } = boot(`${PREFS_COOKIE}=${encodePrefs(DEFAULT_PREFS)}`);
+  it("sets nothing for a chosen Ember & Nebula skin with the own-accent choice", () => {
+    const { attrs, style } = boot(`${PREFS_COOKIE}=${encodePrefs(EMBER)}`);
     expect(attrs.size).toBe(0);
     expect(style.size).toBe(0);
   });
 
-  it("ignores a tampered cookie: unknown skin, accent that isn't six hex digits", () => {
+  it("never paints a tampered cookie: an unknown skin or an accent that isn't six hex digits gets the default", () => {
     const { attrs, style } = boot(`${PREFS_COOKIE}=evil.12ab9f%3Bbackground:url(x).none.single`);
-    expect(attrs.has(SKIN_ATTR)).toBe(false);
-    expect(style.size).toBe(0);
-    expect(boot(`${PREFS_COOKIE}=bench.12AB9F.none.single`).style.size).toBe(0);
+    expect(attrs.get(SKIN_ATTR)).toBe(DEFAULT_PREFS.skin);
+    expect([...style.values()]).toEqual([DEFAULT_PREFS.accent]);
+    expect([...boot(`${PREFS_COOKIE}=bench.12ab9f0.none.single`).style.values()]).toEqual([DEFAULT_PREFS.accent]);
   });
 
-  it("does nothing without the cookie, and never throws", () => {
-    expect(boot("").attrs.size).toBe(0);
+  it("paints the defaults without the cookie, and never throws", () => {
+    const { attrs, style } = boot("");
+    expect(attrs.get(SKIN_ATTR)).toBe(DEFAULT_PREFS.skin);
+    expect(attrs.has(ACCENT_ATTR)).toBe(true);
+    expect(style.get(ACCENT_VAR)).toBe(DEFAULT_PREFS.accent);
     expect(() => {
       runBoot({});
     }).not.toThrow();
+  });
+
+  it("paints what decodePrefs reads, cookie by cookie", () => {
+    for (const value of ["", "default.-", "bench.-", "default.12ab9f", "bench.12ab9f.aurora", "bench.12AB9F", "neon.zz", "bench", "default", ".", "-.-"]) {
+      const want = decodePrefs(value);
+      const { attrs, style } = boot(`${PREFS_COOKIE}=${value}`);
+      expect(attrs.get(SKIN_ATTR) ?? "default", value).toBe(want.skin);
+      expect(style.get(ACCENT_VAR) ?? null, value).toBe(want.accent);
+      expect(attrs.has(ACCENT_ATTR), value).toBe(want.accent !== null);
+    }
   });
 });
