@@ -1,26 +1,59 @@
 "use client";
 
 import * as React from "react";
-import { FileVideo, FolderOpen, Plus, TriangleAlert } from "lucide-react";
+import { FileVideo, FolderOpen, Link2, Plus, Search, TriangleAlert } from "lucide-react";
 import { buttonClass } from "@/components/ui/button";
 import { desktopFiles } from "@/lib/platform/desktop";
 import { toast } from "@/components/ui/toaster";
+import { readEntry } from "@/lib/media/entry";
 import { fsaFolderPicker, videosInFiles, videosInFolder, type FolderVideo, videosInNative } from "@/lib/media/local";
 import type { MediaItem } from "@/lib/media/types";
+import { cn } from "@/lib/utils";
 import { preloadSurface } from "./stage";
 import { useFilePick } from "./use-file-pick";
-import { useMediaApi } from "./use-media";
+import { providerName, useMedia, useMediaApi } from "./use-media";
 
 // Adding to the video library (T61, T70): paste a link, open a file, or open a
 // folder. Nothing is uploaded (V54). On the Videos tab, beside the player, and
 // in Home's first-run card. A file or a link opens once added; a folder only
 // joins the library (user 2026-11-11: an import must not start playing).
+//
+// The field reads what is typed (lib/media/entry.ts): a link is added, and
+// anything else is not mistaken for one. On the Videos tab the same field is
+// the library's search too (`field`, user 2026-11-11: one box, not two): words
+// and file names filter the grid as they are typed, and only a link adds.
 
 const plural = (n: number, one: string) => `${n.toLocaleString("en-GB")} ${n === 1 ? one : `${one}s`}`;
 
-export function AddBar({ onAdded }: { /** One file or link was added (never a folder's videos). */ onAdded: (item: MediaItem) => void }) {
+export function AddBar({
+  onAdded,
+  field,
+}: {
+  /** One file or link was added (never a folder's videos). */
+  onAdded: (item: MediaItem) => void;
+  /** The Videos tab: the field's text lives with the grid, which searches with it. */
+  field?: { text: string; onText: (text: string) => void };
+}) {
   const api = useMediaApi();
-  const [link, setLink] = React.useState("");
+  const items = useMedia().data?.items ?? null;
+  const [own, setOwn] = React.useState("");
+  const smart = field !== undefined;
+  const text = field ? field.text : own;
+  const setText = field ? field.onText : setOwn;
+  const entry = React.useMemo(() => readEntry(text), [text]);
+  const isLink = entry.kind === "link" || entry.kind === "bad-link";
+  /** What the field made of the text, said under it. */
+  const hint =
+    entry.kind === "link"
+      ? items?.some((i) => i.fp === entry.link.fp)
+        ? "Already in your library. Press Enter to open it."
+        : `${entry.link.kind === "embed" ? providerName(entry.link.provider) : entry.link.mediaKind === "audio" ? "Audio" : "Video"} link. Press Enter to add it.`
+      : entry.kind === "bad-link"
+        ? entry.reason
+        : smart && entry.kind === "search" && entry.from === "file"
+          ? "Looking for this file in your library. To add it, use Open a file."
+          : null;
+  const Icon = isLink ? Link2 : entry.kind === "search" && entry.from === "file" ? FileVideo : Search;
   const [error, setError] = React.useState<string | null>(null);
   const [busy, setBusy] = React.useState(false);
   /** A folder being added: how far along (`of` null while it's still being read). */
@@ -115,34 +148,45 @@ export function AddBar({ onAdded }: { /** One file or link was added (never a fo
           onSubmit={(e) => {
             e.preventDefault();
             setError(null);
-            void api.addLink(link).then((r) => {
+            if (entry.kind === "bad-link") setError(entry.reason);
+            // Words in the search field are a search, not a mistake; in a link-only field they are.
+            else if (entry.kind === "search" && !smart) setError("That isn't a link. Paste a YouTube, Vimeo, SoundCloud, Spotify or video link.");
+            if (entry.kind !== "link") return;
+            void api.addLink(entry.text).then((r) => {
               if ("error" in r) setError(r.error);
               else {
-                setLink("");
+                setText("");
                 onAdded(r);
               }
             });
           }}
         >
           <label className="sr-only" htmlFor="media-link">
-            Link to play
+            {smart ? "Search your videos, or paste a link to add" : "Link to play"}
           </label>
-          <input
-            id="media-link"
-            value={link}
-            onChange={(e) => {
-              setLink(e.currentTarget.value);
-              setError(null);
-            }}
-            inputMode="url"
-            autoComplete="off"
-            spellCheck={false}
-            placeholder="Paste a YouTube, Vimeo, SoundCloud, Spotify or video link"
-            aria-invalid={error ? true : undefined}
-            aria-describedby={error ? "media-link-error" : undefined}
-            className="h-10 min-w-0 flex-1 rounded-pill bg-foreground/6 px-4 text-sm text-foreground outline-none placeholder:text-ink-3 focus-visible:ring-2 focus-visible:ring-ring dark:bg-card-nested"
-          />
-          <button type="submit" disabled={!link.trim()} className={buttonClass("inverse", "circle-sm")} aria-label="Add link">
+          <span className="relative flex min-w-0 flex-1 items-center">
+            {smart ? <Icon aria-hidden className={cn("pointer-events-none absolute left-3.5 size-4", isLink ? "text-signal-ink dark:text-signal" : "text-ink-3")} /> : null}
+            <input
+              id="media-link"
+              type={smart ? "search" : "text"}
+              value={text}
+              onChange={(e) => {
+                setText(e.currentTarget.value);
+                setError(null);
+              }}
+              {...(smart ? {} : { inputMode: "url" as const })}
+              autoComplete="off"
+              spellCheck={false}
+              placeholder={smart && items && items.length > 0 ? "Search your videos, or paste a link to add" : "Paste a YouTube, Vimeo, SoundCloud, Spotify or video link"}
+              aria-invalid={error ? true : undefined}
+              aria-describedby={error ? "media-link-error" : hint ? "media-link-hint" : undefined}
+              className={cn(
+                "h-10 w-full min-w-0 rounded-pill bg-foreground/6 pr-4 text-sm text-foreground outline-none placeholder:text-ink-3 focus-visible:ring-2 focus-visible:ring-ring dark:bg-card-nested",
+                smart ? "pl-10" : "pl-4",
+              )}
+            />
+          </span>
+          <button type="submit" disabled={smart ? entry.kind !== "link" : entry.kind === "empty"} className={buttonClass("inverse", "circle-sm")} aria-label="Add link">
             <Plus aria-hidden />
           </button>
         </form>
@@ -180,6 +224,10 @@ export function AddBar({ onAdded }: { /** One file or link was added (never a fo
         <p id="media-link-error" role="alert" className="flex items-center gap-1.5 px-1 text-[13px] text-signal-ink">
           <TriangleAlert aria-hidden className="size-3.5 shrink-0" />
           {error}
+        </p>
+      ) : hint ? (
+        <p id="media-link-hint" aria-live="polite" className="px-1 text-[13px] text-ink-2">
+          {hint}
         </p>
       ) : null}
     </div>

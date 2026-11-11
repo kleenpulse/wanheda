@@ -1,9 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { ArrowLeft, Search } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { buttonClass } from "@/components/ui/button";
 import { replaceUrlParams, useUrlParam } from "@/hooks/use-url-param";
+import { foldText, readEntry } from "@/lib/media/entry";
 import { displayTitle, folderGroups, LOOSE_LABEL } from "@/lib/media/episodes";
 import { continueList, watchLaterList } from "@/lib/media/playback";
 import type { MediaItem } from "@/lib/media/types";
@@ -14,8 +15,9 @@ import { useMedia, useMediaApi } from "./use-media";
 import { FOLDER_PARAM, openFolder, openWatch } from "./watch-nav";
 
 // The Videos tab (T73): Continue, Watch later, then the library as the folders
-// its videos were added from, and the loose videos after them, with a search
-// and the AddBar on top. A folder opens in place (`?folder=`, so Back returns
+// its videos were added from, and the loose videos after them. One field on
+// top both searches and adds (the AddBar's `field`): words filter the grid, a
+// link is added. A folder opens in place (`?folder=`, so Back returns
 // to the folders); a card opens the Watch view; a file dropped anywhere on the
 // tab joins the library and opens.
 
@@ -23,11 +25,9 @@ const GRID = "grid grid-cols-[repeat(auto-fill,minmax(min(100%,15rem),1fr))] gap
 /** A list shows this many at first: a 2000-item library mounts in pages, not at once. */
 const PAGE = 48;
 
-const fold = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
-
 function matches(item: MediaItem, words: readonly string[]): boolean {
   const named = displayTitle(item);
-  const hay = fold(`${item.title} ${named.show ?? ""} ${named.title} ${item.uri}`);
+  const hay = foldText(`${item.title} ${named.show ?? ""} ${named.title} ${item.uri} ${item.meta.folder ?? ""}`);
   return words.every((w) => hay.includes(w));
 }
 
@@ -47,13 +47,16 @@ export function VideosGrid() {
   const { data, failed, refetch } = useMedia();
   const api = useMediaApi();
   const items = data?.items ?? null;
-  const [query, setQuery] = React.useState("");
+  /** The field's text: read as a search or as a link to add (lib/media/entry.ts). */
+  const [text, setText] = React.useState("");
   /** How many of the list are mounted, and for which folder ("" = none): a move in or out starts at one page again, Back and Forward included. */
   const [page, setPage] = React.useState({ at: "", n: PAGE });
   const [dragging, setDragging] = React.useState(false);
 
-  const words = React.useMemo(() => fold(query).split(/\s+/).filter(Boolean), [query]);
-  const found = React.useMemo(() => (items && words.length > 0 ? items.filter((i) => matches(i, words)) : null), [items, words]);
+  const found = React.useMemo(() => {
+    const entry = readEntry(text);
+    return items && entry.kind === "search" ? items.filter((i) => matches(i, entry.words)) : null;
+  }, [items, text]);
   const going = React.useMemo(() => (items ? continueList(items) : []), [items]);
   const later = React.useMemo(() => (items ? watchLaterList(items) : []), [items]);
   /** The library as its folders, and the loose videos under the key "". */
@@ -105,25 +108,11 @@ export function VideosGrid() {
     >
       <div className="flex flex-col gap-3">
         <AddBar
+          field={{ text, onText: setText }}
           onAdded={(item) => {
             openWatch(item.id);
           }}
         />
-        {items && items.length > 0 ? (
-          <label className="relative flex max-w-md items-center">
-            <span className="sr-only">Search videos</span>
-            <Search aria-hidden className="pointer-events-none absolute left-3.5 size-4 text-ink-3" />
-            <input
-              type="search"
-              value={query}
-              onChange={(e) => {
-                setQuery(e.currentTarget.value);
-              }}
-              placeholder="Search videos and shows"
-              className="h-10 w-full rounded-pill bg-foreground/6 pr-4 pl-10 text-sm text-foreground outline-none placeholder:text-ink-3 focus-visible:ring-2 focus-visible:ring-ring dark:bg-card-nested"
-            />
-          </label>
-        ) : null}
       </div>
 
       {failed ? (
