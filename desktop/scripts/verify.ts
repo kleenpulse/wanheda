@@ -7,6 +7,7 @@
  */
 import { existsSync, lstatSync, readdirSync } from "node:fs";
 import { join, relative, sep } from "node:path";
+import { FFMPEG_PIN } from "../ffmpeg-pin";
 
 /**
  * The one native binary that ships: sharp for next/image (the money logos),
@@ -68,6 +69,27 @@ export function speechProblemsIn(dir: string): string[] {
   walk(dir);
   for (const file of SPEECH_REQUIRED) if (!existsSync(join(dir, file))) problems.push(`missing: ${file}`);
   return problems;
+}
+
+/** A media folder (V74): the pinned ffmpeg and its licence text, each at its pinned size, and nothing else. */
+export function mediaProblemsIn(dir: string): string[] {
+  const problems: string[] = [];
+  const want = new Map<string, number>(FFMPEG_PIN.files.map((file) => [file.as, file.size]));
+  for (const name of readdirSync(dir)) {
+    const stat = lstatSync(join(dir, name));
+    const size = want.get(name);
+    if (stat.isSymbolicLink()) problems.push(`link: ${name}`);
+    else if (size === undefined || !stat.isFile()) problems.push(`not for shipping: ${name}`);
+    else if (stat.size !== size) problems.push(`not the pinned file: ${name}`);
+  }
+  for (const name of want.keys()) if (!existsSync(join(dir, name))) problems.push(`missing: ${name}`);
+  return problems;
+}
+
+export function verifyMediaDir(dir: string): void {
+  const problems = mediaProblemsIn(dir);
+  if (problems.length > 0) throw new Error(`The media folder isn't fit to ship (${dir}):\n  ${problems.slice(0, 40).join("\n  ")}`);
+  console.log(`verified ${dir}`);
 }
 
 export function verifySpeechDir(dir: string): void {

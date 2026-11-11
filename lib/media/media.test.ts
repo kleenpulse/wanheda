@@ -1,5 +1,6 @@
+import { QueryClient, dehydrate, hydrate } from "@tanstack/react-query";
 import { describe, expect, it } from "vitest";
-import { formatDuration, itemCreateSchema, mediaHref, stepItem, toMeta, upsertItem } from "./media";
+import { MEDIA_KEY, formatDuration, itemCreateSchema, mediaHref, stepItem, toMeta, upsertItem, writeMediaCache, type MediaPayload } from "./media";
 import { seedMedia } from "./seed";
 import type { MediaItem } from "./types";
 
@@ -115,5 +116,40 @@ describe("mediaHref (T73)", () => {
     expect(mediaHref(id, "videos")).toBe(`/media?tab=videos&m=${id}`);
     expect(mediaHref(id, "music")).toBe(`/media?tab=music&m=${id}`);
     expect(mediaHref(id, null)).toBe(`/media?m=${id}`);
+  });
+});
+
+describe("writeMediaCache (B26: demo adds survive the page's Prefetch)", () => {
+  const seed: MediaPayload = { source: "demo", items: [] };
+  const added = { id: "a" } as MediaPayload["items"][number];
+  /** What the page's Prefetch sends on a return to /media: the server's list, read after the tab's write. */
+  const laterServerRead = (payload: MediaPayload) => {
+    const server = new QueryClient();
+    server.setQueryData(MEDIA_KEY, payload, { updatedAt: Date.now() + 60_000 });
+    return dehydrate(server);
+  };
+  const tabAfterAdd = (demo: boolean) => {
+    const qc = new QueryClient();
+    qc.setQueryData(MEDIA_KEY, seed);
+    writeMediaCache(qc, demo, (p) => ({ ...p, items: [added] }));
+    return qc;
+  };
+
+  it("keeps what a demo tab added when the seed list is hydrated again", () => {
+    const qc = tabAfterAdd(true);
+    hydrate(qc, laterServerRead(seed));
+    expect(qc.getQueryData<MediaPayload>(MEDIA_KEY)?.items).toEqual([added]);
+  });
+
+  it("lets a later server read replace an owner's cache", () => {
+    const qc = tabAfterAdd(false);
+    hydrate(qc, laterServerRead({ source: "owner", items: [] }));
+    expect(qc.getQueryData<MediaPayload>(MEDIA_KEY)?.items).toEqual([]);
+  });
+
+  it("writes nothing into an empty cache", () => {
+    const qc = new QueryClient();
+    writeMediaCache(qc, true, (p) => ({ ...p, items: [added] }));
+    expect(qc.getQueryData(MEDIA_KEY)).toBeUndefined();
   });
 });

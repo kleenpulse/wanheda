@@ -1,6 +1,7 @@
 "use client";
 
 import type * as React from "react";
+import { Tip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 // Pieces the income pages share: a figure tile, a quiet notice, and the dash a
@@ -8,9 +9,10 @@ import { cn } from "@/lib/utils";
 
 export function Dash() {
   return (
-    <span className="text-ink-3" title="No denominator yet">
-      —
-    </span>
+    <Tip label="No denominator yet" render={<span className="text-ink-3" />}>
+      <span aria-hidden>—</span>
+      <span className="sr-only">No denominator yet</span>
+    </Tip>
   );
 }
 

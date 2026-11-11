@@ -194,21 +194,36 @@ export function TooltipGroup({
 /**
  * A trigger with its tooltip text. Inside a `TooltipGroup` it joins the shared
  * tooltip; on its own it's a regular one.
+ *
+ * `disabled` disables the button too, as it did when these were plain
+ * `<button disabled>`: Base UI keeps the prop for the tooltip and leaves the
+ * element live. A caller that passes its own `render` puts `disabled` on that
+ * element itself.
  */
 export function Tip({
   label,
   side,
   sideOffset,
   container,
-  ...props
+  trackCursorAxis,
+  disabled,
+  render,
+  ...rest
 }: Omit<TooltipPrimitive.Trigger.Props<React.ReactNode>, "handle" | "payload"> & {
   label: React.ReactNode;
   side?: Side;
   sideOffset?: number;
   /** Where a lone tooltip renders, if not the body (inside a group, the group's container rules). */
   container?: HTMLElement | null | undefined;
+  /** A lone tooltip on a long trigger (a rail edge) follows the pointer along this axis. */
+  trackCursorAxis?: TooltipPrimitive.Root.Props["trackCursorAxis"];
 }) {
   const group = React.useContext(TooltipGroupContext);
+  const props = {
+    ...rest,
+    ...(disabled === undefined ? {} : { disabled }),
+    ...(render !== undefined ? { render } : disabled ? { render: <button disabled /> } : {}),
+  };
   if (group) {
     // A short grace bridges the gap between sibling triggers so the tooltip
     // glides instead of closing and re-opening; longer reads as lag on leave.
@@ -223,7 +238,7 @@ export function Tip({
     );
   }
   return (
-    <TooltipPrimitive.Root>
+    <TooltipPrimitive.Root {...(trackCursorAxis === undefined ? {} : { trackCursorAxis })}>
       <TooltipPrimitive.Trigger data-slot="tooltip-trigger" {...props} />
       <MorphPopup side={side} container={container} {...(sideOffset === undefined ? {} : { sideOffset })}>
         {label}

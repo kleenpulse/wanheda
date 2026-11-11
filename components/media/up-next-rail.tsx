@@ -14,6 +14,16 @@ import { Thumb } from "./thumb";
 // The up-next rail and the autoplay card (T72): the screenshot's stack of
 // episode cards at the right of the picture, the playing one in front with
 // its time left, and the "next in 8 s" card in a video's last seconds.
+//
+// Full screen, the rail is a drum (user 2026-11-11: "needs a 3D touch"): the
+// card at the middle faces you, and the ones above and below tilt back, shrink
+// and dim the further round they are. It turns with the scroll: the cards'
+// view timelines in globals.css (`.rail-drum`), no script. Without view
+// timelines, or with reduced motion, the flat stack below is what shows.
+//
+// The rail snaps (user 2026-11-11): wherever a scroll stops, a card settles at
+// the middle, in the window and in full screen alike. The ends rest as near
+// the middle as the list allows.
 
 /** "11. Episode 11" for an episode, the cleaned title otherwise. */
 export function cardTitle(item: MediaItem): string {
@@ -30,15 +40,21 @@ function cardMeta(item: MediaItem, liveS: number | null): string {
   return formatDuration(d);
 }
 
-function RailCard({ item, current, liveS, onPick }: { item: MediaItem; current: boolean; liveS: number | null; onPick: () => void }) {
+/** Where the rail's scroller must be for `card` to sit at its middle (scrollIntoView would move the page too). */
+function centredTop(list: HTMLElement, card: HTMLElement): number {
+  return card.offsetTop - list.offsetTop - (list.clientHeight - card.offsetHeight) / 2;
+}
+
+function RailCard({ item, current, liveS, drum, onPick }: { item: MediaItem; current: boolean; liveS: number | null; drum: boolean; onPick: () => void }) {
   const ref = React.useRef<HTMLButtonElement>(null);
   React.useEffect(() => {
-    // Centre the playing card in the rail's own scroller (scrollIntoView would move the page too).
+    // Centre the playing card in the rail's own scroller.
     const card = ref.current;
     const list = card?.parentElement;
     if (!current || !card || !list) return;
-    list.scrollTop = card.offsetTop - list.offsetTop - (list.clientHeight - card.offsetHeight) / 2;
-  }, [current]);
+    list.scrollTop = centredTop(list, card);
+    // Again when full screen comes or goes: the rail's height changes under the same scroll offset.
+  }, [current, drum]);
   const d = item.durationS;
   const at = liveS ?? item.progress?.positionS ?? 0;
   const share = d && at > 0 ? Math.min(1, at / d) : 0;
@@ -49,8 +65,10 @@ function RailCard({ item, current, liveS, onPick }: { item: MediaItem; current: 
       aria-current={current ? "true" : undefined}
       aria-label={`${current ? "Playing: " : "Play "}${cardTitle(item)}`}
       onClick={onPick}
+      data-rail-card
       className={cn(
         "group/card relative w-full shrink-0 overflow-hidden rounded-[14px] text-left outline-none transition-[opacity,scale,box-shadow] duration-200 ease-out-quint focus-visible:ring-2 focus-visible:ring-island-foreground/80",
+        "snap-center",
         current ? "scale-100 opacity-100 shadow-lift" : "scale-[0.94] opacity-70 hover:scale-[0.97] hover:opacity-100 focus-visible:opacity-100",
       )}
     >
@@ -81,6 +99,7 @@ export function UpNextRail({
   items,
   current,
   liveS,
+  drum,
   container,
   onPick,
   onClose,
@@ -90,6 +109,8 @@ export function UpNextRail({
   current: MediaItem;
   /** The playing item's place now (its card's bar and time left follow it). */
   liveS: number;
+  /** Full screen: the cards stand on a drum that turns with the scroll. */
+  drum: boolean;
   container: HTMLElement | null;
   onPick: (item: MediaItem) => void;
   onClose: () => void;
@@ -105,6 +126,7 @@ export function UpNextRail({
   const [season, setSeason] = React.useState<number | null>(ep?.season ?? null);
   const shown = season === null ? order : order.filter((i) => episodeOf(i)?.season === season);
   const list = React.useRef<HTMLDivElement>(null);
+  const reduced = useReducedMotion();
 
   return (
     <div
@@ -149,15 +171,24 @@ export function UpNextRail({
       </div>
       <div
         ref={list}
-        className="-mx-2 flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto overscroll-contain scroll-fade px-2 py-2 scrollbar-none"
+        className={cn(
+          "-mx-2 flex min-h-0 flex-1 snap-y snap-mandatory flex-col gap-1 overflow-y-auto overscroll-contain scroll-fade px-2 py-2 scrollbar-none",
+          // The wheel itself (the turn, and the room for the first and last card to reach the middle) is globals.css's.
+          drum && "rail-drum",
+        )}
         onKeyDown={(e) => {
           // Up and down move between the cards, as a list does.
           if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
           const cards = Array.from(list.current?.querySelectorAll("button") ?? []);
           const at = cards.indexOf(document.activeElement as HTMLButtonElement);
           const to = cards[Math.min(cards.length - 1, Math.max(0, at + (e.key === "ArrowDown" ? 1 : -1)))];
-          to?.focus();
           e.preventDefault();
+          if (!to) return;
+          // On the drum a card away from the middle is dim, focus ring and all: turn the focused one to the front.
+          if (drum && list.current) {
+            to.focus({ preventScroll: true });
+            list.current.scrollTo({ top: centredTop(list.current, to), behavior: reduced ? "auto" : "smooth" });
+          } else to.focus();
         }}
       >
         {shown.map((item) => (
@@ -166,6 +197,7 @@ export function UpNextRail({
             item={item}
             current={item.id === current.id}
             liveS={item.id === current.id ? liveS : null}
+            drum={drum}
             onPick={() => {
               if (item.id !== current.id) onPick(item);
             }}

@@ -14,6 +14,7 @@ import { ratePref, SPEEDS, voicePref } from "@/lib/speech/prefs";
 import { useSpeech } from "@/lib/speech/store";
 import { CATALOG, voiceSize, type CatalogVoice, type VoiceQuality } from "@/lib/speech/voices";
 import { bytesOf, voiceNames } from "@/lib/speech/account-voices";
+import { Tip } from "@/components/ui/tooltip";
 
 /*
   Settings → Voices (SPEC V46, T55): the read-aloud voices this device holds,
@@ -114,9 +115,9 @@ function Progress({ d }: { d: VoiceDownload }) {
 
 function IconButton({ label, onClick, children }: { label: string; onClick: () => void; children: React.ReactNode }) {
   return (
-    <button type="button" aria-label={label} title={label} onClick={onClick} className={buttonClass("ghost", "circle-sm")}>
+    <Tip type="button" aria-label={label} label={label} onClick={onClick} className={buttonClass("ghost", "circle-sm")}>
       {children}
-    </button>
+    </Tip>
   );
 }
 

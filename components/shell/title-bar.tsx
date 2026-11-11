@@ -3,6 +3,7 @@
 import { Menu } from "lucide-react";
 import * as React from "react";
 import { desktopBridge } from "@/lib/platform/desktop";
+import { Tip } from "@/components/ui/tooltip";
 
 /** Window Controls Overlay (Chromium; not in TypeScript's DOM types yet). */
 type ControlsOverlay = EventTarget & { readonly visible: boolean };
@@ -64,15 +65,15 @@ export function TitleBar() {
     >
       {overlay ? (
         <div className="flex h-full w-[env(titlebar-area-width,100%)] items-center gap-2 pl-[env(titlebar-area-x,0px)]">
-          <button
+          <Tip
             type="button"
             aria-label="Menu"
-            title="Menu"
+            label="Menu"
             onClick={openMenu}
             className="ml-1 inline-flex h-full w-10 items-center justify-center transition-colors hover:bg-foreground/8 hover:text-foreground focus-visible:outline-none focus-visible:bg-foreground/10 [app-region:no-drag]"
           >
             <Menu className="size-4" aria-hidden />
-          </button>
+          </Tip>
           <svg viewBox="0 0 24 24" className="size-4 shrink-0" fill="none" aria-hidden>
             <path d="M5 9.5 8.2 18 12 11.5 15.8 18 19 9.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
             <circle cx="12" cy="5.5" r="1.5" className="fill-signal" />

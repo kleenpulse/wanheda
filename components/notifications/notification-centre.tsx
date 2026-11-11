@@ -13,6 +13,7 @@ import { Segmented } from "@/components/ui/segmented";
 import { useNow } from "@/hooks/use-now";
 import { relativeTime, type Notice, type NotificationKind } from "@/lib/notifications/notifications";
 import { cn } from "@/lib/utils";
+import { Tip } from "@/components/ui/tooltip";
 
 const ICONS: Record<NotificationKind, typeof Bell> = { timer: TimerIcon, money: CalendarClock, income: TrendingUp };
 const FILTERS = [
@@ -264,18 +265,18 @@ function RowAction({
   ...props
 }: Omit<React.ComponentProps<"button">, "aria-label" | "type"> & { label: string; tone?: "plain" | "danger" }) {
   return (
-    <button
+    <Tip
       {...props}
       type="button"
       aria-label={label}
-      title={label}
+      label={label}
       className={cn(
         "grid size-7 place-items-center rounded-full outline-none transition-[background-color,color,transform] duration-150 active:scale-90 focus-visible:ring-2 focus-visible:ring-ring [&_svg]:size-3.5",
         tone === "danger" ? "bg-destructive/12 text-destructive hover:bg-destructive/20" : "text-ink-3 hover:bg-muted hover:text-foreground dark:hover:bg-muted/50",
       )}
     >
       {children}
-    </button>
+    </Tip>
   );
 }
 

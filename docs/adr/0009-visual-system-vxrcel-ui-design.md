@@ -29,6 +29,10 @@ Each skin is one CSS block. Swapping it re-tints the app without touching compon
 - **Bench shipped** behind `html[data-skin="bench"]`, picked in Settings. It is Bench's palette mapped onto Wanheda's own role tokens (`--signal`, `--sheet`, `--card` …), not the skill's `--sg-*` vocabulary, so components are unchanged and Bench's `--color-accent` never enters. Wanheda's four fonts stay (SPEC V15); Bench's Space Mono is not loaded.
 - **The owner picks the signal hue freely** (owner's decision, 2026-11-04). Still one signal hue at a time. The chosen colour is set as `--accent-user` and `globals.css` derives the signal family from it per theme with `oklch(from …)`. Hue is kept; lightness (and chroma in light mode) is clamped so marks stay ≥ 3:1 and signal text ≥ 4.5:1, measured over all 64 sRGB corner colours in both themes. A lightness clamp alone was not enough: vivid greens and cyans clip out of gamut and brighten.
 
+### Amended 2026-11-11
+
+- **A new owner starts on Bench with the Gold accent** (owner's decision, 2026-11-11), not on Ember + Nebula with the skin's own accent. Ember + Nebula stay as the other skin in Settings, and its stored id is still `default`. `DEFAULT_PREFS` in `lib/prefs/prefs.ts` carries the new default, and the `<head>` boot script paints it where a device has no prefs cookie, so the sign-in page wears it too. A saved Ember & Nebula skin, or a saved "Skin's own" accent, is a choice and is kept: only a missing or unreadable value becomes the default. The database columns keep their first defaults (no migration); `lib/prefs/store.ts` writes the app's defaults into every row it creates.
+
 ## Consequences
 
 ### In 6 months

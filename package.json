@@ -15,7 +15,7 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "bump": "bun scripts/bump.ts",
-    "desktop:setup": "bun install --cwd desktop --frozen-lockfile --ignore-scripts && bun desktop/scripts/fetch-electron.ts",
+    "desktop:setup": "bun install --cwd desktop --frozen-lockfile --ignore-scripts && bun desktop/scripts/fetch-electron.ts && bun desktop/scripts/fetch-ffmpeg.ts",
     "desktop:dev": "bun desktop/scripts/dev.ts",
     "desktop:preview": "bun desktop/scripts/dev.ts --preview",
     "desktop:stage": "bun desktop/scripts/stage.ts",

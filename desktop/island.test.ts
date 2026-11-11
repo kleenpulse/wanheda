@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { ISLAND_SIZE, islandPosition, MAX_ITEMS, overIsland, parseIslandCommand, parseIslandReport, parseIslandSnapshot, shouldShowIsland } from "./island";
+import { clampIslandOffset, draggedIslandOffset, ISLAND_SIZE, islandPosition, MAX_ITEMS, overIsland, parseIslandCommand, parseIslandDrag, parseIslandReport, parseIslandSnapshot, shouldShowIsland } from "./island";
 
 const media = { kind: "media", id: "media", title: "Song", artist: "Band", coverKey: "abc123", playing: true, startedAt: 5 };
 const speech = { kind: "speech", id: "speech", title: "A note", progress: 0.4, paused: false, path: "/notes?n=1", startedAt: 9 };
@@ -107,5 +107,56 @@ describe("placement and hit-testing", () => {
     expect(overIsland({ x: 1300, y: 20 }, { x: 1000, y: 0 }, rect)).toBe(false);
     expect(overIsland({ x: 1110, y: 44 }, { x: 1000, y: 0 }, rect)).toBe(false);
     expect(overIsland({ x: 1110, y: 20 }, { x: 1000, y: 0 }, null)).toBe(false);
+  });
+});
+
+describe("the island's place along its row", () => {
+  const area = { x: 100, y: 40, width: 1920, height: 1040 };
+  const centre = 100 + (1920 - ISLAND_SIZE.width) / 2;
+
+  test("sits at top centre with no offset, and moves along the row with one", () => {
+    expect(islandPosition(area)).toEqual({ x: centre, y: 40 });
+    expect(islandPosition(area, 300)).toEqual({ x: centre + 300, y: 40 });
+    expect(islandPosition(area, -300.4)).toEqual({ x: centre - 300, y: 40 });
+  });
+
+  test("never leaves the work area, on any display", () => {
+    const reach = (1920 - ISLAND_SIZE.width) / 2;
+    expect(clampIslandOffset(area, 5000)).toBe(reach);
+    expect(clampIslandOffset(area, -5000)).toBe(-reach);
+    expect(islandPosition(area, 5000).x).toBe(100 + 1920 - ISLAND_SIZE.width);
+    expect(islandPosition(area, -5000).x).toBe(100);
+    // A display narrower than the window: it stays centred.
+    expect(clampIslandOffset({ x: 0, y: 0, width: 300, height: 600 }, 80)).toBe(0);
+    expect(clampIslandOffset(area, Number.NaN)).toBe(0);
+    expect(clampIslandOffset(area, Number.POSITIVE_INFINITY)).toBe(0);
+  });
+});
+
+describe("draggedIslandOffset", () => {
+  const area = { x: 0, y: 0, width: 1920, height: 1040 };
+  const reach = (1920 - ISLAND_SIZE.width) / 2; // 750
+
+  test("starts from where the island is shown, not from an offset kept on a wider display", () => {
+    expect(draggedIslandOffset(area, 1250, -50)).toBe(reach - 50);
+    expect(draggedIslandOffset(area, -1250, 50)).toBe(-reach + 50);
+  });
+
+  test("follows the pointer and stops at the display's edges", () => {
+    expect(draggedIslandOffset(area, 100, 0)).toBe(100);
+    expect(draggedIslandOffset(area, 100, -260.4)).toBe(-160);
+    expect(draggedIslandOffset(area, 100, 5000)).toBe(reach);
+    expect(draggedIslandOffset(area, 100, -5000)).toBe(-reach);
+  });
+});
+
+describe("parseIslandDrag", () => {
+  test("takes the three phases and nothing else", () => {
+    expect(parseIslandDrag({ phase: "start" })).toEqual({ phase: "start" });
+    expect(parseIslandDrag({ phase: "move", dx: -42.5 })).toEqual({ phase: "move", dx: -42.5 });
+    expect(parseIslandDrag({ phase: "end" })).toEqual({ phase: "end" });
+    for (const bad of [null, [], "start", {}, { phase: "move" }, { phase: "move", dx: "4" }, { phase: "move", dx: Number.NaN }, { phase: "move", dx: 1e9 }, { phase: "start", dx: 1 }, { phase: "end", x: 0 }, { phase: "move", dx: 1, y: 5 }, { phase: "drop" }]) {
+      expect(parseIslandDrag(bad)).toBeNull();
+    }
   });
 });

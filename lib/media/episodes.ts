@@ -252,3 +252,55 @@ export function showsOf(items: readonly MediaItem[]): Show[] {
   }
   return out.sort((a, b) => b.lastAt.localeCompare(a.lastAt) || a.show.localeCompare(b.show));
 }
+
+/** One folder of the Videos tab: the videos added from one folder on disk, or one show's loose episodes. `key` is "" for the loose videos. */
+export type FolderGroup = { key: string; label: string; items: MediaItem[] };
+
+/** The Videos tab's heading for loose videos (no folder, no show), when there are folders beside them. */
+export const LOOSE_LABEL = "Other videos";
+
+/** "Videos/Night.Harbor.S02.1080p.WEB-DL" → "Night Harbor S02"; "Hometown/Season 1" → "Hometown · Season 1". */
+export function folderLabel(folder: string): string {
+  const parts = folder.split(/[\\/]/).filter(Boolean);
+  const name = (raw: string) => {
+    const cut = RELEASE.exec(raw);
+    return spaced((cut ? raw.slice(0, cut.index) : raw).replace(/\[[^\]]*\]/g, " ")) || spaced(raw) || raw;
+  };
+  const last = parts.at(-1) ?? folder;
+  const up = parts.at(-2);
+  return up && /^(?:season|series|s)[\s._-]*\d{1,2}$/i.test(spaced(last)) ? `${name(up)} · ${spaced(last)}` : name(last);
+}
+
+const byName = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
+
+/**
+ * The library as the folders it was added from, so a folder of videos stays
+ * together. A video with no folder joins its show's group when the show has
+ * two or more such episodes (as `showsOf` counts a show), else the loose one.
+ * Groups come in library order (the newest add first); inside one, films by
+ * name, then episodes in season and episode order.
+ */
+export function folderGroups(items: readonly MediaItem[]): FolderGroup[] {
+  type Row = { item: MediaItem; ep: Episode | null };
+  const rows = items.map((item): Row => ({ item, ep: episodeOf(item) }));
+  /** Loose episodes per show: one on its own is no group. */
+  const loose = new Map<string, number>();
+  for (const { item, ep } of rows) if (ep && !item.meta.folder) loose.set(ep.showKey, (loose.get(ep.showKey) ?? 0) + 1);
+  const groups = new Map<string, { label: string; rows: Row[] }>();
+  for (const { item, ep } of rows) {
+    const folder = item.meta.folder;
+    const shelved = !folder && ep !== null && (loose.get(ep.showKey) ?? 0) > 1;
+    const key = folder ? `f:${folder}` : shelved ? `s:${ep.showKey}` : "";
+    let group = groups.get(key);
+    if (!group) {
+      group = { label: folder ? folderLabel(folder) : shelved ? ep.show : LOOSE_LABEL, rows: [] };
+      groups.set(key, group);
+    }
+    group.rows.push({ item, ep });
+  }
+  const order = (a: Row, b: Row): number => {
+    if (!a.ep || !b.ep) return a.ep ? 1 : b.ep ? -1 : byName.compare(a.item.title, b.item.title);
+    return a.ep.showKey.localeCompare(b.ep.showKey) || a.ep.season - b.ep.season || a.ep.episode - b.ep.episode || byName.compare(a.item.title, b.item.title);
+  };
+  return [...groups].map(([key, g]) => ({ key, label: g.label, items: g.rows.sort(order).map((r) => r.item) }));
+}

@@ -5,17 +5,21 @@
  *
  *   desktop/.stage/app     main process + preload + package.json (version from the root)
  *   desktop/.stage/server  Next standalone server, made self-contained
+ *   desktop/.stage/speech  native Piper (V73)
+ *   desktop/.stage/media   the pinned ffmpeg and its licence (V74)
  *
  * Staging copies through Turbopack's junctions (they point at the build
  * machine), leaves out anything secret or test-only, and verifies the result
  * (ADR-0014: 0 links or junctions left).
  */
 import { spawnSync } from "node:child_process";
-import { cpSync, readFileSync, rmSync } from "node:fs";
+import { copyFileSync, cpSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import { KNOWN_ENV_NAMES } from "../env-file";
+import { FFMPEG_PIN } from "../ffmpeg-pin";
 import { bundleMain, bundleServer, bundleSpeech } from "./bundle";
-import { verifyServerDir, verifySpeechDir } from "./verify";
+import { FFMPEG_DIR, inPlace } from "./fetch-ffmpeg";
+import { verifyMediaDir, verifyServerDir, verifySpeechDir } from "./verify";
 
 export type Stage = { app: string; server: string };
 
@@ -79,8 +83,19 @@ export async function stage(root: string): Promise<Stage> {
     cpSync(join(root, "desktop", "node_modules", pkg), join(speech, "node_modules", pkg), { recursive: true, dereference: true });
   }
 
+  // Native transcode (V74): the pinned ffmpeg and its licence, checked against the pin again on the way in.
+  const media = join(out, "media");
+  mkdirSync(media, { recursive: true });
+  for (const file of FFMPEG_PIN.files) {
+    if (!(await inPlace(file))) throw new Error(`${file.as} isn't in desktop/.ffmpeg, or isn't the pinned file: run \`bun run desktop:setup\`.`);
+    copyFileSync(join(FFMPEG_DIR, file.as), join(media, file.as));
+    // The copy too: nothing may change it between the check and the installer.
+    if (!(await inPlace(file, media))) throw new Error(`${file.as} changed while it was staged.`);
+  }
+
   verifyServerDir(server);
   verifySpeechDir(speech);
+  verifyMediaDir(media);
   return { app, server };
 }
 

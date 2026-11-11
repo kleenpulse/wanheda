@@ -133,12 +133,7 @@ export function NavRail({
                 onClick={onToggle}
                 aria-expanded={expanded}
                 aria-label={expanded ? "Collapse sidebar" : "Expand sidebar"}
-                className={cn(
-                  "group flex items-center gap-3 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                  // Only while the pointer is over the rail (or a keyboard lands on it);
-                  // it keeps its slot so the foot never shifts.
-                  "opacity-0 transition-opacity duration-200 group-hover/rail:opacity-100 focus-visible:opacity-100 motion-reduce:transition-none",
-                )}
+                className="group flex items-center gap-3 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <span className={cn(circle, "text-ink-2 group-hover:text-foreground")}>
                   {expanded ? <PanelLeftClose strokeWidth={1.75} /> : <PanelLeftOpen strokeWidth={1.75} />}
@@ -161,11 +156,13 @@ export function NavRail({
           the tab order: the Collapse row and `[` cover keyboards. Inside the
           wrapper: overhanging the sticky, width-animating layer can leave a
           stale sliver over the sheet until the next repaint. */}
-      <button
+      <Tip
+        label={expanded ? "Collapse sidebar" : "Expand sidebar"}
+        side="right"
+        trackCursorAxis="y"
         type="button"
         tabIndex={-1}
         aria-label={expanded ? "Collapse sidebar" : "Expand sidebar"}
-        title={expanded ? "Collapse sidebar" : "Expand sidebar"}
         onClick={onToggle}
         className={cn(
           "absolute inset-y-0 right-0 z-20 w-3 outline-none",

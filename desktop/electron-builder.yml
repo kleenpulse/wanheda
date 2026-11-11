@@ -35,6 +35,10 @@ extraResources:
   - from: .stage/speech/node_modules
     to: speech/node_modules
     filter: ["**/*"]
+  # Native transcode (V74): the pinned LGPL ffmpeg and its licence text, run as its own process.
+  - from: .stage/media
+    to: media
+    filter: ["**/*"]
 
 # Electron 45 has a ninth fuse, wasmTrapHandlers. It stays at its default (on):
 # it makes WebAssembly fast, and speech runs on it. This version of

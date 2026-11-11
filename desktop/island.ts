@@ -6,7 +6,8 @@ import { openPath } from "./bridge";
  * hit-testing it. The page sends a snapshot of what's live (media, speech,
  * transfers, alerts; timers travel through the shared activity store like a
  * second tab), main checks it and hands it to the island window, and the
- * island's buttons come back as commands. Anything malformed is dropped whole.
+ * island's buttons come back as commands. A drag along its row comes back the
+ * same way. Anything malformed is dropped whole.
  */
 
 export const ISLAND_PATH = "/island";
@@ -145,9 +146,48 @@ export function shouldShowIsland(s: { enabled: boolean; content: boolean; mainVi
   return !s.mainVisible || s.mainMinimized || !s.mainFocused;
 }
 
-/** Top centre of a display's work area. */
-export function islandPosition(workArea: Rect): { x: number; y: number } {
-  return { x: Math.round(workArea.x + (workArea.width - ISLAND_SIZE.width) / 2), y: Math.round(workArea.y) };
+/** A sanity bound on an offset or a drag distance from outside (the settings file, the island's page): wider than any desktop. The real limit is each display's, in `clampIslandOffset`. */
+export const MAX_ISLAND_OFFSET = 20_000;
+
+/**
+ * How far right (+) or left (−) of top centre the island sits, kept so its
+ * window stays inside the work area. The owner drags it along its row (V70);
+ * the same offset is used on every display, clamped to each.
+ */
+export function clampIslandOffset(workArea: Rect, offset: number): number {
+  if (!Number.isFinite(offset)) return 0;
+  const reach = Math.max(0, Math.floor((workArea.width - ISLAND_SIZE.width) / 2));
+  return Math.round(Math.min(reach, Math.max(-reach, offset)));
+}
+
+/** The top of a display's work area: centred, moved along that row by `offset`. */
+export function islandPosition(workArea: Rect, offset = 0): { x: number; y: number } {
+  return { x: Math.round(workArea.x + (workArea.width - ISLAND_SIZE.width) / 2) + clampIslandOffset(workArea, offset), y: Math.round(workArea.y) };
+}
+
+/**
+ * The offset a drag has reached: `dx` from where the island really stood when
+ * the drag began. `from` is the kept offset, which may be past this display's
+ * reach (it was set on a wider one): the drag starts from where it is shown,
+ * or the first stretch of pointer travel would move nothing.
+ */
+export function draggedIslandOffset(workArea: Rect, from: number, dx: number): number {
+  return clampIslandOffset(workArea, clampIslandOffset(workArea, from) + dx);
+}
+
+/** How long a drag may go without a move before the island's hover is tracked again (its page may have lost the pointer, or gone). */
+export const ISLAND_DRAG_IDLE_MS = 1000;
+
+/** The island window's drag, as its page sees the pointer: `dx` is how far the pointer is from where the drag began (screen px). */
+export type IslandDrag = { phase: "start" } | { phase: "move"; dx: number } | { phase: "end" };
+
+export function parseIslandDrag(payload: unknown): IslandDrag | null {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return null;
+  const r = payload as Record<string, unknown>;
+  const keys = Object.keys(r).length;
+  if (r.phase === "start" || r.phase === "end") return keys === 1 ? { phase: r.phase } : null;
+  if (r.phase === "move") return keys === 2 && typeof r.dx === "number" && Number.isFinite(r.dx) && Math.abs(r.dx) <= MAX_ISLAND_OFFSET ? { phase: "move", dx: r.dx } : null;
+  return null;
 }
 
 /** Whether a screen point is over the island: its rect, offset by the window's position. */

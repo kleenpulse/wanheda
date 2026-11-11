@@ -112,7 +112,8 @@ function ToastCard({ toast: t }: { toast: Toast }) {
       onBlur={() => {
         setHeld(false);
       }}
-      className="pointer-events-auto relative flex w-full max-w-[380px] items-start gap-3 overflow-hidden rounded-[18px] bg-card px-4 py-3 text-foreground shadow-lift ring-1 ring-border dark:bg-card-nested dark:ring-glass-border"
+      // Dark: the menus' glass (fill and blur). A toast floats over pictures, where the in-card tint is see-through.
+      className="pointer-events-auto relative flex w-full max-w-[380px] items-start gap-3 overflow-hidden rounded-[18px] bg-card px-4 py-3 text-foreground shadow-lift ring-1 ring-border dark:bg-glass dark:ring-glass-border dark:backdrop-blur-[20px] dark:backdrop-saturate-125"
     >
       {/* Countdown to auto-dismiss (and, for Undo toasts, to the commit). Hidden under reduced motion. */}
       <span

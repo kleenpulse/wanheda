@@ -28,6 +28,7 @@ import { useSpeechError } from "@/components/speech/use-speech-error";
 import { toast } from "@/components/ui/toaster";
 import type { NoteStatus } from "@/lib/notes/sync";
 import { cn } from "@/lib/utils";
+import { Tip } from "@/components/ui/tooltip";
 
 export const STATUS_LABEL: Record<NoteStatus, string> = {
   queued: "Kept on this device, syncs when online",
@@ -89,43 +90,43 @@ export function NoteEditor({ note, onBack, backLabel = "Notes" }: { note: Note; 
           {status ? STATUS_LABEL[status] : ""}
         </span>
         <ReadNote note={note} />
-        <button
+        <Tip
           type="button"
           aria-pressed={historyOpen}
           onClick={() => {
             setHistoryOpen((open) => !open);
           }}
           className={buttonClass("ghost", "circle-sm", historyOpen ? "text-foreground" : undefined)}
-          title="History: versions replaced by other devices or restores"
+          label="History: versions replaced by other devices or restores"
         >
           <History aria-hidden strokeWidth={1.75} />
           <span className="sr-only">History</span>
-        </button>
-        <button
+        </Tip>
+        <Tip
           type="button"
           aria-pressed={note.pinned}
           onClick={() => {
             api.update(note.id, { pinned: !note.pinned });
           }}
           className={buttonClass("ghost", "circle-sm", note.pinned ? "text-foreground" : undefined)}
-          title={note.pinned ? "Unpin" : "Pin to the top"}
+          label={note.pinned ? "Unpin" : "Pin to the top"}
         >
           {note.pinned ? <PinOff aria-hidden strokeWidth={1.75} /> : <Pin aria-hidden strokeWidth={1.75} />}
           <span className="sr-only">{note.pinned ? "Unpin" : "Pin"}</span>
-        </button>
-        <button
+        </Tip>
+        <Tip
           type="button"
           onClick={() => {
             api.update(note.id, { archived: !note.archived, ...(note.archived ? {} : { pinned: false }) });
           }}
           className={buttonClass("ghost", "circle-sm")}
-          title={note.archived ? "Move back to notes" : "Archive"}
+          label={note.archived ? "Move back to notes" : "Archive"}
         >
           {note.archived ? <ArchiveRestore aria-hidden strokeWidth={1.75} /> : <Archive aria-hidden strokeWidth={1.75} />}
           <span className="sr-only">{note.archived ? "Unarchive" : "Archive"}</span>
-        </button>
+        </Tip>
         {note.archived ? (
-          <button
+          <Tip
             type="button"
             onClick={() => {
               if (window.confirm("Delete this note for good? It can't be brought back.")) {
@@ -134,11 +135,11 @@ export function NoteEditor({ note, onBack, backLabel = "Notes" }: { note: Note; 
               }
             }}
             className={buttonClass("ghost", "circle-sm", "hover:text-destructive")}
-            title="Delete for good"
+            label="Delete for good"
           >
             <Trash2 aria-hidden strokeWidth={1.75} />
             <span className="sr-only">Delete for good</span>
-          </button>
+          </Tip>
         ) : null}
         <CopyNote note={note} />
       </div>
@@ -224,34 +225,34 @@ function ReadNote({ note }: { note: Note }) {
   if (on) {
     return (
       <span className="flex items-center rounded-pill bg-signal-soft text-signal-ink">
-        <button
+        <Tip
           type="button"
           onClick={() => {
             primeSpeech();
             useSpeech.getState().toggle();
           }}
           className={buttonClass("ghost", "circle-sm", "text-current hover:text-current")}
-          title={playing ? "Pause reading" : "Resume reading"}
+          label={playing ? "Pause reading" : "Resume reading"}
         >
           {playing ? <Pause aria-hidden strokeWidth={1.75} /> : <Play aria-hidden strokeWidth={1.75} />}
           <span className="sr-only">{playing ? "Pause reading" : "Resume reading"}</span>
-        </button>
-        <button
+        </Tip>
+        <Tip
           type="button"
           onClick={() => {
             useSpeech.getState().stop();
           }}
           className={buttonClass("ghost", "circle-sm", "text-current hover:text-current")}
-          title="Stop reading"
+          label="Stop reading"
         >
           <Square aria-hidden strokeWidth={1.75} />
           <span className="sr-only">Stop reading</span>
-        </button>
+        </Tip>
       </span>
     );
   }
   return (
-    <button
+    <Tip
       type="button"
       onClick={() => {
         const title = note.title.trim();
@@ -263,11 +264,11 @@ function ReadNote({ note }: { note: Note }) {
         useSpeech.getState().play({ kind: "note", id: note.id, title: displayTitle(note), href: `/notes?n=${note.id}` }, sentences);
       }}
       className={buttonClass("ghost", "circle-sm")}
-      title="Read aloud"
+      label="Read aloud"
     >
       <AudioLines aria-hidden strokeWidth={1.75} />
       <span className="sr-only">Read note aloud</span>
-    </button>
+    </Tip>
   );
 }
 
@@ -339,7 +340,7 @@ function CopyNote({ note }: { note: Note }) {
   }, []);
   const text = noteMarkdown(note);
   return (
-    <button
+    <Tip
       type="button"
       disabled={text.trim() === ""}
       onClick={() => {
@@ -357,13 +358,13 @@ function CopyNote({ note }: { note: Note }) {
         );
       }}
       className={buttonClass("ghost", "circle-sm", copied ? "text-signal" : undefined)}
-      title="Copy as Markdown"
+      label="Copy as Markdown"
     >
       {copied ? <Check aria-hidden strokeWidth={1.75} /> : <Copy aria-hidden strokeWidth={1.75} />}
       <span className="sr-only" role="status">
         {copied ? "Copied" : "Copy as Markdown"}
       </span>
-    </button>
+    </Tip>
   );
 }
 

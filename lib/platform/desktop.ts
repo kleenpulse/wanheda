@@ -64,6 +64,8 @@ export type WanhedaDesktop = {
     onHover(callback: (over: boolean) => void): () => void;
     report(report: { content: boolean; rect: { x: number; y: number; width: number; height: number } | null }): void;
     command(command: IslandCommand): void;
+    /** The owner is dragging the island along the top of the screen: `dx` is the pointer's distance from where the drag began (screen px). */
+    drag(drag: { phase: "start" } | { phase: "move"; dx: number } | { phase: "end" }): void;
   };
   /** Native music and video folders (V72): picked in the shell's dialog, read through `wanheda-file:` URLs. */
   files: {
@@ -82,6 +84,13 @@ export type WanhedaDesktop = {
     install(voice: string, model: ArrayBuffer, config: string): Promise<boolean>;
     synth(voice: string, codepoints: number[], rate: number): Promise<{ samples: Float32Array; sampleRate: number; synthMs: number }>;
     drop(voice: string): Promise<void>;
+  };
+  /** Native transcode (V74): the bundled ffmpeg converts audio the browser can't decode, streamed on `wanheda-transcode:`. */
+  media: {
+    /** The probe's names of the audio codecs it converts ("ac3", "eac3", "dts"); empty when ffmpeg isn't bundled. */
+    transcodable(): Promise<string[]>;
+    /** A token to convert one picked file by, or null when the shell can't find it on disk. */
+    grant(file: File): Promise<string | null>;
   };
   /** The main window's title bar: Windows' buttons take its colours, and its menu button opens the app menu. */
   titleBar: {
@@ -219,6 +228,16 @@ function isIslandPageCommand(value: unknown): boolean {
 /** A native folder file's URL (desktop/files.ts `fileUrl`): each path segment encoded. */
 export function desktopFileUrl(rootId: string, relPath: string): string {
   return `wanheda-file://${rootId}/${relPath.split("/").map(encodeURIComponent).join("/")}`;
+}
+
+/**
+ * The stream of a file converted by the shell's ffmpeg (desktop/transcode.ts): `source` is a native folder's id
+ * with the file's path in it, or a grant token with the path "f"; tracks are counted from 0 among the file's tracks of
+ * that kind. The worker adds `&ss=<seconds>` to start elsewhere.
+ */
+export function desktopTranscodeUrl(source: string, relPath: string, tracks: { video: number | null; audio: number }): string {
+  const path = relPath.split("/").map(encodeURIComponent).join("/");
+  return `wanheda-transcode://${source}/${path}?${tracks.video === null ? "" : `v=${String(tracks.video)}&`}a=${String(tracks.audio)}`;
 }
 
 /** The desktop app's files bridge, or null on the web. */

@@ -15,6 +15,31 @@ written after the fact, one per phase, and have no git tags.
 
 ## [Unreleased]
 
+### Added
+
+- The desktop app now plays videos with Dolby Digital, Dolby Digital Plus or DTS sound. It converts the sound as the video plays, without re-encoding the picture and without writing anything to disk, and seeking works as usual. On the web, such a file now tells you the desktop app can play it.
+- You can drag the floating island left or right along the top of the screen, to move it off whatever it's covering in another app. It stays where you leave it, also after a restart.
+- Settings has a new Island section. Show the island turns the pill at the top of Wanheda off or on, everywhere on this device; with it off, timers and music carry on and alerts still reach your notifications. In the desktop app, Float it over other apps has moved there from Desktop.
+
+### Changed
+
+- Videos you add from a folder now stay in that folder. The Videos tab shows your folders as tiles; open one to see its videos, with episodes in order, and go back to all folders with one click. Before, every video was mixed into one long list.
+- Adding a folder of videos no longer starts playing one of them. It just adds them.
+- The Videos tab has one box where it had two. Type words and it searches your videos; paste a link and it offers to add it, and tells you what kind of link it is or that it's already in your library. Paste a file's path and it finds that file in your library. Search now also matches folder names.
+- In Media, Open a file and Open a folder now sit on the same line as the link box, right after its + button.
+- Wanheda now starts in the graphite Bench skin with the Gold accent: on a new account, on a new device and on the sign-in page. A look you've already picked in Settings stays as it is.
+- In full screen, Up Next is now a drum. The episode in the middle faces you, and the ones above and below lean back, shrink and dim like the faces of a wheel. One notch of the mouse wheel, or an arrow key, turns it by one episode, and it opens on the episode you're playing.
+- Up Next snaps. Wherever you stop scrolling, an episode settles into place, in the normal player as well as in full screen, and one notch of the mouse wheel moves exactly one episode. In full screen every episode comes to the middle; in the normal player the first and last rest at the ends of the list.
+- Hover hints across the app now use Wanheda's own tooltip instead of the browser's plain grey box: the notes toolbar, the music bar, the timers, the voice controls, the colour swatches in Settings and more.
+- The sidebar's Collapse button is always on show now, not only while the pointer is over the sidebar.
+
+### Fixed
+
+- Notices in the dark theme were almost see-through over pictures, such as "Added 74 videos" over the Videos tab. They now have a solid frosted background you can read anywhere.
+- Pages no longer jump sideways when the scrollbar appears or disappears, such as when you open a folder with only a few videos.
+- In demo mode, videos you added disappeared when you left Media and came back. They now stay until you reload the window or sign in.
+- Double-clicking a video to enter or leave full screen no longer starts and stops it on the way. The video keeps playing, or stays paused, exactly as it was.
+
 ## [0.7.2] - 2026-11-11
 
 ### Added

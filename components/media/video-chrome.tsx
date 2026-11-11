@@ -69,6 +69,15 @@ const CENTRE_GLASS =
 const HIDE_AFTER_MS = 2500;
 const OSD_MS = 700;
 const DOUBLE_TAP_MS = 300;
+/**
+ * How long a mouse click on the picture waits before it plays or pauses, in case it is the
+ * first half of a double click (full screen). Short of this, a double click never touches
+ * playback; a slower one (Windows allows DOUBLE_CLICK_MAX_MS) is put right when its second
+ * click lands. The owner's own double clicks ran about 200 ms apart (recording, 2026-11-11).
+ */
+const CLICK_HOLD_MS = 280;
+/** The longest gap Windows calls a double click by default. A single click older than this is nobody's first half. */
+const DOUBLE_CLICK_MAX_MS = 500;
 /** How long the next video may take to open before a carried picture-in-picture window closes. */
 const PIP_TAKEOVER_MS = 10_000;
 
@@ -247,6 +256,14 @@ function VideoChrome({
   const subtitleInput = React.useRef<HTMLInputElement>(null);
   const lastTap = React.useRef<{ at: number; x: number } | null>(null);
   const pointerType = React.useRef<string>("mouse");
+  /** The picture's pending single click, and when this run of clicks played or paused (null: it hasn't). */
+  const click = React.useRef<{ timer: ReturnType<typeof setTimeout> | null; toggledAt: number | null }>({ timer: null, toggledAt: null });
+  React.useEffect(() => {
+    const pending = click.current;
+    return () => {
+      if (pending.timer !== null) clearTimeout(pending.timer);
+    };
+  }, []);
   /** The last pointer was a finger: the centre controls show while playing too. */
   const [touch, setTouch] = React.useState(false);
   // The controls stack's height: the captions sit just above it while it's up.
@@ -632,7 +649,7 @@ function VideoChrome({
         }}
       />
 
-      {/* The picture: a click plays or pauses, a double click fills the screen; on touch a tap shows the controls and a double tap at either side skips. */}
+      {/* The picture: a click plays or pauses, a double click fills the screen and leaves playback alone (the click waits CLICK_HOLD_MS to find out which it is); on touch a tap shows the controls and a double tap at either side skips. */}
       <div
         aria-hidden
         className="absolute inset-0"
@@ -653,10 +670,36 @@ function VideoChrome({
           if (shown && !el.paused) setShown(false);
           else poke();
         }}
-        onClick={() => {
+        onClick={(e) => {
           if (pointerType.current === "touch") return;
-          togglePlay();
           poke();
+          const run = click.current;
+          if (e.detail >= 2) {
+            // The second click of a double click (full screen): playback is as it was before the first.
+            if (run.timer !== null) {
+              clearTimeout(run.timer);
+              run.timer = null;
+            } else if (run.toggledAt !== null) {
+              // A slow double click: the first click already took effect. Undo it, unless that click is long past
+              // (a second click that landed here because the button under the first one has gone).
+              const fresh = performance.now() - run.toggledAt < DOUBLE_CLICK_MAX_MS;
+              run.toggledAt = null;
+              if (fresh) togglePlay();
+            }
+            return;
+          }
+          // A click with no pointer behind it (detail 0: a script, assistive tech) has no second half to wait for.
+          if (e.detail === 0) {
+            togglePlay();
+            return;
+          }
+          run.toggledAt = null;
+          if (run.timer !== null) clearTimeout(run.timer);
+          run.timer = setTimeout(() => {
+            run.timer = null;
+            run.toggledAt = performance.now();
+            togglePlay();
+          }, CLICK_HOLD_MS);
         }}
         onDoubleClick={() => {
           if (pointerType.current !== "touch") toggleFullscreen();
@@ -892,6 +935,7 @@ function VideoChrome({
               items={items}
               current={item}
               liveS={snap.second}
+              drum={full}
               container={root}
               onMenu={onMenu}
               onPick={(to) => {

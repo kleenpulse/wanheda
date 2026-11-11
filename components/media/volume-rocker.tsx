@@ -5,6 +5,7 @@ import { Volume1, Volume2, VolumeX } from "lucide-react";
 import type { DevicePref } from "@/hooks/device-pref";
 import { useWheelSteps } from "@/hooks/use-wheel-steps";
 import { WHEEL_STEP, type Volume } from "@/lib/media/volume";
+import { Tip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 // The volume rocker (T64), shared by music and read-aloud: mute, and a slider
@@ -53,15 +54,19 @@ export function VolumeRocker({ target, tone = "island" }: { target: VolumeTarget
 
   return (
     <div ref={rocker} className="flex shrink-0 items-center gap-1">
-      <button
-        type="button"
-        aria-label={v.muted ? `Unmute ${target.what}` : `Mute ${target.what}`}
-        title={v.muted ? "Unmute" : "Mute"}
-        onClick={target.toggleMute}
-        className={cn("grid size-7 place-items-center rounded-full outline-none transition-[background-color,transform] duration-150 focus-visible:ring-2 active:scale-90", t.button)}
+      <Tip
+        label={v.muted ? "Unmute" : "Mute"}
+        render={
+          <button
+            type="button"
+            aria-label={v.muted ? `Unmute ${target.what}` : `Mute ${target.what}`}
+            onClick={target.toggleMute}
+            className={cn("grid size-7 place-items-center rounded-full outline-none transition-[background-color,transform] duration-150 focus-visible:ring-2 active:scale-90", t.button)}
+          />
+        }
       >
         <Icon aria-hidden className="size-4" />
-      </button>
+      </Tip>
       <div className={cn("relative h-5 w-20 rounded-full has-focus-visible:ring-2", t.ring)}>
         <div className={cn("absolute inset-x-0 top-1/2 h-0.75 -translate-y-1/2 overflow-hidden rounded-full", t.track)}>
           <div className={cn("h-full rounded-full", t.fill)} style={{ width: pct }} />

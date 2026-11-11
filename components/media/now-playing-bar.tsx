@@ -4,6 +4,7 @@ import * as React from "react";
 import { motion, useReducedMotion } from "motion/react";
 import { ListMusic, LoaderCircle, Music, Pause, Play, Repeat, Repeat1, Shuffle, SkipBack, SkipForward } from "lucide-react";
 import { Menu, MenuContent, MenuHeader, MenuItem, MenuTrigger } from "@/components/ui/menu";
+import { Tip } from "@/components/ui/tooltip";
 import { useActivity } from "@/lib/activity/store";
 import { formatDuration } from "@/lib/media/media";
 import { upNext } from "@/lib/media/queue";
@@ -142,28 +143,36 @@ export function NowPlayingBar() {
         </div>
 
         <span className="flex shrink-0 items-center gap-0.5">
-          <button
-            type="button"
-            aria-label={shuffle ? "Shuffle is on" : "Shuffle is off"}
-            title={shuffle ? "Shuffle is on" : "Shuffle"}
-            aria-pressed={shuffle}
-            onClick={() => {
-              setShuffle(!shuffle);
-            }}
-            className={cn(SMALL, "hidden @2xl:grid", shuffle && "text-signal hover:text-signal")}
+          <Tip
+            label={shuffle ? "Shuffle is on" : "Shuffle"}
+            render={
+              <button
+                type="button"
+                aria-label={shuffle ? "Shuffle is on" : "Shuffle is off"}
+                aria-pressed={shuffle}
+                onClick={() => {
+                  setShuffle(!shuffle);
+                }}
+                className={cn(SMALL, "hidden @2xl:grid", shuffle && "text-signal hover:text-signal")}
+              />
+            }
           >
             <Shuffle aria-hidden />
-          </button>
-          <button
-            type="button"
-            aria-label={REPEAT_LABELS[repeat]}
-            title={REPEAT_LABELS[repeat]}
-            aria-pressed={repeat !== "off"}
-            onClick={cycleRepeat}
-            className={cn(SMALL, "hidden @2xl:grid", repeat !== "off" && "text-signal hover:text-signal")}
+          </Tip>
+          <Tip
+            label={REPEAT_LABELS[repeat]}
+            render={
+              <button
+                type="button"
+                aria-label={REPEAT_LABELS[repeat]}
+                aria-pressed={repeat !== "off"}
+                onClick={cycleRepeat}
+                className={cn(SMALL, "hidden @2xl:grid", repeat !== "off" && "text-signal hover:text-signal")}
+              />
+            }
           >
             {repeat === "one" ? <Repeat1 aria-hidden /> : <Repeat aria-hidden />}
-          </button>
+          </Tip>
           <Queue />
         </span>
         <span className="hidden @3xl:flex">

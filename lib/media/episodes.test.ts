@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cleanTitle, displayTitle, folderFor, parseEpisode, playOrder, railItems, seasonsOf, showsOf, upNext } from "./episodes";
+import { cleanTitle, displayTitle, folderFor, folderGroups, folderLabel, LOOSE_LABEL, parseEpisode, playOrder, railItems, seasonsOf, showsOf, upNext } from "./episodes";
 import type { MediaItem } from "./types";
 
 describe("parseEpisode", () => {
@@ -179,5 +179,44 @@ describe("showsOf (Media Home's Shows)", () => {
       at("b2", "Beta.S01E02.mkv"),
     ]);
     expect(shows.map((s) => s.show)).toEqual(["Beta", "Alpha"]);
+  });
+});
+
+describe("folderGroups (the Videos tab's folders)", () => {
+  it("keeps a folder's videos together, in episode order", () => {
+    const items = [
+      at("b2", "Beyond.Time.S01E45.mkv", "local", "Videos/AX beyond time"),
+      at("a2", "Good.Day.S01E18.mkv", "local", "Videos/AX a good day"),
+      at("film", "Holiday.mp4"),
+      at("b1", "Beyond.Time.S01E44.mkv", "local", "Videos/AX beyond time"),
+      at("a1", "Good.Day.S01E17.mkv", "local", "Videos/AX a good day"),
+      at("yt", "https://youtu.be/abc", "embed"),
+    ];
+    const groups = folderGroups(items);
+    expect(groups.map((g) => [g.label, g.items.map((i) => i.id)])).toEqual([
+      ["AX beyond time", ["b1", "b2"]],
+      ["AX a good day", ["a1", "a2"]],
+      [LOOSE_LABEL, ["film", "yt"]],
+    ]);
+  });
+
+  it("leaves a show's only loose episode on the loose shelf", () => {
+    const groups = folderGroups([at("one", "Lone.Show.S01E01.mkv"), at("film", "Holiday.mp4"), at("other", "Another.S02E03.mkv")]);
+    expect(groups.map((g) => [g.key, g.label, g.items.map((i) => i.id)])).toEqual([["", LOOSE_LABEL, ["film", "other", "one"]]]);
+  });
+
+  it("shelves loose episodes with their show, and films before episodes in a mixed folder", () => {
+    const groups = folderGroups([at("e2", "Show.S01E02.mkv"), at("e1", "Show.S01E01.mkv"), at("m", "Clips/Show.S01E01.mkv", "local", "Clips"), at("f", "Clips/trailer 10.mp4", "local", "Clips"), at("f2", "Clips/trailer 9.mp4", "local", "Clips")]);
+    expect(groups.map((g) => [g.label, g.items.map((i) => i.id)])).toEqual([
+      ["Show", ["e1", "e2"]],
+      ["Clips", ["f2", "f", "m"]],
+    ]);
+  });
+
+  it("names a shelf from its folder", () => {
+    expect(folderLabel("Videos/Solo Leveling S02 1080p Dual Audio BDRip 10 bits DD+ x265-EMBER")).toBe("Solo Leveling S02");
+    expect(folderLabel("Hometown/Season 1")).toBe("Hometown · Season 1");
+    expect(folderLabel("Videos")).toBe("Videos");
+    expect(folderLabel("Night.Harbor.2021")).toBe("Night Harbor 2021");
   });
 });

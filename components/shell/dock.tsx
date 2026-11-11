@@ -17,6 +17,7 @@ import { dockEntries, type DockEntry } from "@/lib/shell/dock";
 import { AppIcon } from "@/components/shell/app-icon";
 import { cn } from "@/lib/utils";
 import { useWindows } from "@/lib/windows/store";
+import { Tip } from "@/components/ui/tooltip";
 
 /*
   The dock (FR-SHELL-4), ported from Shadow Garden's magnetic-dock: one
@@ -111,9 +112,9 @@ export function Dock() {
         />
       ))}
       <Divider />
-      <button
+      <Tip
         type="button"
-        title="Search or start a timer"
+        label="Search or start a timer"
         onClick={() => {
           setPalette(true);
         }}
@@ -122,7 +123,7 @@ export function Dock() {
         <Search className="size-4 text-signal-ink dark:text-signal" strokeWidth={2} aria-hidden />
         Search
         <Kbd>{mod}+K</Kbd>
-      </button>
+      </Tip>
     </nav>
   );
 }
