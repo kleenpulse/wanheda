@@ -15,6 +15,10 @@ written after the fact, one per phase, and have no git tags.
 
 ## [Unreleased]
 
+### Fixed
+
+- Reading a note aloud now marks Notes as running in the dock, not the Reader.
+
 ## [0.7.4] - 2026-11-11
 
 ### Changed
