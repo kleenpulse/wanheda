@@ -15,6 +15,11 @@ written after the fact, one per phase, and have no git tags.
 
 ## [Unreleased]
 
+### Changed
+
+- A long note no longer stretches the Notes page. The note fits the screen and scrolls inside its card, in Write and Read alike, with its tags kept in view at the bottom. The list of notes scrolls on its own too, the way Music's list does.
+- A note opened from the Board now has a close button (×) at the top right of its panel, and Esc closes it too.
+
 ## [0.7.3] - 2026-11-11
 
 ### Added
