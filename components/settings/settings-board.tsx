@@ -3,12 +3,13 @@
 import * as React from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { motion } from "motion/react";
-import { AudioLines, BookOpen, ChevronLeft, ChevronRight, Keyboard, Monitor, Palette, PlugZap, Timer, UserRound, Volume2, Wallet, type LucideIcon } from "lucide-react";
+import { Activity, AudioLines, BookOpen, ChevronLeft, ChevronRight, Keyboard, Monitor, Palette, PlugZap, Timer, UserRound, Volume2, Wallet, type LucideIcon } from "lucide-react";
 import { AddPasskeyButton, SignOutButton } from "@/components/auth/account-actions";
 import { AppearanceSection, PrefsNote, TimersSection } from "@/components/settings/appearance-prefs";
 import { ConnectionsSection } from "@/components/settings/connections-section";
 import { DeleteAccountButton } from "@/components/settings/delete-account";
 import { DesktopSection } from "@/components/settings/desktop-section";
+import { IslandSection } from "@/components/settings/island-section";
 import { MoneySection } from "@/components/settings/money-prefs";
 import { ReaderPrefsNote, ReaderSection } from "@/components/settings/reader-prefs";
 import { SettingRow, SettingsCard } from "@/components/settings/setting-row";
@@ -56,6 +57,13 @@ const SECTIONS = {
     group: "Preferences",
     icon: Timer,
     prefs: true,
+  },
+  island: {
+    label: "Island",
+    blurb: "The live pill at the top of Wanheda: whether it shows, and where.",
+    group: "Preferences",
+    icon: Activity,
+    note: "Kept on this device",
   },
   money: {
     label: "Money",
@@ -360,6 +368,7 @@ function AccountSection() {
 const BODIES: Record<SectionId, () => React.ReactNode> = {
   appearance: AppearanceSection,
   timers: TimersSection,
+  island: IslandSection,
   money: MoneySection,
   reader: ReaderSection,
   voices: VoicesSection,

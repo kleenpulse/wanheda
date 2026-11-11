@@ -19,6 +19,7 @@ written after the fact, one per phase, and have no git tags.
 
 - The desktop app now plays videos with Dolby Digital, Dolby Digital Plus or DTS sound. It converts the sound as the video plays, without re-encoding the picture and without writing anything to disk, and seeking works as usual. On the web, such a file now tells you the desktop app can play it.
 - You can drag the floating island left or right along the top of the screen, to move it off whatever it's covering in another app. It stays where you leave it, also after a restart.
+- Settings has a new Island section. Show the island turns the pill at the top of Wanheda off or on, everywhere on this device; with it off, timers and music carry on and alerts still reach your notifications. In the desktop app, Float it over other apps has moved there from Desktop.
 
 ### Changed
 

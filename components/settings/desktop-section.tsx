@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { SettingRow, SettingsCard } from "@/components/settings/setting-row";
+import { Switch } from "@/components/settings/switch";
 import { buttonClass } from "@/components/ui/button";
 import { Kbd } from "@/components/ui/kbd";
 import { acceleratorFromKey, acceleratorKeys, desktopBridge, type DesktopShortcutId, type DesktopState } from "@/lib/platform/desktop";
@@ -61,28 +62,6 @@ export function DesktopSection() {
               onChange={(on) => {
                 void desktopBridge()
                   ?.settings.set({ keepRunning: on })
-                  .then((r) => {
-                    setState(r.state);
-                  })
-                  .catch(ignore);
-              }}
-            />
-          )}
-        </SettingRow>
-      </SettingsCard>
-
-      <SettingsCard title="Island">
-        <SettingRow
-          label="Float the island over other apps"
-          description="While Wanheda is in the background, what's playing, your timers and alerts stay at the top of the screen. Clicks pass through everywhere but the island itself."
-        >
-          {(labelId) => (
-            <Switch
-              labelId={labelId}
-              on={state.island}
-              onChange={(on) => {
-                void desktopBridge()
-                  ?.settings.set({ island: on })
                   .then((r) => {
                     setState(r.state);
                   })
@@ -248,24 +227,4 @@ function ignore(): void {
 
 function otherLabel(id: DesktopShortcutId): string {
   return SHORTCUT_TEXT[id === "capture" ? "palette" : "capture"].label;
-}
-
-function Switch({ labelId, on, onChange }: { labelId: string; on: boolean; onChange: (on: boolean) => void }) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={on}
-      aria-labelledby={labelId}
-      onClick={() => {
-        onChange(!on);
-      }}
-      className="group relative inline-flex h-7 w-12 shrink-0 items-center rounded-full bg-signal-soft p-0.5 outline-none focus-visible:ring-2 focus-visible:ring-ring aria-checked:bg-signal"
-    >
-      <span
-        aria-hidden
-        className="size-6 rounded-full bg-card shadow-sm transition-transform duration-200 ease-out-quint motion-reduce:transition-none group-aria-checked:translate-x-5"
-      />
-    </button>
-  );
 }

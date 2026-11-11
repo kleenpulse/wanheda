@@ -11,6 +11,7 @@ import { saasAlertActivity, useSaasAlerts } from "@/components/island/saas-alert
 import { speechActivity } from "@/components/island/speech-activity";
 import { orderTimers, timerActivity } from "@/components/island/timer-activity";
 import { useFloatingIsland } from "@/components/island/floating-store";
+import { useIslandShown } from "@/components/island/island-shown";
 import { transferActivity } from "@/components/island/transfer-activity";
 import { useMusicLibrary } from "@/components/media/music-library";
 import { useMusicPlayer } from "@/components/media/music-player";
@@ -70,8 +71,10 @@ export function Island() {
 
   // The desktop shell's floating island is showing all this while the window is in the background (V70).
   const floating = useFloatingIsland((s) => s.floating);
+  // The owner can turn the island off on this device (Settings → Island).
+  const shown = useIslandShown();
 
-  if (!ready || activities.length === 0 || floating) return null;
+  if (!ready || !shown || activities.length === 0 || floating) return null;
   return (
     <div className="pointer-events-none fixed inset-x-0 top-[calc(var(--tb)+0.5rem)] z-40 md:left-(--rail-w)">
       <LiveActivity activities={activities} show={show} showKey={showKey} />

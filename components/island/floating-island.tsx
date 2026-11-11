@@ -3,6 +3,7 @@
 import * as React from "react";
 import { AudioLines, Download, Music, Pause, Play, SkipBack, SkipForward, Square, TrendingUp, TriangleAlert, Wallet } from "lucide-react";
 import { useActivitySync } from "@/components/island/activity-sync";
+import { useIslandShown } from "@/components/island/island-shown";
 import { LiveActivity, type IslandActivity } from "@/components/island/live-activity";
 import { IslandButton } from "@/components/island/money-alert-activity";
 import { orderTimers, timerActivity } from "@/components/island/timer-activity";
@@ -59,7 +60,9 @@ export function FloatingIsland() {
     return rankActivities(all);
   }, [snapshot, timers]);
   const activities = React.useMemo(() => ranked.map((r) => r.item), [ranked]);
-  const content = ready && activities.length > 0;
+  // Off on this device (Settings → Island): nothing to show, so the shell keeps the window hidden.
+  const shown = useIslandShown();
+  const content = ready && shown && activities.length > 0;
 
   useReport(content);
 

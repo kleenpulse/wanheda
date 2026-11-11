@@ -101,6 +101,10 @@ function boot(): void {
   /** A drag of the island along its row: the offset it began from, and when it last moved. Null when none is under way. */
   let islandDrag: { from: number; at: number } | null = null;
   let islandTimer: ReturnType<typeof setInterval> | null = null;
+  /** Unpackaged builds only: what the island's window is told and does, so "it doesn't respond" can be read from main.log. */
+  const islandLog = (line: string): void => {
+    if (!app.isPackaged) log.info(`island: ${line}`);
+  };
   /** Native music and video folders (V72): picked in a dialog, kept here, read through `wanheda-file:`. */
   let roots: Root[] = loadRoots(userData);
   const rootWatches = new Map<string, () => void>();
@@ -302,11 +306,13 @@ function boot(): void {
     if (!drag || !win || win.isDestroyed()) return;
     if (drag.phase === "start") {
       if (win.isVisible()) islandDrag = { from: settings.islandOffset, at: Date.now() };
+      islandLog(islandDrag ? `drag begins at offset ${String(settings.islandOffset)}` : "drag ignored: the island isn't showing");
       return;
     }
     if (!islandDrag) return;
     if (drag.phase === "end") {
       islandDrag = null;
+      islandLog(`drag ends at offset ${String(settings.islandOffset)}`);
       // Saved once, when the drag is over.
       updateSettings({ islandOffset: settings.islandOffset });
       return;
@@ -1053,7 +1059,9 @@ function boot(): void {
       const at = islandPosition(display.workArea, settings.islandOffset);
       win.setPosition(at.x, at.y);
       win.showInactive();
+      islandLog(`shown at ${String(at.x)},${String(at.y)}`);
     } else if (!show && win.isVisible()) {
+      islandLog("hidden");
       // A drag cut short (Wanheda came to the front): where it got to is kept.
       if (islandDrag) {
         islandDrag = null;
@@ -1099,6 +1107,7 @@ function boot(): void {
     if (!win || win.isDestroyed()) return;
     win.setIgnoreMouseEvents(!over);
     win.webContents.send(CHANNELS.islandHover, over);
+    islandLog(over ? "the pointer is over it: it takes the mouse" : "the pointer left: clicks pass through");
   }
 
   /** Shows quick capture centred near the top of the screen the cursor is on, focused. */
