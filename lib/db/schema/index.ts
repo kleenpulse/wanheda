@@ -8,3 +8,4 @@ export * from "./notifications";
 export * from "./prefs";
 export * from "./reader";
 export * from "./saas";
+export * from "./voices";

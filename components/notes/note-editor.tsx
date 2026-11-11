@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Archive, ArchiveRestore, AudioLines, ChevronLeft, History, Pause, Pin, PinOff, Play, Square, Trash2, X } from "lucide-react";
+import { Archive, ArchiveRestore, AudioLines, Check, ChevronLeft, Copy, History, Pause, Pin, PinOff, Play, Square, Trash2, X } from "lucide-react";
 import { NoteMarkdown } from "@/components/notes/note-markdown";
 import { useNoteConflict, useNoteHistory, useNoteStatus, useNotesApi } from "@/components/notes/notes-provider";
 import { buttonClass } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { useNow } from "@/hooks/use-now";
 import {
   BODY_MAX,
   isBlank,
+  noteMarkdown,
   TAG_MAX,
   TAGS_MAX,
   TITLE_MAX,
@@ -139,6 +140,7 @@ export function NoteEditor({ note, onBack, backLabel = "Notes" }: { note: Note; 
             <span className="sr-only">Delete for good</span>
           </button>
         ) : null}
+        <CopyNote note={note} />
       </div>
 
       {conflict?.id === note.id ? (
@@ -325,6 +327,46 @@ function TagEditor({ tags, onChange }: { tags: string[]; onChange: (tags: string
  * newest first. Restoring one is a new write; the version it replaces joins
  * the history, so nothing ever drops out of it.
  */
+/** How long the button shows its check after a copy. */
+const COPIED_MS = 1_500;
+
+/** Copies the whole note as Markdown; the icon turns to a check for a moment. */
+function CopyNote({ note }: { note: Note }) {
+  const [copied, setCopied] = React.useState(false);
+  const timer = React.useRef<ReturnType<typeof setTimeout>>(undefined);
+  React.useEffect(() => () => {
+    clearTimeout(timer.current);
+  }, []);
+  const text = noteMarkdown(note);
+  return (
+    <button
+      type="button"
+      disabled={text.trim() === ""}
+      onClick={() => {
+        navigator.clipboard.writeText(text).then(
+          () => {
+            setCopied(true);
+            clearTimeout(timer.current);
+            timer.current = setTimeout(() => {
+              setCopied(false);
+            }, COPIED_MS);
+          },
+          () => {
+            toast({ title: "Couldn't copy", body: "This browser didn't allow it. Select the text and copy it instead." });
+          },
+        );
+      }}
+      className={buttonClass("ghost", "circle-sm", copied ? "text-signal" : undefined)}
+      title="Copy as Markdown"
+    >
+      {copied ? <Check aria-hidden strokeWidth={1.75} /> : <Copy aria-hidden strokeWidth={1.75} />}
+      <span className="sr-only" role="status">
+        {copied ? "Copied" : "Copy as Markdown"}
+      </span>
+    </button>
+  );
+}
+
 function NoteHistory({ note, onClose }: { note: Note; onClose: () => void }) {
   const api = useNotesApi();
   const view = useNoteHistory(note.id, true);

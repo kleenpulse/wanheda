@@ -19,6 +19,8 @@ written after the fact, one per phase, and have no git tags.
 
 ### Added
 
+- A copy button at the top right of every note copies the whole note as Markdown, its title as a heading over the text. The icon turns into a check for a moment so you know it worked.
+- Your read-aloud voices follow you. Download a voice on one device and, the next time you open Wanheda somewhere it isn't yet (the Windows app, another browser), it asks whether to get it there too, with its size, so nothing downloads without your say. Choose Not now and it stays quiet until there's another voice to get. Settings → Voices shows the same offer.
 - The sign-in page shows a giant WANHEDA made of particles. Point at or tab to a sign-in button and it reshapes into PASSKEY, GITHUB or GOOGLE, then settles still.
 - Click the sidebar's right edge to open or close it. The Collapse button now shows only while your pointer is over the sidebar.
 - Theatre mode keeps the sidebar collapsed to give the video the full width. Trying to open it shows a short note beside your pointer explaining why, and your usual sidebar setting comes back when you leave theatre mode.

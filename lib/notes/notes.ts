@@ -434,3 +434,9 @@ export interface NoteRevision {
 export interface RevisionsPayload {
   revisions: NoteRevision[];
 }
+
+/** The note as Markdown for the clipboard: its title as a heading over the body, or the body alone. */
+export function noteMarkdown(note: Pick<Note, "title" | "bodyMd">): string {
+  const title = note.title.trim();
+  return title ? `# ${title}\n\n${note.bodyMd}` : note.bodyMd;
+}
