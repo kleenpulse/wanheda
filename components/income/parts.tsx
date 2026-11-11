@@ -10,7 +10,8 @@ import { cn } from "@/lib/utils";
 export function Dash() {
   return (
     <Tip label="No denominator yet" render={<span className="text-ink-3" />}>
-      —
+      <span aria-hidden>—</span>
+      <span className="sr-only">No denominator yet</span>
     </Tip>
   );
 }
