@@ -10,6 +10,11 @@ export type EngineRequest =
   | { type: "open-url"; url: string; size: number }
   /** Start the remux (V53) of the opened file into an MSE source owned by the worker. */
   | { type: "remux"; video: number | null; audio: number | null }
+  /**
+   * The same, but the bytes come from the desktop shell's ffmpeg (V74): `url` is a `wanheda-transcode:` stream of
+   * the chosen tracks, video copied and audio as AAC. The worker adds where to start.
+   */
+  | { type: "transcode"; video: number | null; audio: number | null; url: string }
   /** The element's clock, so the worker keeps ≤ 30 s ahead and drops > 20 s behind. */
   | { type: "time"; t: number }
   /** A seek: past what's buffered, the remux restarts from the keyframe at or before `t`. */

@@ -30,7 +30,7 @@ const DIRECTIVES: readonly (readonly [string, ...string[]])[] = [
   // Local files are blob: URLs; a pasted direct link may be http or https (V56). The desktop app's
   // native folders are `wanheda-file:` (V72); the web never has that scheme, so it's inert there.
   ["media-src", "'self'", "blob:", "https:", "http:", "wanheda-file:"],
-  ["connect-src", "'self'", ...CONNECT_HOSTS, "wanheda-file:"],
+  ["connect-src", "'self'", ...CONNECT_HOSTS, "wanheda-file:", "wanheda-transcode:"],
   // App workers are same-origin; mediabunny's alpha-video pool is a blob: worker.
   ["worker-src", "'self'", "blob:"],
   ["frame-src", ...EMBED_ORIGINS],

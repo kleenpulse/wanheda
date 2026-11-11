@@ -5,11 +5,12 @@ import dynamic from "next/dynamic";
 import { CloudOff, FolderOpen, KeyRound, TriangleAlert } from "lucide-react";
 import { buttonClass } from "@/components/ui/button";
 import { toast } from "@/components/ui/toaster";
-import { cannotMessage, planPlayback, type PlaybackPlan, type Probe } from "@/lib/media/ladder";
+import { cannotMessage, planPlayback, trackOrdinal, type PlaybackPlan, type Probe } from "@/lib/media/ladder";
 import { locate, regrant, rememberFile, type Located, type NativeFile } from "@/lib/media/local";
 import type { MediaItem } from "@/lib/media/types";
 import { parseMediaUrl } from "@/lib/media/url";
-import { MediaEngine, browserCapsDeps, capsFrom } from "@/lib/platform/media";
+import { isDesktop } from "@/lib/platform/desktop";
+import { MediaEngine, browserCapsDeps, capsFrom, desktopTranscodable, transcodeUrlFor } from "@/lib/platform/media";
 import { cn } from "@/lib/utils";
 import { slowRemuxNotice } from "./remux-status";
 import { providerName, useMediaApi } from "./use-media";
@@ -20,7 +21,8 @@ import { usePlayerWiring } from "./use-player";
 
 // The player area (T61). Embeds get an allowlisted iframe rebuilt from the
 // item's URI (V56); links play in the browser; local files go up the ladder
-// (V52): native, else a streamed remux in the media worker (V53), else a
+// (V52): native, else a streamed remux in the media worker (V53), else (in the
+// desktop app) audio converted by the bundled ffmpeg as it plays (V74), else a
 // sentence that names the codec and the track.
 
 /** In the player's full-screen frame (`group/cinema` with data-fullscreen) the stage fills it, square and black. */
@@ -40,7 +42,7 @@ export function preloadSurface(): void {
 /** The ladder's step, for the overlay and for the exit log (T65: "transcode never called"). */
 type Phase =
   | { kind: "opening" }
-  | { kind: "playing"; mode: "native" | "remux" | "link" }
+  | { kind: "playing"; mode: "native" | "remux" | "transcode" | "link" }
   | { kind: "cannot"; message: string };
 
 function Notice({ icon: Icon, title, children }: { icon: React.ComponentType<{ className?: string }>; title: string; children?: React.ReactNode }) {
@@ -140,7 +142,8 @@ function LocalPlayer({ item: live, file }: { item: MediaItem; file: File | Nativ
       setPhase({ kind: "cannot", message });
     };
 
-    const remux = async (plan: Extract<PlaybackPlan, { mode: "remux" }>) => {
+    /** Remux and transcode play the same way: a stream the worker feeds into its MSE source. */
+    const remux = async (plan: Extract<PlaybackPlan, { mode: "remux" | "transcode" }>, probe: Probe) => {
       endNotice = slowRemuxNotice({
         id: jobId,
         title: item.title,
@@ -168,10 +171,18 @@ function LocalPlayer({ item: live, file }: { item: MediaItem; file: File | Nativ
         // Mid-seek, `seeking` already asked; before metadata there is nothing to ask about.
         if (!el.seeking && el.readyState >= el.HAVE_METADATA) engine.seek(el.currentTime);
       });
-      const handle = await engine.remux(plan.video, plan.audio);
+      let handle: MediaProvider;
+      if (plan.mode === "remux") handle = await engine.remux(plan.video, plan.audio);
+      else {
+        const audio = trackOrdinal(probe, plan.audio);
+        const url = audio === null ? null : await transcodeUrlFor(file, { video: trackOrdinal(probe, plan.video), audio });
+        if (!isAlive()) return;
+        if (!url) throw new Error("This file's sound needs converting, and Wanheda couldn't find the file on this computer. Add its folder in Media, then play it from there.");
+        handle = await engine.transcode(plan.video, plan.audio, url);
+      }
       if (!isAlive()) return;
       setSource(el, handle);
-      setPhase({ kind: "playing", mode: "remux" });
+      setPhase({ kind: "playing", mode: plan.mode });
       void el.play().catch(() => undefined);
     };
 
@@ -203,19 +214,18 @@ function LocalPlayer({ item: live, file }: { item: MediaItem; file: File | Nativ
         } else fail("This file isn't a format this player can read.");
         return;
       }
-      const caps = capsFrom(probe, browserCapsDeps(el));
+      // What the desktop app's ffmpeg converts (V74); nothing on the web.
+      const caps = { ...capsFrom(probe, browserCapsDeps(el)), transcodable: await desktopTranscodable() };
+      if (!isAlive()) return;
+      const where = { desktop: isDesktop() };
       const plan = planPlayback(probe, caps);
       log(item, plan, probe);
       if (plan.mode === "cannot") {
-        fail(cannotMessage(plan.reason));
+        fail(cannotMessage(plan.reason, where));
         return;
       }
-      if (plan.mode === "transcode") {
-        fail("This file needs converting, which isn't built yet.");
-        return;
-      }
-      if (plan.mode === "remux") {
-        remux(plan).catch((e: unknown) => {
+      if (plan.mode === "remux" || plan.mode === "transcode") {
+        remux(plan, probe).catch((e: unknown) => {
           fail(e instanceof Error ? e.message : "The conversion failed.");
         });
         return;
@@ -236,11 +246,11 @@ function LocalPlayer({ item: live, file }: { item: MediaItem; file: File | Nativ
         const again = planPlayback(probe, { ...caps, nativeFailed: true });
         log(item, again, probe);
         setSource(el, null);
-        if (again.mode === "remux") {
-          remux(again).catch(() => {
-            fail("The conversion failed.");
+        if (again.mode === "remux" || again.mode === "transcode") {
+          remux(again, probe).catch((e: unknown) => {
+            fail(e instanceof Error ? e.message : "The conversion failed.");
           });
-        } else fail(again.mode === "cannot" ? cannotMessage(again.reason) : "This file can't play here.");
+        } else fail(again.mode === "cannot" ? cannotMessage(again.reason, where) : "This file can't play here.");
       });
       setSource(el, url);
       setPhase({ kind: "playing", mode: "native" });

@@ -10,6 +10,8 @@ import { linkArg, linkPath, WANHEDA_SCHEME } from "./links";
 import { FILE_SCHEME, isRootId, MAX_ROOTS, newRootId, type Root } from "./files";
 import { listRoot, loadRoots, saveRoots, serveFile, watchRoot } from "./files-io";
 import { createSpeech } from "./tts";
+import { TRANSCODE_SCHEME } from "./transcode";
+import { createTranscoder } from "./transcode-io";
 import { isVoiceId, parseSynthRequest } from "./tts-model";
 import { EMPTY_SNAPSHOT, ISLAND_PATH, ISLAND_SIZE, islandPosition, overIsland, parseIslandCommand, parseIslandReport, parseIslandSnapshot, shouldShowIsland, type IslandReport, type IslandSnapshot } from "./island";
 import { createLog } from "./log";
@@ -102,6 +104,8 @@ function boot(): void {
   const rootWatches = new Map<string, () => void>();
   /** Native Piper (V73): voices in userData, synthesis in its own utility process. */
   const speech = createSpeech({ userData, speechDir: speechDir(), log });
+  /** Native transcode (V74): the bundled ffmpeg, one process per `wanheda-transcode:` request. */
+  const transcoder = createTranscoder({ ffmpeg: ffmpegPath(), log });
   /** The title bar's colours from the main window's page (its skin), kept for a window made again. */
   let titleBarColors: TitleBarColors | null = null;
   // GitHub sign-in: the one started in the system browser, waiting for GitHub to send it back.
@@ -132,7 +136,18 @@ function boot(): void {
   // pages, fetchable from workers. Every request goes through serveFile's checks (V72).
   protocol.registerSchemesAsPrivileged([
     { scheme: FILE_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, corsEnabled: true } },
+    // `wanheda-transcode:` streams a file converted by the bundled ffmpeg to the media worker (V74).
+    { scheme: TRANSCODE_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, corsEnabled: true } },
   ]);
+
+  ipcMain.handle(CHANNELS.mediaTranscodable, (event): Promise<string[]> => {
+    if (!fromWindow(event, mainWindow)) throw new Error("Not allowed.");
+    return transcoder.transcodable();
+  });
+  ipcMain.handle(CHANNELS.mediaGrant, (event, payload: unknown): Promise<string | null> => {
+    if (!fromWindow(event, mainWindow)) throw new Error("Not allowed.");
+    return transcoder.grant(payload);
+  });
 
   ipcMain.handle(CHANNELS.ttsHas, (event, payload: unknown): boolean => {
     if (!fromWindow(event, mainWindow)) throw new Error("Not allowed.");
@@ -314,6 +329,7 @@ function boot(): void {
       quitting = "done";
       globalShortcut.unregisterAll();
       speech.stop();
+      transcoder.stopAll();
       tray?.destroy();
       app.exit(0);
     });
@@ -336,6 +352,7 @@ function boot(): void {
     }
     hardenSession(session.defaultSession);
     session.defaultSession.protocol.handle(FILE_SCHEME, (request) => serveFile(request, roots, appOrigin));
+    session.defaultSession.protocol.handle(TRANSCODE_SCHEME, (request) => transcoder.serve(request, roots, appOrigin));
     for (const root of roots) watch(root);
     const win = createWindow();
     // The first-run question attaches to the splash window, so wait for it to show.
@@ -1151,6 +1168,8 @@ function boot(): void {
     win.webContents.on("did-navigate", () => {
       pageReady = false;
       holdMediaKeys(false);
+      // The page that was playing is gone, and its conversions with it.
+      transcoder.stopAll();
       // The new page publishes its own snapshot once its shell is up; until then nothing is live.
       islandFloating = false;
       islandSnapshot = EMPTY_SNAPSHOT;
@@ -1162,6 +1181,7 @@ function boot(): void {
     win.webContents.on("render-process-gone", () => {
       pageReady = false;
       holdMediaKeys(false);
+      transcoder.stopAll();
     });
     // Really closed (keep running is off): the hidden capture window must not keep Wanheda alive.
     win.on("closed", () => {
@@ -1375,6 +1395,16 @@ function boot(): void {
 function speechDir(): string {
   if (app.isPackaged) return join(process.resourcesPath, "speech");
   return mode === "preview" ? join(app.getAppPath(), "..", "speech") : join(app.getAppPath(), "speech");
+}
+
+/**
+ * The bundled ffmpeg (V74): resources/media when installed, next to the staged
+ * app in preview, and the copy desktop:setup fetched in dev.
+ */
+function ffmpegPath(): string {
+  if (app.isPackaged) return join(process.resourcesPath, "media", "ffmpeg.exe");
+  if (mode === "preview") return join(app.getAppPath(), "..", "media", "ffmpeg.exe");
+  return join(process.env.WANHEDA_REPO_ROOT ?? join(app.getAppPath(), "..", ".."), "desktop", ".ffmpeg", "ffmpeg.exe");
 }
 
 /** Every display's work area, primary first. */

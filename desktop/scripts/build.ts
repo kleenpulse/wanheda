@@ -12,7 +12,9 @@ import { createHash } from "node:crypto";
 import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { buildAndStage } from "./stage";
-import { verifyServerDir, verifySpeechDir } from "./verify";
+import { FFMPEG_PIN } from "../ffmpeg-pin";
+import { inPlace } from "./fetch-ffmpeg";
+import { verifyMediaDir, verifyServerDir, verifySpeechDir } from "./verify";
 
 if (process.platform !== "win32") {
   console.error("desktop:build makes the Windows installer, on Windows.");
@@ -47,6 +49,9 @@ if (packed.status !== 0) throw new Error("electron-builder failed");
 const unpacked = join(out, "win-unpacked");
 verifyServerDir(join(unpacked, "resources", "server"));
 verifySpeechDir(join(unpacked, "resources", "speech"));
+const packedMedia = join(unpacked, "resources", "media");
+verifyMediaDir(packedMedia);
+for (const file of FFMPEG_PIN.files) if (!(await inPlace(file, packedMedia))) throw new Error(`the packaged ${file.as} isn't the pinned file`);
 
 // Positions on Electron 45's fuse wire. @electron/fuses (pinned by
 // electron-builder 26) names only the first eight, so the list lives here.

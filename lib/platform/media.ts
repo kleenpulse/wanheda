@@ -5,6 +5,7 @@
 
 import type { EngineRequest, EngineResponse } from "@/lib/media/engine-protocol";
 import type { PlaybackCaps, Probe, ProbeTrack } from "@/lib/media/ladder";
+import { desktopBridge, desktopTranscodeUrl } from "@/lib/platform/desktop";
 
 export type CapsDeps = {
   canPlayType: (type: string) => string;
@@ -40,6 +41,36 @@ export function browserCapsDeps(video: HTMLVideoElement): CapsDeps {
     isTypeSupported: (type) => MS?.isTypeSupported(type) ?? false,
     workerMse: MS?.canConstructInDedicatedWorker === true,
   };
+}
+
+let transcodableOnce: Promise<readonly string[]> | null = null;
+
+/** The codecs the desktop app's bundled ffmpeg converts (`caps.transcodable`, V74): asked until it names some. Empty on the web. */
+export function desktopTranscodable(): Promise<readonly string[]> {
+  const bridge = desktopBridge();
+  if (!bridge) return Promise.resolve([]);
+  transcodableOnce ??= bridge.media
+    .transcodable()
+    .catch((): string[] => [])
+    .then((list) => {
+      // An empty answer may be ffmpeg starting slowly: ask again next time.
+      if (list.length === 0) transcodableOnce = null;
+      return list;
+    });
+  return transcodableOnce;
+}
+
+/**
+ * The shell's converted stream for a file: a native folder file by its folder and path, a picked file by a token
+ * the shell grants for it. Tracks are counted from 0 among the file's tracks of that kind (`trackOrdinal`).
+ * Null on the web, or when the shell can't find the picked file on disk.
+ */
+export async function transcodeUrlFor(file: File | { rootId: string; path: string }, tracks: { video: number | null; audio: number }): Promise<string | null> {
+  const bridge = desktopBridge();
+  if (!bridge) return null;
+  if (!(file instanceof File)) return desktopTranscodeUrl(file.rootId, file.path, tracks);
+  const token = await bridge.media.grant(file).catch(() => null);
+  return token ? desktopTranscodeUrl(token, "f", tracks) : null;
 }
 
 export type Opened = { fp: string; probe: Probe | null; probeError: string | null };
@@ -96,6 +127,15 @@ export class MediaEngine {
 
   /** Starts the remux; resolves with the handle to set as `srcObject`. */
   remux(video: number | null, audio: number | null): Promise<MediaProvider> {
+    return this.stream({ type: "remux", video, audio });
+  }
+
+  /** The same, fed by the desktop shell's ffmpeg stream at `url` (V74). */
+  transcode(video: number | null, audio: number | null, url: string): Promise<MediaProvider> {
+    return this.stream({ type: "transcode", video, audio, url });
+  }
+
+  private stream(request: Extract<EngineRequest, { type: "remux" | "transcode" }>): Promise<MediaProvider> {
     return new Promise((resolve, reject) => {
       const off = this.on((m) => {
         if (m.type === "handle") {
@@ -106,7 +146,7 @@ export class MediaEngine {
           reject(new Error(m.message));
         }
       });
-      this.send({ type: "remux", video, audio });
+      this.send(request);
     });
   }
 

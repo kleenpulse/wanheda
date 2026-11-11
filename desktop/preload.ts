@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron";
+import { contextBridge, ipcRenderer, webUtils, type IpcRendererEvent } from "electron";
 import { CHANNELS, type Command, type DesktopChange, type DesktopNotice, type DesktopSetResult, type DesktopState, type MenuAnchor, type SecretsAction, type TitleBarColors } from "./bridge";
 import type { ListedFile, Root, RootKind } from "./files";
 import type { IslandCommand, IslandReport, IslandSnapshot } from "./island";
@@ -77,6 +77,19 @@ contextBridge.exposeInMainWorld("wanheda", {
     synth: (voice: string, codepoints: number[], rate: number): Promise<{ samples: Float32Array; sampleRate: number; synthMs: number }> =>
       ipcRenderer.invoke(CHANNELS.ttsSynth, { voice, codepoints, rate }),
     drop: (voice: string): Promise<void> => ipcRenderer.invoke(CHANNELS.ttsDrop, voice),
+  },
+  media: {
+    transcodable: (): Promise<string[]> => ipcRenderer.invoke(CHANNELS.mediaTranscodable),
+    /** The path comes from the File itself, here, so page script can never name one. */
+    grant(file: File): Promise<string | null> {
+      let path = "";
+      try {
+        path = webUtils.getPathForFile(file);
+      } catch {
+        // not a File from this device
+      }
+      return path ? ipcRenderer.invoke(CHANNELS.mediaGrant, path) : Promise.resolve(null);
+    },
   },
   capture: {
     save: (text: string): Promise<boolean> => ipcRenderer.invoke(CHANNELS.capture, text),

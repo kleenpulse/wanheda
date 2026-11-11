@@ -143,3 +143,24 @@ The owner's global ffmpeg (Gyan 9.0 `full_build`) is GPL v3 (`--enable-gpl --ena
 - **sharp ships.** Wanheda uses `next/image` (the money logos), so the server folder keeps the one native binary `@img/sharp-win32-x64`. That's fine because the installer targets Windows x64 only, and `verify.ts` allows that exact file and no other `.node`.
 - **The desktop `next build` runs in demo mode.** Every `.env.example` name is set to an empty string. Next still reads `.env.local`, but it fills only names that are unset (`@next/env` `processEnv`), so the owner's values never reach the build.
 - **Start time:** the first start after install took 10 s from the demo choice to server ready (Windows scanning about 2,800 new files on first read). Later starts take 1.4 s from launch to server ready.
+
+### T80 (2026-11-11): bundled ffmpeg
+
+- **Only two files are fetched and shipped:** `bin/ffmpeg.exe` (132,190,720 bytes) and `LICENSE.txt`, kept as `ffmpeg.exe` and `FFMPEG-LICENSE.txt`. `desktop/ffmpeg-pin.ts` pins each one's size and sha256 next to the zip's. They are checked when fetched, when staged (the source and the staged copy) and again in the packaged folder.
+- **The fetch reads the zip by Range.** `scripts/fetch-ffmpeg.ts` reads the zip's end record and central directory, then downloads only those two entries: about 55 MB instead of 169 MB. A stopped download carries on from where it was (it did, once, at 42 MB). Each entry must match the zip's own CRC-32 before the pin is looked at. `--full` downloads the whole zip and checks its sha256 too. CI (T81) should use `--full`: the per-file pins were first taken from a Range read on the owner's machine (approved for one fetch on 2026-11-11), so they rest on GitHub's TLS and the zip's CRC-32, not yet on the zip's sha256.
+- **The build is LGPL version 3**, not 2.1: its configuration has `--enable-version3` and no `--enable-gpl`, and the licence text in the zip is the LGPL v3. It runs as its own program, unmodified, and the licence text ships next to it.
+- **No temporary file.** ffmpeg writes fragmented MP4 to stdout, and main serves that as the body of a `wanheda-transcode:` response. The media worker fetches it and appends it to the same MSE buffer the remux uses, so the 30-seconds-ahead limit, eviction and seeking are the remux's own. When the worker stops reading (a seek, a closed player), main kills the process. V74's "temp output in userData" no longer applies.
+- **Tracks are named by position, not by id.** ffmpeg reports no stream id for Matroska tracks, so `0:i:<id>` matched nothing. The page sends the track's place among the file's video or audio tracks (`0:V:n`, `0:a:n`; `V` skips cover art). If Mediabunny and ffmpeg ever count a file's tracks differently, the wrong audio track would be converted; no such file has been seen.
+- **Seeking uses the file's own timestamps.** The worker asks for the keyframe's timestamp; `-seek_timestamp 1` stops ffmpeg from adding the file's start time (the MPEG-TS fixture starts at 1.4 s), and half a millisecond is added so rounding can't land one keyframe early.
+- **Audio becomes stereo AAC at 192 kb/s.** Chrome downmixes surround anyway, and AAC needs no second codec string. Opus was not needed.
+- **A file picked outside the native folders** is converted through a one-run grant: the preload reads its path from the File object (`webUtils.getPathForFile`), and main keeps the real path of a plain video file under a random token. Page script can't name a path.
+
+Measured on the owner's laptop in a scratch harness outside the repo: Electron 45.2.0 running the real media worker, ladder and `transcode-io.ts` against the pinned ffmpeg, on generated 640×360 H.264 files.
+
+| File | First frame | Seek to 41.3 s | Worker closed | Window destroyed mid-stream |
+|---|---|---|---|---|
+| H.264 + AC3 5.1, Matroska, 60 s | 454 ms | new job at 40.000, playing | ffmpeg killed, 0 left | not run for this file |
+| H.264 + AC3 5.1, MPEG-TS, 60 s | 322 ms | new job at 40.005, playing | ffmpeg killed, 0 left | 0 ffmpeg left within 3 s |
+| H.264 + DTS stereo, Matroska, 20 s | 181 ms | past the end: ended | 0 left | 0 left |
+
+Audio was decoded in all three (`webkitAudioDecodedByteCount` rose), and on the web's caps alone each one planned as "can't play". Not measured: a real film, E-AC3, how the 5.1 downmix sounds, the picked-file grant, and the installer's new size (the ADR's estimate stands: about 45 to 52 MB more).

@@ -6,7 +6,7 @@ The Windows desktop app: an Electron shell around the same Next.js server the we
 
 | Command | What it does |
 | --- | --- |
-| `bun run desktop:setup` | Installs this folder's packages (no install scripts run), then puts the pinned Electron in place with `scripts/fetch-electron.ts`. |
+| `bun run desktop:setup` | Installs this folder's packages (no install scripts run), then puts the pinned Electron in place with `scripts/fetch-electron.ts` and the pinned ffmpeg with `scripts/fetch-ffmpeg.ts` (about 55 MB, once). |
 | `bun run desktop:dev` | Opens Wanheda in Electron on `next dev`, with hot reload. There's no guard and no CSP in this mode. Stop your own `next dev` first: Next.js allows only one per project. |
 | `bun run desktop:preview` | Builds the production server, stages it, and opens it in Electron. Add `--no-build` (`bun desktop/scripts/dev.ts --preview --no-build`) to reuse the last build. |
 | `bun run desktop:stage` | Builds and stages only (`desktop/.stage/`). |
@@ -76,6 +76,16 @@ Sign-in happens in the default browser, the way VS Code and `gh` do it (`oauth.t
 - Voices aren't downloaded again: the page hands over the copy it already has in OPFS, and main keeps it only if both files match the catalog's size and sha256 (`tts-catalog.ts`, kept equal to `lib/speech/voices.ts` by a test). Main appends sherpa's 7 metadata entries to the model and writes `tokens.txt` (`tts-model.ts`), in `userData/voices/<id>/`.
 - Any failure other than a stop switches that session back to WASM Piper, so speech never goes silent. The process starts on first use, stops after 3 minutes idle, and logs units, audio time, synth time and the real-time factor when it stops.
 - Installed: `resources/speech/` holds the bundle and the two sherpa packages, outside the asar; `scripts/verify.ts` allows only sherpa's five native files there.
+
+## Native transcode (T80, V74)
+
+- A video whose sound the browser can't decode (Dolby Digital, Dolby Digital Plus, DTS) plays through the bundled ffmpeg: the picture is copied, the sound becomes stereo AAC, and nothing is written to disk. On the web the same file still says why it can't play.
+- `ffmpeg-pin.ts` pins BtbN's LGPL build: the zip, and the size and sha256 of the two files that ship (`ffmpeg.exe` and its licence text, in `resources/media/`). `scripts/fetch-ffmpeg.ts` reads just those two entries out of the release zip with Range requests into `desktop/.ffmpeg/` (ignored), and carries on after a dropped connection. `--full` downloads the whole zip (169 MB) and checks its sha256 as well. Staging and `desktop:build` check the pin again.
+- The page asks main which codecs the build converts (`media.transcodable`), and the playback ladder plans with that. The media worker then fetches `wanheda-transcode://<folder id>/<path>?v=<n>&a=<n>&ss=<seconds>` and appends the stream to the same MSE buffer a remux uses, so buffering and seeking work the same way. A seek past the buffer starts a new ffmpeg at the keyframe.
+- Main builds ffmpeg's arguments from one fixed template (`transcode.ts`). The page only chooses which video track, which audio track and where to start. The path goes through the native folders' checks (V72). ffmpeg runs without a shell, with only `SystemRoot` in its environment, limited to the `file` protocol. It's killed when the worker stops reading, when the window navigates and when Wanheda quits. At most two run at once.
+- A file opened from outside the native folders is converted through a grant that lasts until Wanheda closes: the preload reads the path from the File object itself, so page script can never name one.
+- `desktop:dev` and `desktop:preview` use the same pinned build. If it's missing (setup not run), nothing is converted and the file says why it can't play; staging and `desktop:build` stop instead.
+- This ffmpeg is LGPL version 3 and runs as its own program, unmodified. Its source is FFmpeg `n9.0.2-39-g7adfbe40dc`, built by [BtbN/FFmpeg-Builds](https://github.com/BtbN/FFmpeg-Builds) (release `autobuild-2026-10-31-12-59`).
 
 ## Security model (V67)
 

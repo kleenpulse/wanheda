@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cannotMessage, planPlayback, type PlaybackCaps, type Probe, type ProbeTrack } from "./ladder";
+import { cannotMessage, planPlayback, trackOrdinal, type PlaybackCaps, type Probe, type ProbeTrack } from "./ladder";
 
 const h264: ProbeTrack = { id: 1, kind: "video", codec: "avc", codecString: "avc1.64001f", isDefault: true, language: null, name: null };
 const aac: ProbeTrack = { id: 2, kind: "audio", codec: "aac", codecString: "mp4a.40.2", isDefault: true, language: "en", name: null };
@@ -38,7 +38,12 @@ describe("planPlayback", () => {
   it("names the codec and the track when it can't play", () => {
     const plan = planPlayback(probe("Matroska", "video/x-matroska", h264, ac3), caps(true, { 1: yes, 2: no }));
     expect(plan).toEqual({ mode: "cannot", reason: { code: "codec", kind: "audio", codec: "ac3", trackId: 2, trackNumber: 1 } });
-    if (plan.mode === "cannot") expect(cannotMessage(plan.reason)).toBe("Audio track 1 is Dolby Digital (AC3), which this browser can't play. Converting it is not built yet.");
+    if (plan.mode !== "cannot") throw new Error("expected cannot");
+    // On the web, a codec the desktop app converts says so; in the desktop app there is nowhere better to send the owner.
+    expect(cannotMessage(plan.reason)).toBe("Audio track 1 is Dolby Digital (AC3), which this browser can't play. Wanheda's desktop app converts it while it plays.");
+    expect(cannotMessage(plan.reason, { desktop: true })).toBe("Audio track 1 is Dolby Digital (AC3), which Wanheda can't play.");
+    expect(cannotMessage({ code: "codec", kind: "audio", codec: "truehd", trackId: 2, trackNumber: 1 })).toBe("Audio track 1 is Dolby TrueHD, which this browser can't play.");
+    expect(cannotMessage({ code: "codec", kind: "video", codec: "hevc", trackId: 1, trackNumber: 1 })).toBe("Video track 1 is HEVC (H.265), which this browser can't play.");
   });
 
   it("remuxes when a non-default audio track is chosen (AC3 default + AAC 2nd)", () => {
@@ -87,6 +92,25 @@ describe("planPlayback", () => {
     const odd: ProbeTrack = { ...aac, codec: null, codecString: null };
     const plan = planPlayback(probe("Matroska", "video/x-matroska", h264, odd), caps(true, { 1: yes }));
     expect(plan).toMatchObject({ mode: "cannot", reason: { code: "codec", codec: "unknown" } });
+  });
+
+  it("a transcode needs the worker's MSE, as a remux does", () => {
+    const p = probe("Matroska", "video/x-matroska", h264, ac3);
+    expect(planPlayback(p, caps(true, { 1: yes, 2: no }, { transcodable: ["ac3"], workerMse: false }))).toEqual({ mode: "cannot", reason: { code: "no-worker-mse" } });
+  });
+
+  it("a playable second audio track still wins over converting the default one", () => {
+    const p = probe("Matroska", "video/x-matroska", h264, ac3, aac2nd);
+    expect(planPlayback(p, caps(true, { 1: yes, 2: no, 3: yes }, { transcodable: ["ac3"] })).mode).toBe("remux");
+  });
+
+  it("counts a track among its own kind, from 0, for the desktop converter", () => {
+    const p = probe("Matroska", "video/x-matroska", h264, ac3, aac2nd);
+    expect(trackOrdinal(p, 1)).toBe(0);
+    expect(trackOrdinal(p, 2)).toBe(0);
+    expect(trackOrdinal(p, 3)).toBe(1);
+    expect(trackOrdinal(p, 9)).toBeNull();
+    expect(trackOrdinal(p, null)).toBeNull();
   });
 
   it("can't play a file with no video or audio", () => {

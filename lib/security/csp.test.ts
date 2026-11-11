@@ -33,7 +33,7 @@ describe("contentSecurityPolicy", () => {
   });
 
   test("fetch reaches only the app, the voice host and YouTube thumbnails", () => {
-    expect(directives().get("connect-src")).toEqual(["'self'", "https://huggingface.co", "https://*.hf.co", "https://*.huggingface.co", "https://i.ytimg.com", "wanheda-file:"]);
+    expect(directives().get("connect-src")).toEqual(["'self'", "https://huggingface.co", "https://*.hf.co", "https://*.huggingface.co", "https://i.ytimg.com", "wanheda-file:", "wanheda-transcode:"]);
   });
 
   test("no directive would push the desktop's http://localhost to https", () => {

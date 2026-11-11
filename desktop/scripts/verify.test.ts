@@ -1,8 +1,9 @@
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, truncateSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, test } from "vitest";
-import { speechProblemsIn } from "./verify";
+import { FFMPEG_PIN } from "../ffmpeg-pin";
+import { mediaProblemsIn, speechProblemsIn } from "./verify";
 
 const NATIVE = ["sherpa-onnx.node", "sherpa-onnx-c-api.dll", "sherpa-onnx-cxx-api.dll", "onnxruntime.dll", "onnxruntime_providers_shared.dll"];
 let dir = "";
@@ -43,5 +44,32 @@ describe("speechProblemsIn", () => {
         "missing: node_modules/sherpa-onnx-win-x64/onnxruntime.dll",
       ].sort(),
     );
+  });
+});
+
+describe("mediaProblemsIn", () => {
+  // Sparse files of the pinned sizes: the size is all this check reads (stage.ts and build.ts check the sha256).
+  function mediaFolder(): string {
+    dir = mkdtempSync(join(tmpdir(), "wanheda-media-"));
+    for (const file of FFMPEG_PIN.files) truncateSync(join(writeEmpty(dir, file.as)), file.size);
+    return dir;
+  }
+  const writeEmpty = (folder: string, name: string) => {
+    const path = join(folder, name);
+    writeFileSync(path, "");
+    return path;
+  };
+
+  test("the pinned ffmpeg and its licence pass", () => {
+    expect(mediaProblemsIn(mediaFolder())).toEqual([]);
+  });
+
+  test("another file, a folder, a file of another size or a missing licence fail", () => {
+    const d = mediaFolder();
+    writeFileSync(join(d, "ffprobe.exe"), "x");
+    mkdirSync(join(d, "presets"));
+    truncateSync(join(d, "ffmpeg.exe"), 10);
+    rmSync(join(d, "FFMPEG-LICENSE.txt"));
+    expect(mediaProblemsIn(d).sort()).toEqual(["missing: FFMPEG-LICENSE.txt", "not for shipping: ffprobe.exe", "not for shipping: presets", "not the pinned file: ffmpeg.exe"].sort());
   });
 });

@@ -63,6 +63,10 @@ export const CHANNELS = {
   ttsSynth: "wanheda:tts-synth",
   /** page ⇄ main (invoke): the voice was deleted; native Piper forgets it too. */
   ttsDrop: "wanheda:tts-drop",
+  /** page ⇄ main (invoke): the audio codecs the bundled ffmpeg converts (V74), for the playback ladder. */
+  mediaTranscodable: "wanheda:media-transcodable",
+  /** page ⇄ main (invoke): a token to convert one picked file by (the preload reads its path from the File). */
+  mediaGrant: "wanheda:media-grant",
   /** main window page → main: the title bar's colours, so Windows' buttons match the skin (`TitleBarColors`). */
   titleBarColors: "wanheda:title-bar-colors",
   /** main window page → main: open the app menu under the title bar's menu button (`MenuAnchor`). */
