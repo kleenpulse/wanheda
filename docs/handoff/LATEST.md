@@ -1,6 +1,6 @@
 # Latest hand-off
 
-**Newest:** [2026-11-11-phase-8-t88-desktop-hosted.md](2026-11-11-phase-8-t88-desktop-hosted.md). **T88 built on `phase-8/desktop-hosted` (stacked on PR #101), not committed: preview and packaged builds load the hosted app, no server, no `.env`, "Can't reach Wanheda" with Retry, `bridge.version` 1. Another session's dock edits share the tree: never stage them. The CHANGELOG line is in the hand-off, to add at commit time.**
+**Newest:** [2026-11-11-phase-8-t88-desktop-hosted.md](2026-11-11-phase-8-t88-desktop-hosted.md). **T88 is PR #102 (stacked on PR #101), with the other session's dock fix and Money layout as their own commits: preview and packaged builds load the hosted app, no server, no `.env`, "Can't reach Wanheda" with Retry, `bridge.version` 1. Next: owner merges #101 then #102; then T89.**
 
 **Before it:** [2026-11-11-phase-8-desktop-hosted-adr.md](2026-11-11-phase-8-desktop-hosted-adr.md). ADR-0016 + SPEC T88–T91 (PR #101); `v0.7.4` tagged on `52c2c3f` and pushed.
 
@@ -25,12 +25,12 @@
 
 Read the hand-off first, then verify it against the repo before trusting it (git, tripwire, typecheck, tests).
 
-### Builder prompt (T88 commit, then T89)
+### Builder prompt (after #101 and #102: T89)
 
 ```text
 You are the BUILDER for Wanheda (D:\Vxrcel\wanheda), lean mode, no worktrees. Check the branch first: the checkout is shared.
 Read docs/handoff/LATEST.md → 2026-11-11-phase-8-t88-desktop-hosted.md, and verify it (git status, tripwire, typecheck, tests).
-T88 is uncommitted on phase-8/desktop-hosted. Stage only the hand-off's file list (never the dock/CHANGELOG edits of the other session); add the CHANGELOG hunk at commit.
-Commit, push and open the PR only on the owner's word (or a Reviewer LGTM). Then T89 (sign-in handoff) on phase-8/desktop-sign-in.
+If PR #101 and #102 are merged: git switch main, fetch + incoming-commit check, pull, git tidy. If not, stop and say so.
+Then T89 (sign-in handoff) on phase-8/desktop-sign-in. Commit, push and PR only on the owner's word (or a Reviewer LGTM).
 Read ADR-0016, desktop/main.ts, oauth.ts, lib/auth/server.ts first. No large downloads without asking.
 ```
