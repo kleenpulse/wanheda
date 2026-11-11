@@ -15,6 +15,8 @@ written after the fact, one per phase, and have no git tags.
 
 ## [Unreleased]
 
+## [0.7.2] - 2026-11-11
+
 ### Added
 
 - A copy button at the top right of every note copies the whole note as Markdown, its title as a heading over the text. The icon turns into a check for a moment so you know it worked.
