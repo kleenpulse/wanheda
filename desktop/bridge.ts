@@ -8,6 +8,14 @@
 import type { IslandCommand } from "./island";
 import { isShortcutId, parseAccelerator, type MediaCommand, type ShortcutId } from "./shortcuts";
 
+/**
+ * What this shell's bridge offers, as a number the page can compare (ADR-0016):
+ * the page is the hosted app and updates with every deploy, the shell only with
+ * the installer. Raise it when the bridge gains something a page must detect.
+ * 1 = T88 (the hosted app; `settings.secrets` gone when `state.secrets` is null).
+ */
+export const BRIDGE_VERSION = 1;
+
 export const CHANNELS = {
   /** main → page: show this path in the app (a `wanheda://` link was opened). */
   open: "wanheda:open",
@@ -169,7 +177,8 @@ export type DesktopState = {
   /** The floating island while Wanheda is in the background (V70). */
   island: boolean;
   shortcuts: { id: ShortcutId; accelerator: string | null; status: ShortcutStatus }[];
-  secrets: { mode: "own" | "demo"; names: number };
+  /** The imported `.env` keys: `desktop:dev` only. Null where the shell loads the hosted app (ADR-0016). */
+  secrets: { mode: "own" | "demo"; names: number } | null;
 };
 
 /** A Settings → Desktop change's answer: `ok` false when another shortcut already uses those keys. */

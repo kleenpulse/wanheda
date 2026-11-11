@@ -27,7 +27,8 @@ export type DesktopState = {
   keepRunning: boolean;
   island: boolean;
   shortcuts: { id: DesktopShortcutId; accelerator: string | null; status: DesktopShortcutStatus }[];
-  secrets: { mode: "own" | "demo"; names: number };
+  /** The imported `.env` keys (`desktop:dev` only); null where the shell loads the hosted app. */
+  secrets: { mode: "own" | "demo"; names: number } | null;
 };
 
 export type DesktopRootKind = "music" | "video";
@@ -38,6 +39,12 @@ export type DesktopChange = { keepRunning: boolean } | { island: boolean } | { s
 
 export type WanhedaDesktop = {
   readonly desktop: true;
+  /**
+   * What the shell's bridge offers (desktop/bridge.ts `BRIDGE_VERSION`). The page updates with every
+   * deploy and the shell only with the installer, so a newer page checks this (or the member it
+   * needs) before using anything added later. Shells before 0.8 have none: read it as 0.
+   */
+  readonly version?: number;
   /** Paths in this app the shell wants shown (a `wanheda://` link was opened). Returns an unsubscribe. */
   onOpen(callback: (path: string) => void): () => void;
   /** Global shortcuts and the capture window, through the shell. Returns an unsubscribe. */

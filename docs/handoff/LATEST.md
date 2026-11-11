@@ -1,8 +1,10 @@
 # Latest hand-off
 
-**Newest:** [2026-11-11-phase-8-desktop-hosted-adr.md](2026-11-11-phase-8-desktop-hosted-adr.md). **ADR-0016: the packaged desktop app loads the hosted Wanheda (no `.env` import, sign-in in the browser handed back by a one-time token). ADR + SPEC (T88–T91, V67/V68/V69/V75/V76 amended) on `phase-8/desktop-hosted-adr` as a docs PR. PR #100 (`desktop.yml`) merged; `v0.7.4` tagged on `52c2c3f` and pushed (CI drafts the release). Next: T88 on `phase-8/desktop-hosted`.**
+**Newest:** [2026-11-11-phase-8-t88-desktop-hosted.md](2026-11-11-phase-8-t88-desktop-hosted.md). **T88 built on `phase-8/desktop-hosted` (stacked on PR #101), not committed: preview and packaged builds load the hosted app, no server, no `.env`, "Can't reach Wanheda" with Retry, `bridge.version` 1. Another session's dock edits share the tree: never stage them. The CHANGELOG line is in the hand-off, to add at commit time.**
 
-**Before it:** [2026-11-11-phase-8-v0.7.3.md](2026-11-11-phase-8-v0.7.3.md). v0.7.3 released (tag on `1edc90d`). Open: a floating island that took no clicks in the owner's preview (not reproduced).
+**Before it:** [2026-11-11-phase-8-desktop-hosted-adr.md](2026-11-11-phase-8-desktop-hosted-adr.md). ADR-0016 + SPEC T88–T91 (PR #101); `v0.7.4` tagged on `52c2c3f` and pushed.
+
+**Earlier:** [2026-11-11-phase-8-v0.7.3.md](2026-11-11-phase-8-v0.7.3.md). v0.7.3 released (tag on `1edc90d`). Open: a floating island that took no clicks in the owner's preview (not reproduced).
 
 **Earlier:** [2026-11-11-phase-8-t80-desktop-media.md](2026-11-11-phase-8-t80-desktop-media.md). T80 (bundled ffmpeg for AC3, E-AC3 and DTS) and what was built on its branch: folders in Videos, the smart field, the Up Next drum, the draggable island. Merged as PR #95.
 
@@ -23,12 +25,12 @@
 
 Read the hand-off first, then verify it against the repo before trusting it (git, tripwire, typecheck, tests).
 
-### Builder prompt (T88: shell on the hosted origin)
+### Builder prompt (T88 commit, then T89)
 
 ```text
 You are the BUILDER for Wanheda (D:\Vxrcel\wanheda), lean mode, no worktrees. Check the branch first: the checkout is shared.
-Read docs/handoff/LATEST.md → 2026-11-11-phase-8-desktop-hosted-adr.md, and verify it (git status, tripwire, typecheck, tests).
-The docs PR (ADR-0016 + SPEC T88–T91) is on phase-8/desktop-hosted-adr; T88 is on phase-8/desktop-hosted, stacked on it.
-Continue T88 per SPEC (V67, V68, V69, V76 amendments). Read ADR-0016, desktop/main.ts, policy.ts, bridge.ts first.
-No large downloads without asking.
+Read docs/handoff/LATEST.md → 2026-11-11-phase-8-t88-desktop-hosted.md, and verify it (git status, tripwire, typecheck, tests).
+T88 is uncommitted on phase-8/desktop-hosted. Stage only the hand-off's file list (never the dock/CHANGELOG edits of the other session); add the CHANGELOG hunk at commit.
+Commit, push and open the PR only on the owner's word (or a Reviewer LGTM). Then T89 (sign-in handoff) on phase-8/desktop-sign-in.
+Read ADR-0016, desktop/main.ts, oauth.ts, lib/auth/server.ts first. No large downloads without asking.
 ```

@@ -17,6 +17,7 @@ import { draggedIslandOffset, EMPTY_SNAPSHOT, ISLAND_DRAG_IDLE_MS, ISLAND_PATH, 
 import { createLog } from "./log";
 import { menuKey, type MenuKey } from "./menu-keys";
 import { CALLBACK_PATHS, callbackQuery, signInFrom, type PendingSignIn, type Provider } from "./oauth";
+import { parseAppOrigin, unreachablePage, unreachableRetry } from "./origin";
 import { classifyAuthUrl, classifyUrl, navigationStep, permissionAllowed } from "./policy";
 import { freePort, isPortFree, savePort, savedPort } from "./ports";
 import { electronSealer } from "./sealer";
@@ -29,11 +30,12 @@ import { createTray, KEEP_RUNNING_LABEL, type WanhedaTray } from "./tray";
 import { loadWindowState, MIN_SIZE, placeWindow, saveWindowState, type Rect } from "./window-state";
 
 /*
- * Wanheda's desktop shell (Phase 8, ported from Raven's desktop/). The Next.js
- * standalone server runs in a utility process on 127.0.0.1, and the window
- * loads it as http://localhost:<port>. This main process owns the window, the
- * session, the sealed `.env` values and the server's lifetime. Requests to the
- * server carry a per-launch token only this process knows (desktop/README.md).
+ * Wanheda's desktop shell (Phase 8, ported from Raven's desktop/). Preview and
+ * packaged builds load the hosted app (ADR-0016): its address is baked in at
+ * bundle time (`WANHEDA_APP_URL`), and nothing secret lives on the device but
+ * the session cookie. `desktop:dev` runs `next dev` on http://localhost:<port>
+ * with the sealed `.env` values, as before. This main process owns the windows,
+ * the session and the native features (desktop/README.md).
  */
 
 type Mode = "dev" | "preview" | "packaged";
@@ -41,6 +43,8 @@ type Mode = "dev" | "preview" | "packaged";
 // A link that starts an unpackaged build has no env from the dev script, so its registered command names the mode.
 const unpackagedMode = process.env.WANHEDA_DESKTOP_MODE ?? app.commandLine.getSwitchValue("wanheda-mode");
 const mode: Mode = app.isPackaged ? "packaged" : unpackagedMode === "preview" ? "preview" : "dev";
+/** Preview and packaged builds load the hosted app; only dev runs a server of its own (ADR-0016). */
+const hosted = mode !== "dev";
 const USER_DATA: Record<Mode, string> = { dev: "Wanheda Dev", preview: "Wanheda Preview", packaged: "Wanheda" };
 // The installer's appId. Dev and preview get their own: Windows draws the taskbar
 // icon from a Start menu shortcut with the same ID, and Electron adds one for
@@ -375,7 +379,7 @@ function boot(): void {
     .catch((err: unknown) => fail(err));
 
   async function start(): Promise<void> {
-    Menu.setApplicationMenu(buildMenu(settings.keepRunning, menuActions));
+    Menu.setApplicationMenu(buildMenu(settings.keepRunning, menuActions, !hosted));
     if (hasTray(process.platform)) {
       tray = createTray({
         open: showWindow,
@@ -388,22 +392,32 @@ function boot(): void {
     session.defaultSession.protocol.handle(FILE_SCHEME, (request) => serveFile(request, roots, appOrigin));
     session.defaultSession.protocol.handle(TRANSCODE_SCHEME, (request) => transcoder.serve(request, roots, appOrigin));
     for (const root of roots) watch(root);
-    const win = createWindow();
-    // The first-run question attaches to the splash window, so wait for it to show.
-    await new Promise<void>((resolve) => {
-      if (win.isVisible()) { resolve(); return; }
-      win.once("show", () => { resolve(); });
-      setTimeout(resolve, 3000);
-    });
-    secrets = await loadOrAskSecrets();
-    server = await startServer();
-    attach(server);
+    if (hosted) {
+      // Checked again here, not only at bundle time: a bad address must stop the app, not load something else.
+      const origin = parseAppOrigin(process.env.WANHEDA_APP_URL);
+      if (!origin) throw new ServerStartError("This copy of Wanheda doesn't know where the app lives. Install it again.");
+      createWindow();
+      appOrigin = origin;
+      log.info(`loading ${origin}`);
+    } else {
+      const win = createWindow();
+      // The first-run question attaches to the splash window, so wait for it to show.
+      await new Promise<void>((resolve) => {
+        if (win.isVisible()) { resolve(); return; }
+        win.once("show", () => { resolve(); });
+        setTimeout(resolve, 3000);
+      });
+      secrets = await loadOrAskSecrets();
+      server = await startServer();
+      attach(server);
+    }
     const first = pendingLink ?? START_PATH;
     pendingLink = null;
     applyShortcuts();
     createCaptureWindow();
     createIslandWindow();
-    await mainWindow?.loadURL(`${server.origin}${first}`);
+    // A load that fails (offline, say) shows "Can't reach Wanheda" (did-fail-load) instead of stopping the app.
+    await mainWindow?.loadURL(`${appOrigin ?? ""}${first}`).catch((err: unknown) => { log.info(`first load: ${errText(err)}`); });
   }
 
   /** Shows a link's page now, or once the server is up. */
@@ -702,7 +716,7 @@ function boot(): void {
 
   function setKeepRunning(on: boolean): void {
     updateSettings({ keepRunning: on });
-    Menu.setApplicationMenu(buildMenu(on, menuActions));
+    Menu.setApplicationMenu(buildMenu(on, menuActions, !hosted));
     tray?.refresh();
     // A hidden window keeps music, timers and speech at full pace.
     if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.setBackgroundThrottling(!on);
@@ -794,7 +808,8 @@ function boot(): void {
       keepRunning: settings.keepRunning,
       island: settings.island,
       shortcuts: SHORTCUT_IDS.map((id) => ({ id, accelerator: settings.shortcuts[id], status: shortcutStatus.get(id) ?? "off" })),
-      secrets: { mode: names > 0 ? "own" : "demo", names },
+      // The hosted app has no keys on the device (ADR-0016).
+      secrets: hosted ? null : { mode: names > 0 ? "own" : "demo", names },
     };
   }
 
@@ -1233,6 +1248,13 @@ function boot(): void {
       holdMediaKeys(false);
       transcoder.stopAll();
     });
+    // The app's page couldn't load (offline, DNS, the deployment down): main's own page with Retry, never a blank window.
+    win.webContents.on("did-fail-load", (_event, errorCode, _description, url, isMainFrame) => {
+      const retry = unreachableRetry({ errorCode, url, isMainFrame }, appOrigin);
+      if (!retry) return;
+      log.info(`couldn't reach the app (${String(errorCode)})`);
+      void win.loadURL(unreachablePage(retry, { background: background(), ink: inkFor(background()) }, TITLE_BAR_HEIGHT));
+    });
     // Really closed (keep running is off): the hidden capture window must not keep Wanheda alive.
     win.on("closed", () => {
       if (captureWindow && !captureWindow.isDestroyed()) captureWindow.destroy();
@@ -1260,9 +1282,10 @@ function boot(): void {
    * Google refuses embedded browsers, so it needs a preview or packaged build.
    */
   function startOAuthSignIn(provider: Provider, url: string): void {
-    if (mode === "dev") {
+    // The hosted app (preview, packaged) signs in here too until T89's browser handoff: the loopback relay needs a local server.
+    if (mode === "dev" || hosted) {
       if (provider === "github") openAuthWindow(url);
-      else log.info("sign-in: Google needs the system browser, which dev can't catch coming back; use desktop:preview");
+      else log.info("sign-in: Google refuses embedded windows; it needs the browser handoff (T89)");
       return;
     }
     const started = signInFrom(url, appOrigin, Date.now());
@@ -1485,15 +1508,21 @@ function errText(err: unknown): string {
 
 type MenuActions = { setKeepRunning: (on: boolean) => void; importEnv: () => void; useDemo: () => void };
 
-function buildMenu(keepRunning: boolean, actions: MenuActions): Menu {
+/** `keys`: the `.env` import items, for a shell that runs its own server (dev only, ADR-0016). */
+function buildMenu(keepRunning: boolean, actions: MenuActions, keys: boolean): Menu {
+  const keyItems: MenuItemConstructorOptions[] = keys
+    ? [
+        { label: "Import .env file…", click: () => { actions.importEnv(); } },
+        { label: "Use demo mode…", click: () => { actions.useDemo(); } },
+        { type: "separator" },
+      ]
+    : [];
   const fileMenu: MenuItemConstructorOptions = {
     label: "File",
     submenu: [
       { label: KEEP_RUNNING_LABEL, type: "checkbox", checked: keepRunning, click: (item) => { actions.setKeepRunning(item.checked); } },
       { type: "separator" },
-      { label: "Import .env file…", click: () => { actions.importEnv(); } },
-      { label: "Use demo mode…", click: () => { actions.useDemo(); } },
-      { type: "separator" },
+      ...keyItems,
       { role: "quit", label: "Quit Wanheda" },
     ],
   };
@@ -1514,8 +1543,13 @@ function buildMenu(keepRunning: boolean, actions: MenuActions): Menu {
 /** The main window's title bar height (the caption buttons' overlay), in DIPs: Windows' own. */
 const TITLE_BAR_HEIGHT = 32;
 
+/** The splash's and the unreachable page's text colour for a background(). */
+function inkFor(color: string): string {
+  return color === "#050a0b" ? "#9aa3a5" : "#5b5f61";
+}
+
 function splash(color: string): string {
-  const ink = color === "#050a0b" ? "#9aa3a5" : "#5b5f61";
+  const ink = inkFor(color);
   // The window has no Windows title bar, so the splash's top strip drags it.
   return `data:text/html;charset=utf-8,${encodeURIComponent(
     `<!doctype html><meta charset="utf-8"><title>Wanheda</title><style>html,body{height:100%;margin:0;background:${color};color:${ink};font:14px system-ui,sans-serif;display:grid;place-items:center}i{position:fixed;inset:0 0 auto;height:${TITLE_BAR_HEIGHT}px;app-region:drag}</style><i></i><p>Starting Wanheda…</p>`,
