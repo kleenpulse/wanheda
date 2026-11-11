@@ -3,12 +3,27 @@
 // row's fp always matches its source (V54) and an embed's uri always parses to
 // an allowlisted provider (V56).
 
+import type { QueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 import { playOrder } from "./episodes";
 import { MEDIA_KINDS, type MediaItem, type MediaMeta, type MediaProgress } from "./types";
 import { parseMediaUrl } from "./url";
 
 export const MEDIA_KEY = ["media"] as const;
+
+/**
+ * Demo: the library lives in this tab's cache and nowhere else, so a write is
+ * stamped newer than any server read. Without it, every return to /media
+ * hydrated the page's Prefetch (the seed list, read later than the write) over
+ * what the tab had added (B26). The reader does the opposite with
+ * `updatedAt: 0`, so its local snapshot always loses to the server.
+ */
+export const TAB_ONLY_STAMP = Number.MAX_SAFE_INTEGER;
+
+/** One write to the media cache. An owner's write keeps its real time: the server holds it too. */
+export function writeMediaCache(qc: QueryClient, demo: boolean, fn: (p: MediaPayload) => MediaPayload): void {
+  qc.setQueryData<MediaPayload>(MEDIA_KEY, (p) => (p ? fn(p) : p), demo ? { updatedAt: TAB_ONLY_STAMP } : undefined);
+}
 
 export type MediaPayloadSource = "owner" | "demo" | "load-failed";
 export type MediaPayload = { source: MediaPayloadSource; items: MediaItem[] };

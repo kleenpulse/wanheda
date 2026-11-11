@@ -10,7 +10,7 @@ import { useHydrated } from "@/hooks/use-hydrated";
 import { fetchJson } from "@/lib/fetch-json";
 import { folderFor } from "@/lib/media/episodes";
 import { forgetFile, keepHandle, rememberFile, type FolderVideo, keepNative, type NativeFile } from "@/lib/media/local";
-import { MEDIA_KEY, TITLE_MAX, upsertItem, type MediaPayload } from "@/lib/media/media";
+import { MEDIA_KEY, TITLE_MAX, upsertItem, writeMediaCache, type MediaPayload } from "@/lib/media/media";
 import type { MediaItem, MediaItemInput } from "@/lib/media/types";
 import { layProgress } from "@/lib/media/playback";
 import { parseMediaUrl } from "@/lib/media/url";
@@ -37,6 +37,8 @@ export function useMedia(options: { enabled?: boolean } = {}) {
     queryKey: MEDIA_KEY,
     queryFn: () => fetchJson<MediaPayload>("/api/media"),
     staleTime: demo ? Infinity : 30_000,
+    // Demo's library is this cache alone: it must outlast any time spent on another page (B26).
+    ...(demo ? { gcTime: Infinity } : {}),
     enabled: options.enabled ?? true,
   });
   const hidden = useHidden((s) => s.ids);
@@ -82,9 +84,9 @@ export function useMediaApi() {
 
   const patchCache = React.useCallback(
     (fn: (p: MediaPayload) => MediaPayload) => {
-      qc.setQueryData<MediaPayload>(MEDIA_KEY, (p) => (p ? fn(p) : p));
+      writeMediaCache(qc, demo, fn);
     },
-    [qc],
+    [qc, demo],
   );
 
   /** Adds optimistically; resolves with the item the library ends up holding, or null. */

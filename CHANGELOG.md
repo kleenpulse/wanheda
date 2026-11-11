@@ -30,6 +30,7 @@ written after the fact, one per phase, and have no git tags.
 
 - Notices in the dark theme were almost see-through over pictures, such as "Added 74 videos" over the Videos tab. They now have a solid frosted background you can read anywhere.
 - Pages no longer jump sideways when the scrollbar appears or disappears, such as when you open a folder with only a few videos.
+- In demo mode, videos you added disappeared when you left Media and came back. They now stay until you reload the window or sign in.
 
 ## [0.7.2] - 2026-11-11
 
