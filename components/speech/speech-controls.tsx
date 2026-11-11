@@ -12,6 +12,7 @@ import { nextSleep, sleepLabel } from "@/lib/speech/sleep";
 import { nudgeSpeechVolume, setSpeechVolume, toggleSpeechMute, useSpeech } from "@/lib/speech/store";
 import { catalogVoice } from "@/lib/speech/voices";
 import { cn } from "@/lib/utils";
+import { Tip } from "@/components/ui/tooltip";
 
 // The speech controls shared by the island's speech card and the read-aloud
 // mini window (V49): play|pause, prev|next sentence, stop, and chips for
@@ -66,16 +67,16 @@ export function Round({ label, onClick, tone, kind = "plain", big = false, disab
   children: React.ReactNode;
 }) {
   return (
-    <button
+    <Tip
       type="button"
       aria-label={label}
-      title={label}
+      label={label}
       disabled={disabled}
       onClick={onClick}
       className={cn(ROUND, TONES[tone][kind], big ? "size-12 [&_svg]:size-5" : "size-10 [&_svg]:size-4")}
     >
       {children}
-    </button>
+    </Tip>
   );
 }
 
@@ -133,10 +134,10 @@ export function Chip({ label, onClick, tone, on = false, disabled = false, child
   children: React.ReactNode;
 }) {
   return (
-    <button
+    <Tip
       type="button"
       aria-label={label}
-      title={label}
+      label={label}
       disabled={disabled}
       onClick={onClick}
       className={cn(
@@ -145,7 +146,7 @@ export function Chip({ label, onClick, tone, on = false, disabled = false, child
       )}
     >
       {children}
-    </button>
+    </Tip>
   );
 }
 

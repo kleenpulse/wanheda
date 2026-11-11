@@ -6,6 +6,7 @@ import { LoaderCircle, Music, Pause, Play, SkipBack, SkipForward } from "lucide-
 import { glowPref, showsGlow } from "@/lib/media/glow";
 import { BARS, REST, autoGain, bandEdges, bandLevels, easeBar, newGain } from "@/lib/media/levels";
 import { volumePref } from "@/lib/media/volume";
+import { Tip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { useCoverUrl } from "./cover";
 import { useMusicLibrary } from "./music-library";
@@ -42,20 +43,24 @@ export function clock(s: number | null): string {
 
 export function RoundButton({ label, onClick, disabled = false, className, children }: { label: string; onClick: () => void; disabled?: boolean; className?: string; children: React.ReactNode }) {
   return (
-    <button
-      type="button"
-      aria-label={label}
-      title={label}
-      onClick={onClick}
-      disabled={disabled}
-      className={cn(
-        "grid size-10 shrink-0 place-items-center rounded-full bg-island-foreground/12 text-island-foreground transition-[background-color,transform] duration-150 hover:bg-island-foreground/20 active:scale-90 disabled:pointer-events-none disabled:opacity-40",
-        "outline-none focus-visible:ring-2 focus-visible:ring-island-foreground/70",
-        className,
-      )}
+    <Tip
+      label={label}
+      render={
+        <button
+          type="button"
+          aria-label={label}
+          onClick={onClick}
+          disabled={disabled}
+          className={cn(
+            "grid size-10 shrink-0 place-items-center rounded-full bg-island-foreground/12 text-island-foreground transition-[background-color,transform] duration-150 hover:bg-island-foreground/20 active:scale-90 disabled:pointer-events-none disabled:opacity-40",
+            "outline-none focus-visible:ring-2 focus-visible:ring-island-foreground/70",
+            className,
+          )}
+        />
+      }
     >
       {children}
-    </button>
+    </Tip>
   );
 }
 

@@ -8,6 +8,7 @@ import { useNow } from "@/hooks/use-now";
 import { useActivity } from "@/lib/activity/store";
 import { MINUTE, formatClock, isDone, isRunning, progress, remainingMs, type Timer } from "@/lib/activity/timer";
 import { cn } from "@/lib/utils";
+import { Tip } from "@/components/ui/tooltip";
 
 const PRESETS = [5, 15, 25, 50] as const;
 const TICK_MS = 250;
@@ -78,40 +79,40 @@ function TimerRow({ timer: t, now }: { timer: Timer; now: number }) {
       </div>
       <div className="flex shrink-0 gap-1">
         {done ? null : (
-          <button
+          <Tip
             type="button"
             aria-label={`${running ? "Pause" : "Resume"} ${t.label}`}
-            title={running ? "Pause" : "Resume"}
+            label={running ? "Pause" : "Resume"}
             onClick={() => {
               toggle(t.id);
             }}
             className={buttonClass("surface", "circle-sm", "size-8")}
           >
             {running ? <Pause aria-hidden className="size-4 fill-current" /> : <Play aria-hidden className="size-4 translate-x-px fill-current" />}
-          </button>
+          </Tip>
         )}
-        <button
+        <Tip
           type="button"
           aria-label={`Add 5 minutes to ${t.label}`}
-          title="Add 5 minutes"
+          label="Add 5 minutes"
           onClick={() => {
             add(t.id);
           }}
           className={buttonClass("surface", "circle-sm", "size-8")}
         >
           <Plus aria-hidden className="size-4" />
-        </button>
-        <button
+        </Tip>
+        <Tip
           type="button"
           aria-label={`${done ? "Dismiss" : "Cancel"} ${t.label}`}
-          title={done ? "Dismiss" : "Cancel"}
+          label={done ? "Dismiss" : "Cancel"}
           onClick={() => {
             cancel(t.id);
           }}
           className={buttonClass("ghost", "circle-sm", "size-8")}
         >
           <X aria-hidden className="size-4" />
-        </button>
+        </Tip>
       </div>
     </li>
   );

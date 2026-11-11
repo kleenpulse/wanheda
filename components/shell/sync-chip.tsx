@@ -3,6 +3,7 @@
 import { useMoneySync } from "@/components/money/money-provider";
 import { useNotesSync } from "@/components/notes/notes-provider";
 import { useAccount } from "@/components/shell/account";
+import { Tip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 /**
@@ -20,13 +21,17 @@ export function SyncChip() {
   if (account.kind !== "owner" || (online && pending === 0)) return null;
   const label = online ? `Syncing ${String(pending)}` : pending > 0 ? `Offline · ${String(pending)} waiting` : "Offline";
   return (
-    <span
-      role="status"
-      title={online ? "Changes saved on this device are being sent" : "Changes are kept on this device and sent when the connection is back"}
-      className="inline-flex h-6 shrink-0 items-center gap-1.5 rounded-pill bg-foreground/8 px-2.5 font-mono text-[10.5px] tracking-wide text-ink-2 uppercase tabular"
+    <Tip
+      label={online ? "Changes saved on this device are being sent" : "Changes are kept on this device and sent when the connection is back"}
+      render={
+        <span
+          role="status"
+          className="inline-flex h-6 shrink-0 items-center gap-1.5 rounded-pill bg-foreground/8 px-2.5 font-mono text-[10.5px] tracking-wide text-ink-2 uppercase tabular"
+        />
+      }
     >
       <span aria-hidden className={cn("size-1.5 rounded-full", online ? "bg-signal" : "bg-ink-3")} />
       {label}
-    </span>
+    </Tip>
   );
 }

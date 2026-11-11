@@ -23,6 +23,7 @@ import {
 } from "@/lib/notes/board";
 import { STICKY_MAX, STICKY_MIN, checklistProgress, displayTitle, excerpt, type BoardPlace, type Note } from "@/lib/notes/notes";
 import { cn } from "@/lib/utils";
+import { Tip } from "@/components/ui/tooltip";
 
 /*
   The notes board (FR-NOTES-2), ported from Shadow Garden's infinite-canvas.
@@ -524,21 +525,21 @@ export function NotesBoard({
       </div>
 
       <div className="glass absolute top-3 left-3 flex items-center gap-0.5 rounded-pill p-1 shadow-lift">
-        <button type="button" onClick={() => { zoomBy(1 / 1.2); }} className={buttonClass("ghost", "circle-sm", "size-8")} title="Zoom out (−)">
+        <Tip type="button" onClick={() => { zoomBy(1 / 1.2); }} className={buttonClass("ghost", "circle-sm", "size-8")} label="Zoom out (−)">
           <Minus aria-hidden />
           <span className="sr-only">Zoom out</span>
-        </button>
+        </Tip>
         <span className="readout w-11 text-center tabular" aria-live="polite">
           {zoomLabel}%
         </span>
-        <button type="button" onClick={() => { zoomBy(1.2); }} className={buttonClass("ghost", "circle-sm", "size-8")} title="Zoom in (+)">
+        <Tip type="button" onClick={() => { zoomBy(1.2); }} className={buttonClass("ghost", "circle-sm", "size-8")} label="Zoom in (+)">
           <Plus aria-hidden />
           <span className="sr-only">Zoom in</span>
-        </button>
-        <button type="button" onClick={fit} className={buttonClass("ghost", "circle-sm", "size-8")} title="Show every note (0)">
+        </Tip>
+        <Tip type="button" onClick={fit} className={buttonClass("ghost", "circle-sm", "size-8")} label="Show every note (0)">
           <Maximize aria-hidden />
           <span className="sr-only">Show every note</span>
-        </button>
+        </Tip>
       </div>
 
       <p id={hintId} className="sr-only">
@@ -617,7 +618,7 @@ const StickyNote = React.memo(function StickyNote({
                   api.update(note.id, { color });
                 }}
               />
-              <button
+              <Tip
                 type="button"
                 data-no-drag
                 aria-pressed={note.pinned}
@@ -625,11 +626,11 @@ const StickyNote = React.memo(function StickyNote({
                   api.update(note.id, { pinned: !note.pinned });
                 }}
                 className={buttonClass("ghost", "circle-sm", STICKY_BUTTON)}
-                title={note.pinned ? "Unpin" : "Pin"}
+                label={note.pinned ? "Unpin" : "Pin"}
               >
                 {note.pinned ? <PinOff aria-hidden strokeWidth={1.75} /> : <Pin aria-hidden strokeWidth={1.75} />}
                 <span className="sr-only">{note.pinned ? "Unpin" : "Pin"}</span>
-              </button>
+              </Tip>
             </span>
           </span>
         </div>

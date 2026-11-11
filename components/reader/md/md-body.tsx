@@ -3,6 +3,7 @@
 import * as React from "react";
 import ReactMarkdown, { type Components, type ExtraProps } from "react-markdown";
 import { HIGHLIGHT_MAX_CHARS, shikiLang } from "@/lib/reader/md";
+import { Tip } from "@/components/ui/tooltip";
 import { MD_REHYPE, MD_REMARK, MD_REMARK_REHYPE } from "@/lib/reader/md-pipeline";
 import { cachedHtml, highlight } from "./highlight";
 
@@ -58,7 +59,12 @@ const COMPONENTS: Components = {
       );
     }
     // A path to a file beside this one, which the reader doesn't have.
-    return <span title={typeof href === "string" ? href : undefined}>{children}</span>;
+    if (typeof href !== "string") return <span>{children}</span>;
+    return (
+      <Tip label={href} render={<span />}>
+        {children}
+      </Tip>
+    );
   },
   img({ node: _node, src, alt }) {
     if (typeof src === "string" && /^https:\/\//i.test(src)) {

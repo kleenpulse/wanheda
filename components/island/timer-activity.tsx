@@ -4,6 +4,7 @@ import type * as React from "react";
 import { Pause, Play, Plus, Timer as TimerIcon, X } from "lucide-react";
 import { useIsland, type IslandActivity } from "@/components/island/live-activity";
 import { ProgressRing as Ring } from "@/components/ui/progress-ring";
+import { Tip } from "@/components/ui/tooltip";
 import { useActivity } from "@/lib/activity/store";
 import { formatClock, isDone, isRunning, progress, remainingMs, type Timer } from "@/lib/activity/timer";
 import { cn } from "@/lib/utils";
@@ -23,21 +24,25 @@ function RoundButton({
   children: React.ReactNode;
 }) {
   return (
-    <button
-      type="button"
-      aria-label={label}
-      title={label}
-      onClick={onClick}
-      className={cn(
-        "grid size-12 shrink-0 place-items-center rounded-full transition-[background-color,transform] duration-150 active:scale-90",
-        "outline-none focus-visible:ring-2 focus-visible:ring-island-foreground/70 [&_svg]:size-5",
-        tone === "signal"
-          ? "bg-signal/20 text-signal hover:bg-signal/30"
-          : "bg-island-foreground/12 text-island-foreground hover:bg-island-foreground/20",
-      )}
+    <Tip
+      label={label}
+      render={
+        <button
+          type="button"
+          aria-label={label}
+          onClick={onClick}
+          className={cn(
+            "grid size-12 shrink-0 place-items-center rounded-full transition-[background-color,transform] duration-150 active:scale-90",
+            "outline-none focus-visible:ring-2 focus-visible:ring-island-foreground/70 [&_svg]:size-5",
+            tone === "signal"
+              ? "bg-signal/20 text-signal hover:bg-signal/30"
+              : "bg-island-foreground/12 text-island-foreground hover:bg-island-foreground/20",
+          )}
+        />
+      }
     >
       {children}
-    </button>
+    </Tip>
   );
 }
 

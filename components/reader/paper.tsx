@@ -7,6 +7,7 @@ import { Menu, MenuContent, MenuTrigger } from "@/components/ui/menu";
 import { cn } from "@/lib/utils";
 import { PAPER_TONES, type Paper, type PaperTone } from "@/lib/reader/prefs";
 import { paperPref } from "./prefs";
+import { Tip } from "@/components/ui/tooltip";
 
 // The page's paper (user 2026-11-06): the Notes sticky palette, gentler on the
 // eyes than white. Light papers lay a multiply wash over the drawn page, so its
@@ -179,14 +180,14 @@ export function PaperPicker({ paper, onPaper, labelledBy }: { paper: Paper; onPa
             const p: Paper = group === "light" ? t : `night-${t}`;
             const on = p === paper;
             return (
-              <button
+              <Tip
                 key={p}
                 id={idOf(p)}
                 type="button"
                 role="radio"
                 aria-checked={on}
                 aria-label={labelOf(p)}
-                title={labelOf(p)}
+                label={labelOf(p)}
                 tabIndex={on ? 0 : -1}
                 onClick={() => {
                   onPaper(p);
@@ -195,7 +196,7 @@ export function PaperPicker({ paper, onPaper, labelledBy }: { paper: Paper; onPa
               >
                 <Swatch paper={p} className="size-7 shadow-foreground/15" />
                 {on ? <Check aria-hidden strokeWidth={2.5} className={cn("absolute size-3.5", isNight(p) ? "text-stage-ink" : "text-stage")} /> : null}
-              </button>
+              </Tip>
             );
           })}
         </div>

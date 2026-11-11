@@ -29,6 +29,7 @@ import {
   type WallpaperPages,
 } from "@/lib/prefs/prefs";
 import { WALLPAPER_PAGE_LIST } from "@/lib/prefs/wallpaper-pages";
+import { Tip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 const SKIN_OPTIONS = SKINS.map((value) => ({ value, label: SKIN_LABELS[value] }));
@@ -143,12 +144,12 @@ function AccentControl() {
       {ACCENT_PRESETS.map((p) => {
         const on = prefs.accent === p.hex;
         return (
-          <button
+          <Tip
             key={p.hex}
             type="button"
             aria-label={p.name}
             aria-pressed={on}
-            title={p.name}
+            label={p.name}
             onClick={() => {
               update({ accent: p.hex });
             }}
@@ -157,13 +158,17 @@ function AccentControl() {
           />
         );
       })}
-      <label
-        className={cn(
-          swatchClass,
-          "cursor-pointer bg-card-nested text-ink-2 hover:text-foreground",
-          custom && "text-signal-ink ring-2 ring-foreground ring-offset-2 ring-offset-background dark:ring-foreground",
-        )}
-        title={custom ? `Custom colour ${prefs.accent ?? ""}` : "Any colour"}
+      <Tip
+        label={custom ? `Custom colour ${prefs.accent ?? ""}` : "Any colour"}
+        render={
+          <label
+            className={cn(
+              swatchClass,
+              "cursor-pointer bg-card-nested text-ink-2 hover:text-foreground",
+              custom && "text-signal-ink ring-2 ring-foreground ring-offset-2 ring-offset-background dark:ring-foreground",
+            )}
+          />
+        }
       >
         <span className="sr-only">{custom ? `Pick any colour, custom colour ${prefs.accent ?? ""} in use` : "Pick any colour"}</span>
         <Pipette aria-hidden className="size-4" />
@@ -176,7 +181,7 @@ function AccentControl() {
           }}
           className="absolute inset-0 size-full cursor-pointer opacity-0"
         />
-      </label>
+      </Tip>
     </div>
   );
 }

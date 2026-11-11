@@ -200,6 +200,7 @@ export function Tip({
   side,
   sideOffset,
   container,
+  trackCursorAxis,
   ...props
 }: Omit<TooltipPrimitive.Trigger.Props<React.ReactNode>, "handle" | "payload"> & {
   label: React.ReactNode;
@@ -207,6 +208,8 @@ export function Tip({
   sideOffset?: number;
   /** Where a lone tooltip renders, if not the body (inside a group, the group's container rules). */
   container?: HTMLElement | null | undefined;
+  /** A lone tooltip on a long trigger (a rail edge) follows the pointer along this axis. */
+  trackCursorAxis?: TooltipPrimitive.Root.Props["trackCursorAxis"];
 }) {
   const group = React.useContext(TooltipGroupContext);
   if (group) {
@@ -223,7 +226,7 @@ export function Tip({
     );
   }
   return (
-    <TooltipPrimitive.Root>
+    <TooltipPrimitive.Root {...(trackCursorAxis === undefined ? {} : { trackCursorAxis })}>
       <TooltipPrimitive.Trigger data-slot="tooltip-trigger" {...props} />
       <MorphPopup side={side} container={container} {...(sideOffset === undefined ? {} : { sideOffset })}>
         {label}

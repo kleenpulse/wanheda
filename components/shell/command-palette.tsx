@@ -97,6 +97,7 @@ import { wallpaperPageFor } from "@/lib/prefs/wallpaper-pages";
 import { TIMER_MODES } from "@/lib/activity/timer";
 import { cn } from "@/lib/utils";
 import { useWindows } from "@/lib/windows/store";
+import { Tip } from "@/components/ui/tooltip";
 
 /*
   The command palette (FR-SHELL-3): apps from the module registry, timers on
@@ -1109,11 +1110,11 @@ function PaletteFooter({ railExpanded, onToggleRail }: { railExpanded: boolean; 
           const active = current === t.choice;
           const Icon = t.icon;
           return (
-            <button
+            <Tip
               key={t.choice}
               type="button"
               aria-pressed={active}
-              title={t.title}
+              label={t.title}
               onClick={(e) => {
                 revealTheme(t.choice, setTheme, centerOf(e.currentTarget));
               }}
@@ -1134,7 +1135,7 @@ function PaletteFooter({ railExpanded, onToggleRail }: { railExpanded: boolean; 
               )}
               <Icon strokeWidth={1.75} aria-hidden />
               {t.short}
-            </button>
+            </Tip>
           );
         })}
       </div>
