@@ -15,6 +15,10 @@ written after the fact, one per phase, and have no git tags.
 
 ## [Unreleased]
 
+### Changed
+
+- In Money, the Entries title and Import button sit beside the search on wider screens, and on their own row above it on a phone.
+
 ### Fixed
 
 - Reading a note aloud now marks Notes as running in the dock, not the Reader.
