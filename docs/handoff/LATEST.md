@@ -1,8 +1,10 @@
 # Latest hand-off
 
-**Newest:** [2026-11-11-phase-8-v0.7.3.md](2026-11-11-phase-8-v0.7.3.md). **v0.7.3 released: PR #95 (T80 desktop media and the day's follow-ups) merged at `e4603a9`, release PR #96 at `1edc90d`, tag `v0.7.3` on it; installer `desktop/.out/Wanheda-0.7.3-win-x64.exe`, built from a clean clone of the tag. Open: a floating island that took no clicks in the owner's preview (not reproduced). Next: T81 (desktop release).**
+**Newest:** [2026-11-11-phase-8-desktop-hosted-adr.md](2026-11-11-phase-8-desktop-hosted-adr.md). **ADR-0016: the packaged desktop app loads the hosted Wanheda (no `.env` import, sign-in in the browser handed back by a one-time token). ADR + SPEC (T88–T91, V67/V68/V69/V75/V76 amended) on `phase-8/desktop-hosted-adr` as a docs PR. PR #100 (`desktop.yml`) merged; `v0.7.4` tagged on `52c2c3f` and pushed (CI drafts the release). Next: T88 on `phase-8/desktop-hosted`.**
 
-**Before it:** [2026-11-11-phase-8-t80-desktop-media.md](2026-11-11-phase-8-t80-desktop-media.md). T80 (bundled ffmpeg for AC3, E-AC3 and DTS) and what was built on its branch: folders in Videos, the smart field, the Up Next drum, the draggable island. Merged as PR #95.
+**Before it:** [2026-11-11-phase-8-v0.7.3.md](2026-11-11-phase-8-v0.7.3.md). v0.7.3 released (tag on `1edc90d`). Open: a floating island that took no clicks in the owner's preview (not reproduced).
+
+**Earlier:** [2026-11-11-phase-8-t80-desktop-media.md](2026-11-11-phase-8-t80-desktop-media.md). T80 (bundled ffmpeg for AC3, E-AC3 and DTS) and what was built on its branch: folders in Videos, the smart field, the Up Next drum, the draggable island. Merged as PR #95.
 
 **Earlier:** [2026-11-11-phase-8-v0.7.2.md](2026-11-11-phase-8-v0.7.2.md). v0.7.2 released (PR #93 at `7cac93b`, tag `v0.7.2` on it; installer `desktop/.out/Wanheda-0.7.2-win-x64.exe`). Still open: the owner installs 0.7.2 and tries account voices end to end.
 
@@ -21,13 +23,12 @@
 
 Read the hand-off first, then verify it against the repo before trusting it (git, tripwire, typecheck, tests).
 
-### Builder prompt (T81, after v0.7.3)
+### Builder prompt (T88: shell on the hosted origin)
 
 ```text
-You are the BUILDER for Wanheda (D:\Vxrcel\wanheda), lean mode, no worktrees. Check the branch first: the checkout is shared, and another session may be mid-release in it.
-Read docs/handoff/LATEST.md → 2026-11-11-phase-8-v0.7.3.md, and verify it (git status, tripwire, typecheck, tests).
-v0.7.3 is tagged on 1edc90d. git switch main, fetch + incoming-commit check, pull, git tidy.
-If the owner reports the floating island not taking clicks: read the island: lines in %APPDATA%\Wanheda Preview\logs\main.log first (see the hand-off's Known problems).
-Otherwise start T81 (desktop release) on phase-8/desktop-release. Read desktop/README.md, ADR-0014 and SPEC T81, V75, V76 first.
-Build installers from a clean clone of the tag, never from a shared checkout. No large downloads without asking.
+You are the BUILDER for Wanheda (D:\Vxrcel\wanheda), lean mode, no worktrees. Check the branch first: the checkout is shared.
+Read docs/handoff/LATEST.md → 2026-11-11-phase-8-desktop-hosted-adr.md, and verify it (git status, tripwire, typecheck, tests).
+The docs PR (ADR-0016 + SPEC T88–T91) is on phase-8/desktop-hosted-adr; T88 is on phase-8/desktop-hosted, stacked on it.
+Continue T88 per SPEC (V67, V68, V69, V76 amendments). Read ADR-0016, desktop/main.ts, policy.ts, bridge.ts first.
+No large downloads without asking.
 ```
