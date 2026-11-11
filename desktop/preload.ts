@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer, webUtils, type IpcRendererEvent } from "electron";
 import { CHANNELS, type Command, type DesktopChange, type DesktopNotice, type DesktopSetResult, type DesktopState, type MenuAnchor, type SecretsAction, type TitleBarColors } from "./bridge";
 import type { ListedFile, Root, RootKind } from "./files";
-import type { IslandCommand, IslandReport, IslandSnapshot } from "./island";
+import type { IslandCommand, IslandDrag, IslandReport, IslandSnapshot } from "./island";
 
 /*
  * Runs sandboxed in the top frame of the main window and the quick-capture
@@ -62,6 +62,10 @@ contextBridge.exposeInMainWorld("wanheda", {
     },
     command(command: IslandCommand): void {
       ipcRenderer.send(CHANNELS.islandCommand, command);
+    },
+    /** Island window: a drag along the top of the screen. */
+    drag(drag: IslandDrag): void {
+      ipcRenderer.send(CHANNELS.islandDrag, drag);
     },
   },
   files: {

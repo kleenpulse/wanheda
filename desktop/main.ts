@@ -13,7 +13,7 @@ import { createSpeech } from "./tts";
 import { TRANSCODE_SCHEME } from "./transcode";
 import { createTranscoder } from "./transcode-io";
 import { isVoiceId, parseSynthRequest } from "./tts-model";
-import { EMPTY_SNAPSHOT, ISLAND_PATH, ISLAND_SIZE, islandPosition, overIsland, parseIslandCommand, parseIslandReport, parseIslandSnapshot, shouldShowIsland, type IslandReport, type IslandSnapshot } from "./island";
+import { draggedIslandOffset, EMPTY_SNAPSHOT, ISLAND_DRAG_IDLE_MS, ISLAND_PATH, ISLAND_SIZE, islandPosition, overIsland, parseIslandCommand, parseIslandDrag, parseIslandReport, parseIslandSnapshot, shouldShowIsland, type IslandReport, type IslandSnapshot } from "./island";
 import { createLog } from "./log";
 import { menuKey, type MenuKey } from "./menu-keys";
 import { CALLBACK_PATHS, callbackQuery, signInFrom, type PendingSignIn, type Provider } from "./oauth";
@@ -98,6 +98,8 @@ function boot(): void {
   let islandReport: IslandReport = { content: false, rect: null };
   let islandFloating = false;
   let islandHover = false;
+  /** A drag of the island along its row: the offset it began from, and when it last moved. Null when none is under way. */
+  let islandDrag: { from: number; at: number } | null = null;
   let islandTimer: ReturnType<typeof setInterval> | null = null;
   /** Native music and video folders (V72): picked in a dialog, kept here, read through `wanheda-file:`. */
   let roots: Root[] = loadRoots(userData);
@@ -290,6 +292,32 @@ function boot(): void {
     if (!report) return;
     islandReport = report;
     updateIsland();
+  });
+  // The island window's page follows the pointer (it holds the capture) and says how far it has gone;
+  // main moves the window along the top of its display, never off it, and keeps the place.
+  ipcMain.on(CHANNELS.islandDrag, (event, payload: unknown) => {
+    if (!fromWindow(event, islandWindow)) return;
+    const drag = parseIslandDrag(payload);
+    const win = islandWindow;
+    if (!drag || !win || win.isDestroyed()) return;
+    if (drag.phase === "start") {
+      if (win.isVisible()) islandDrag = { from: settings.islandOffset, at: Date.now() };
+      return;
+    }
+    if (!islandDrag) return;
+    if (drag.phase === "end") {
+      islandDrag = null;
+      // Saved once, when the drag is over.
+      updateSettings({ islandOffset: settings.islandOffset });
+      return;
+    }
+    islandDrag.at = Date.now();
+    const { workArea } = screen.getDisplayMatching(win.getBounds());
+    const offset = draggedIslandOffset(workArea, islandDrag.from, drag.dx);
+    if (offset === settings.islandOffset) return;
+    settings = { ...settings, islandOffset: offset };
+    const at = islandPosition(workArea, offset);
+    win.setPosition(at.x, at.y);
   });
   ipcMain.on(CHANNELS.islandCommand, (event, payload: unknown) => {
     if (!fromWindow(event, islandWindow)) return;
@@ -927,7 +955,12 @@ function boot(): void {
     });
     win.webContents.on("did-navigate", () => {
       islandReport = { content: false, rect: null };
+      // The page that held the drag is gone.
+      islandDrag = null;
       updateIsland();
+    });
+    win.webContents.on("render-process-gone", () => {
+      islandDrag = null;
     });
     void win.loadURL(`${appOrigin}${ISLAND_PATH}`);
     islandWindow = win;
@@ -1017,10 +1050,15 @@ function boot(): void {
     });
     if (show && !win.isVisible()) {
       const display = main && !main.isDestroyed() ? screen.getDisplayMatching(main.getBounds()) : screen.getPrimaryDisplay();
-      const at = islandPosition(display.workArea);
+      const at = islandPosition(display.workArea, settings.islandOffset);
       win.setPosition(at.x, at.y);
       win.showInactive();
     } else if (!show && win.isVisible()) {
+      // A drag cut short (Wanheda came to the front): where it got to is kept.
+      if (islandDrag) {
+        islandDrag = null;
+        updateSettings({ islandOffset: settings.islandOffset });
+      }
       win.hide();
     }
     trackIslandCursor(show);
@@ -1046,6 +1084,9 @@ function boot(): void {
     islandTimer = setInterval(() => {
       const win = islandWindow;
       if (!win || win.isDestroyed()) return;
+      // Mid-drag the pointer can outrun the window for a frame: the island keeps the mouse while the drag moves.
+      // One that has gone quiet (its page lost the pointer) is tracked again, so the window can't sit on the app below.
+      if (islandDrag && Date.now() - islandDrag.at < ISLAND_DRAG_IDLE_MS) return;
       const [x = 0, y = 0] = win.getPosition();
       setIslandHover(overIsland(screen.getCursorScreenPoint(), { x, y }, islandReport.rect));
     }, 33);

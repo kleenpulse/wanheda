@@ -45,6 +45,8 @@ export const CHANNELS = {
   islandHover: "wanheda:island-hover",
   /** island window → main: a button (`IslandCommand`). */
   islandCommand: "wanheda:island-command",
+  /** island window → main: the owner is dragging the island along its row (`IslandDrag`). */
+  islandDrag: "wanheda:island-drag",
   /** page ⇄ main (invoke): the picked native folders (V72). */
   filesRoots: "wanheda:files-roots",
   /** page ⇄ main (invoke): pick a music or video folder in a dialog. */

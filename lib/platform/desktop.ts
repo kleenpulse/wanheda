@@ -64,6 +64,8 @@ export type WanhedaDesktop = {
     onHover(callback: (over: boolean) => void): () => void;
     report(report: { content: boolean; rect: { x: number; y: number; width: number; height: number } | null }): void;
     command(command: IslandCommand): void;
+    /** The owner is dragging the island along the top of the screen: `dx` is the pointer's distance from where the drag began (screen px). */
+    drag(drag: { phase: "start" } | { phase: "move"; dx: number } | { phase: "end" }): void;
   };
   /** Native music and video folders (V72): picked in the shell's dialog, read through `wanheda-file:` URLs. */
   files: {

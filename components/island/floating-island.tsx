@@ -21,7 +21,9 @@ import { cn } from "@/lib/utils";
  * main window as a snapshot through the shell; timers come from the shared
  * activity store, like a second tab, with their usual card. Buttons go back
  * through the shell. The window reports where the island sits, so clicks
- * pass through everywhere else.
+ * pass through everywhere else. The owner can drag it left or right along
+ * the top of the screen, out of the way of what's under it (user 2026-11-11);
+ * the shell moves the window and remembers the place.
  */
 
 const send = (command: IslandCommand) => desktopBridge()?.island.command(command);
@@ -61,12 +63,79 @@ export function FloatingIsland() {
 
   useReport(content);
 
+  const drag = useRowDrag();
+
   if (!content) return null;
   return (
-    <div className="pointer-events-none flex w-full justify-center pt-2">
+    // The island's own pointer events bubble through this box (it takes none itself).
+    <div className="pointer-events-none flex w-full justify-center pt-2" {...drag}>
       <LiveActivity activities={activities} show={ranked[0]?.item.id} showKey={ranked[0]?.startedAt} pointerInside={over} />
     </div>
   );
+}
+
+/** How far the pointer must travel before a press on the island is a drag, not a click. */
+const DRAG_SLOP_PX = 5;
+
+/**
+ * Dragging the island along its row. A press that travels sideways becomes a
+ * drag: the island keeps the pointer (capture), tells the shell how far it
+ * has gone, and the click that would follow the release is swallowed, so a
+ * drag never presses the button it began on.
+ */
+function useRowDrag() {
+  const press = React.useRef<{ pointerId: number; x: number; dragging: boolean } | null>(null);
+  const swallowClick = React.useRef(false);
+
+  const end = (pointerId: number) => {
+    const p = press.current;
+    if (!p || p.pointerId !== pointerId) return;
+    press.current = null;
+    if (!p.dragging) return;
+    swallowClick.current = true;
+    desktopBridge()?.island.drag({ phase: "end" });
+  };
+
+  return {
+    onPointerDown: (e: React.PointerEvent<HTMLDivElement>) => {
+      swallowClick.current = false;
+      if (e.button !== 0 || !e.isPrimary) return;
+      press.current = { pointerId: e.pointerId, x: e.screenX, dragging: false };
+    },
+    onPointerMove: (e: React.PointerEvent<HTMLDivElement>) => {
+      const p = press.current;
+      if (!p || p.pointerId !== e.pointerId) return;
+      // Screen px: the window moves under the pointer, the screen doesn't.
+      const dx = e.screenX - p.x;
+      if (!p.dragging) {
+        if (Math.abs(dx) < DRAG_SLOP_PX) return;
+        p.dragging = true;
+        const shape = e.target instanceof Element ? e.target.closest("[data-island-shape]") : null;
+        try {
+          (shape ?? e.currentTarget).setPointerCapture(e.pointerId);
+        } catch {
+          // No capture: the drag still follows while the pointer stays over the island.
+        }
+        desktopBridge()?.island.drag({ phase: "start" });
+      }
+      desktopBridge()?.island.drag({ phase: "move", dx });
+    },
+    onPointerUp: (e: React.PointerEvent<HTMLDivElement>) => {
+      end(e.pointerId);
+    },
+    onPointerCancel: (e: React.PointerEvent<HTMLDivElement>) => {
+      end(e.pointerId);
+    },
+    onLostPointerCapture: (e: React.PointerEvent<HTMLDivElement>) => {
+      end(e.pointerId);
+    },
+    onClickCapture: (e: React.MouseEvent<HTMLDivElement>) => {
+      if (!swallowClick.current) return;
+      swallowClick.current = false;
+      e.preventDefault();
+      e.stopPropagation();
+    },
+  };
 }
 
 /**
