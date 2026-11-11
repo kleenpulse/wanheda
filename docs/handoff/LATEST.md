@@ -1,8 +1,10 @@
 # Latest hand-off
 
-**Newest:** [2026-11-11-phase-8-t80-desktop-media.md](2026-11-11-phase-8-t80-desktop-media.md). **T80 (desktop media: bundled ffmpeg) is committed, reviewed (LGTM with nits) and open as PR #95 from `phase-8/desktop-media`. The pinned ffmpeg is in `desktop/.ffmpeg/` (fetched once, 55 MB by Range). Next: the owner tries an AC3 or DTS film in `desktop:preview` and merges; then T81 (desktop release).**
+**Newest:** [2026-11-11-phase-8-v0.7.3.md](2026-11-11-phase-8-v0.7.3.md). **v0.7.3 released: PR #95 (T80 desktop media and the day's follow-ups) merged at `e4603a9`, release PR #96 at `1edc90d`, tag `v0.7.3` on it; installer `desktop/.out/Wanheda-0.7.3-win-x64.exe`, built from a clean clone of the tag. Open: a floating island that took no clicks in the owner's preview (not reproduced). Next: T81 (desktop release).**
 
-**Before it:** [2026-11-11-phase-8-v0.7.2.md](2026-11-11-phase-8-v0.7.2.md). v0.7.2 released (PR #93 at `7cac93b`, tag `v0.7.2` on it; installer `desktop/.out/Wanheda-0.7.2-win-x64.exe`). Still open: the owner installs 0.7.2 and tries account voices end to end.
+**Before it:** [2026-11-11-phase-8-t80-desktop-media.md](2026-11-11-phase-8-t80-desktop-media.md). T80 (bundled ffmpeg for AC3, E-AC3 and DTS) and what was built on its branch: folders in Videos, the smart field, the Up Next drum, the draggable island. Merged as PR #95.
+
+**Earlier:** [2026-11-11-phase-8-v0.7.2.md](2026-11-11-phase-8-v0.7.2.md). v0.7.2 released (PR #93 at `7cac93b`, tag `v0.7.2` on it; installer `desktop/.out/Wanheda-0.7.2-win-x64.exe`). Still open: the owner installs 0.7.2 and tries account voices end to end.
 
 **Earlier:** [2026-11-11-phase-8-v0.7.1.md](2026-11-11-phase-8-v0.7.1.md). v0.7.1 released (tag on `dd4a539`, the island grey-box fix). Migrations 0013 and 0014 applied.
 
@@ -19,13 +21,13 @@
 
 Read the hand-off first, then verify it against the repo before trusting it (git, tripwire, typecheck, tests).
 
-### Builder prompt (T80: after the merge, T81)
+### Builder prompt (T81, after v0.7.3)
 
 ```text
-You are the BUILDER for Wanheda (D:\Vxrcel\wanheda), lean mode, no worktrees. Check the branch first: the checkout is shared.
-Read docs/handoff/LATEST.md → 2026-11-11-phase-8-t80-desktop-media.md, and verify it (git status, tripwire, typecheck, tests).
-T80 is PR #95 (phase-8/desktop-media). Another session's tooltip edits (components/, two "Changed" lines in CHANGELOG.md) may share the tree: never stage them.
-If PR #95 is not merged: stop and say so, unless the owner reports an ffmpeg left in Task Manager (then fix the open nits in the hand-off's Review section).
-If it is merged: git switch main, fetch + incoming-commit check, pull, git tidy, then start T81 (desktop release) on phase-8/desktop-release. Read desktop/README.md, ADR-0014 and SPEC T81, V75, V76 first.
-No large downloads without asking: ffmpeg is already in desktop/.ffmpeg/.
+You are the BUILDER for Wanheda (D:\Vxrcel\wanheda), lean mode, no worktrees. Check the branch first: the checkout is shared, and another session may be mid-release in it.
+Read docs/handoff/LATEST.md → 2026-11-11-phase-8-v0.7.3.md, and verify it (git status, tripwire, typecheck, tests).
+v0.7.3 is tagged on 1edc90d. git switch main, fetch + incoming-commit check, pull, git tidy.
+If the owner reports the floating island not taking clicks: read the island: lines in %APPDATA%\Wanheda Preview\logs\main.log first (see the hand-off's Known problems).
+Otherwise start T81 (desktop release) on phase-8/desktop-release. Read desktop/README.md, ADR-0014 and SPEC T81, V75, V76 first.
+Build installers from a clean clone of the tag, never from a shared checkout. No large downloads without asking.
 ```
