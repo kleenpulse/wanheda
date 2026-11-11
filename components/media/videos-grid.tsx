@@ -163,20 +163,19 @@ export function VideosGrid() {
             </Group>
           ) : null}
           {folders.length > 0 ? (
-            <Group title="Folders" count={folders.length}>
-              <div className={GRID}>
-                {folders.map((g) => (
-                  <FolderCard
-                    key={g.key}
-                    label={g.label}
-                    items={g.items}
-                    onOpen={() => {
-                      openFolder(g.key);
-                    }}
-                  />
-                ))}
-              </div>
-            </Group>
+            // No heading (user 2026-11-11): the tiles say what they are. The section keeps its name for screen readers.
+            <section aria-label="Folders" className={GRID}>
+              {folders.map((g) => (
+                <FolderCard
+                  key={g.key}
+                  label={g.label}
+                  items={g.items}
+                  onOpen={() => {
+                    openFolder(g.key);
+                  }}
+                />
+              ))}
+            </section>
           ) : null}
           {loose.length > 0 ? (
             // With no folders the loose videos are the whole library: "All", as before.
