@@ -15,6 +15,8 @@ written after the fact, one per phase, and have no git tags.
 
 ## [Unreleased]
 
+## [0.7.3] - 2026-11-11
+
 ### Added
 
 - The desktop app now plays videos with Dolby Digital, Dolby Digital Plus or DTS sound. It converts the sound as the video plays, without re-encoding the picture and without writing anything to disk, and seeking works as usual. On the web, such a file now tells you the desktop app can play it.
