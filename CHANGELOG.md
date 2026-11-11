@@ -15,6 +15,8 @@ written after the fact, one per phase, and have no git tags.
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-11-11
+
 ### Added
 
 - The sign-in page shows a giant WANHEDA made of particles. Point at or tab to a sign-in button and it reshapes into PASSKEY, GITHUB or GOOGLE, then settles still.
