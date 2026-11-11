@@ -108,6 +108,8 @@ export function TxnList({
   onClearFilter,
   onEdit,
   emptyHint,
+  heading,
+  actions,
 }: {
   /** Newest first. */
   txns: readonly Txn[];
@@ -119,6 +121,9 @@ export function TxnList({
   onEdit: (edit: Editing) => void;
   /** Shown when the owner has no txns at all. */
   emptyHint: React.ReactNode;
+  /** The list's title and its actions: beside the search from md up, on their own row above it below that. */
+  heading?: React.ReactNode;
+  actions?: React.ReactNode;
 }) {
   const [query, setQuery] = React.useState("");
   const deferred = React.useDeferredValue(query.trim().toLowerCase());
@@ -184,31 +189,35 @@ export function TxnList({
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <label className="relative flex min-w-0 flex-1 items-center">
-          <span className="sr-only">Search entries</span>
-          <Search aria-hidden className="pointer-events-none absolute left-3 size-4 text-ink-3" strokeWidth={1.75} />
-          <input
-            type="search"
-            value={query}
-            onChange={(e) => {
-              setQuery(e.target.value);
-            }}
-            placeholder="Search payee, category, note, amount"
-            className="h-10 w-full min-w-0 rounded-pill bg-sheet pr-3 pl-9 text-[13.5px] text-foreground ring-1 ring-border outline-none placeholder:text-ink-3 focus-visible:ring-2 focus-visible:ring-ring dark:bg-card-nested dark:ring-glass-border"
-          />
-        </label>
-        {filter ? (
-          <button
-            type="button"
-            onClick={onClearFilter}
-            className="inline-flex h-10 max-w-full items-center gap-1.5 rounded-pill bg-card-nested pr-2.5 pl-3.5 text-[13px] text-foreground ring-1 ring-border outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring dark:ring-glass-border"
-          >
-            <span className="truncate">{filter.label}</span>
-            <X aria-hidden className="size-3.5 text-ink-2" strokeWidth={2} />
-            <span className="sr-only">Clear the {filter.by} filter</span>
-          </button>
-        ) : null}
+      <div className="flex flex-wrap items-center gap-3">
+        {heading}
+        <div className="order-last flex min-w-0 basis-full flex-wrap items-center gap-2 md:order-none md:min-w-48 md:flex-1 md:basis-0">
+          <label className="relative flex min-w-0 flex-1 items-center">
+            <span className="sr-only">Search entries</span>
+            <Search aria-hidden className="pointer-events-none absolute left-3 size-4 text-ink-3" strokeWidth={1.75} />
+            <input
+              type="search"
+              value={query}
+              onChange={(e) => {
+                setQuery(e.target.value);
+              }}
+              placeholder="Search payee, category, note, amount"
+              className="h-10 w-full min-w-0 rounded-pill bg-sheet pr-3 pl-9 text-[13.5px] text-foreground ring-1 ring-border outline-none placeholder:text-ink-3 focus-visible:ring-2 focus-visible:ring-ring dark:bg-card-nested dark:ring-glass-border"
+            />
+          </label>
+          {filter ? (
+            <button
+              type="button"
+              onClick={onClearFilter}
+              className="inline-flex h-10 max-w-full items-center gap-1.5 rounded-pill bg-card-nested pr-2.5 pl-3.5 text-[13px] text-foreground ring-1 ring-border outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring dark:ring-glass-border"
+            >
+              <span className="truncate">{filter.label}</span>
+              <X aria-hidden className="size-3.5 text-ink-2" strokeWidth={2} />
+              <span className="sr-only">Clear the {filter.by} filter</span>
+            </button>
+          ) : null}
+        </div>
+        {actions ? <div className="ml-auto shrink-0 md:ml-0">{actions}</div> : null}
       </div>
 
       {shown.length === 0 ? (

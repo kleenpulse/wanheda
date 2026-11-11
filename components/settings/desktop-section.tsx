@@ -89,31 +89,38 @@ export function DesktopSection() {
         />
       </SettingsCard>
 
-      <SettingsCard title="Your keys">
-        <SettingRow
-          label={state.secrets.mode === "own" ? "Imported from your .env file" : "Demo mode"}
-          description={
-            state.secrets.mode === "own"
-              ? `${String(state.secrets.names)} ${state.secrets.names === 1 ? "setting" : "settings"}, sealed with Windows' keychain. Importing again replaces them; demo mode forgets them. Either restarts Wanheda's server.`
-              : "Sample data, with nothing imported. Import your .env file to use your own data; Wanheda takes only the settings it knows and seals them with Windows' keychain."
-          }
-          layout="wide"
-        >
-          {() => (
-            <span className="flex flex-wrap gap-2">
-              <button type="button" className={buttonClass("surface", "pill-sm")} onClick={() => void desktopBridge()?.settings.secrets("import").then(setState).catch(ignore)}>
-                {state.secrets.mode === "own" ? "Import again…" : "Import .env file…"}
-              </button>
-              {state.secrets.mode === "own" ? (
-                <button type="button" className={buttonClass("ghost", "pill-sm")} onClick={() => void desktopBridge()?.settings.secrets("demo").then(setState).catch(ignore)}>
-                  Use demo mode…
-                </button>
-              ) : null}
-            </span>
-          )}
-        </SettingRow>
-      </SettingsCard>
+      {state.secrets ? <KeysCard secrets={state.secrets} onState={setState} /> : null}
     </div>
+  );
+}
+
+/** The imported `.env` keys: only a shell running its own server (`desktop:dev`) has them (ADR-0016). */
+function KeysCard({ secrets, onState }: { secrets: NonNullable<DesktopState["secrets"]>; onState: (s: DesktopState) => void }) {
+  return (
+    <SettingsCard title="Your keys">
+      <SettingRow
+        label={secrets.mode === "own" ? "Imported from your .env file" : "Demo mode"}
+        description={
+          secrets.mode === "own"
+            ? `${String(secrets.names)} ${secrets.names === 1 ? "setting" : "settings"}, sealed with Windows' keychain. Importing again replaces them; demo mode forgets them. Either restarts Wanheda's server.`
+            : "Sample data, with nothing imported. Import your .env file to use your own data; Wanheda takes only the settings it knows and seals them with Windows' keychain."
+        }
+        layout="wide"
+      >
+        {() => (
+          <span className="flex flex-wrap gap-2">
+            <button type="button" className={buttonClass("surface", "pill-sm")} onClick={() => void desktopBridge()?.settings.secrets("import").then(onState).catch(ignore)}>
+              {secrets.mode === "own" ? "Import again…" : "Import .env file…"}
+            </button>
+            {secrets.mode === "own" ? (
+              <button type="button" className={buttonClass("ghost", "pill-sm")} onClick={() => void desktopBridge()?.settings.secrets("demo").then(onState).catch(ignore)}>
+                Use demo mode…
+              </button>
+            ) : null}
+          </span>
+        )}
+      </SettingRow>
+    </SettingsCard>
   );
 }
 

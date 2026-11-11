@@ -112,3 +112,23 @@ describe("permissionAllowed", () => {
     expect(permissionAllowed("fullscreen", `${app}/`, `${app}/`, null)).toBe(false);
   });
 });
+
+describe("the hosted app (ADR-0016)", () => {
+  const hosted = "https://wanheda-chi.vercel.app";
+
+  test("its pages and blobs stay in the app; its http twin and other hosts don't", () => {
+    expect(classifyUrl(`${hosted}/money`, hosted)).toEqual({ kind: "app" });
+    expect(classifyUrl(`blob:${hosted}/0b5c`, hosted)).toEqual({ kind: "app" });
+    expect(classifyUrl("http://wanheda-chi.vercel.app/money", hosted).kind).toBe("external");
+    expect(classifyUrl("https://wanheda-chi.vercel.app.evil.test/", hosted).kind).toBe("external");
+    expect(classifyUrl("https://evil-wanheda-chi.vercel.app/", hosted).kind).toBe("external");
+  });
+
+  test("navigation, permissions and the auth window treat it as the app", () => {
+    expect(navigationStep({ url: `${hosted}/notes`, isMainFrame: true, isAuth: false }, hosted)).toEqual({ kind: "allow" });
+    expect(navigationStep({ url: `blob:${hosted}/1`, isMainFrame: true, isAuth: false }, hosted)).toEqual({ kind: "block" });
+    expect(permissionAllowed("fileSystem", `${hosted}/music`, `${hosted}/music`, hosted)).toBe(true);
+    expect(permissionAllowed("fileSystem", "https://evil.test/", `${hosted}/music`, hosted)).toBe(false);
+    expect(classifyAuthUrl(`${hosted}/api/auth/callback/github?code=x`, hosted)).toEqual({ kind: "app", url: `${hosted}/api/auth/callback/github?code=x` });
+  });
+});

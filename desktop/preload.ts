@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils, type IpcRendererEvent } from "electron";
-import { CHANNELS, type Command, type DesktopChange, type DesktopNotice, type DesktopSetResult, type DesktopState, type MenuAnchor, type SecretsAction, type TitleBarColors } from "./bridge";
+import { BRIDGE_VERSION, CHANNELS, type Command, type DesktopChange, type DesktopNotice, type DesktopSetResult, type DesktopState, type MenuAnchor, type SecretsAction, type TitleBarColors } from "./bridge";
 import type { ListedFile, Root, RootKind } from "./files";
 import type { IslandCommand, IslandDrag, IslandReport, IslandSnapshot } from "./island";
 
@@ -29,6 +29,7 @@ const isBoolean = (value: unknown): value is boolean => typeof value === "boolea
 
 contextBridge.exposeInMainWorld("wanheda", {
   desktop: true,
+  version: BRIDGE_VERSION,
   onOpen: (callback: (path: string) => void) => subscribe(CHANNELS.open, isString, callback),
   onCommand: (callback: (command: Command) => void) => subscribe(CHANNELS.command, isCommand, callback),
   notify(notice: DesktopNotice): void {

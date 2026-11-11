@@ -1,6 +1,16 @@
 # Wanheda desktop
 
-The Windows desktop app: an Electron shell around the same Next.js server the web app runs. It is ported from Raven's `desktop/` without mail and PGlite. The decisions behind it are in [ADR-0014](../docs/adr/0014-desktop-build-and-runtime.md) and SPEC V67–V76. The version comes from the root `package.json`.
+The Windows desktop app: an Electron shell around the hosted Wanheda (`https://wanheda-chi.vercel.app`), with native features the web can't have. It is ported from Raven's `desktop/` without mail and PGlite. The decisions behind it are in [ADR-0014](../docs/adr/0014-desktop-build-and-runtime.md), [ADR-0016](../docs/adr/0016-desktop-loads-hosted-app.md) and SPEC V67–V76. The version comes from the root `package.json`.
+
+## The hosted app (ADR-0016)
+
+- `desktop:preview` and the installed app load the address baked into `main.js` when it is bundled: `WANHEDA_APP_URL`, or production when it's unset. It must be a bare `https:` origin (`desktop/origin.ts`); the bundle step and main both refuse anything else. Point a preview at a Vercel preview deployment with `WANHEDA_APP_URL=https://<deployment> bun desktop/scripts/dev.ts --preview`.
+- They start no server, ask for no `.env` file and keep no keys: the only secret on the device is the session cookie. The File menu's key items and Settings → Desktop's "Your keys" are gone there (`state.secrets` is null).
+- If the app's page can't load (offline, the deployment down), main shows its own "Can't reach Wanheda" page, with Retry.
+- The page updates with every deploy and the shell only with the installer, so the bridge has a `version` (`BRIDGE_VERSION` in `bridge.ts`). A page that uses something newer checks it, or the member it needs, first.
+- Until T89's browser handoff, GitHub sign-in uses the in-app auth window, as dev does. Google sign-in needs T89.
+- Data kept per origin (voices in OPFS, the outbox, localStorage) starts fresh once, on the move from `http://localhost:<port>`.
+- `desktop:dev` is unchanged: `next dev` on localhost, with the `.env` import. The local-server sections below describe it. T90 removes the server from staging and the installer.
 
 ## Scripts (run from the repo root)
 
@@ -26,7 +36,7 @@ Terminals inside VS Code carry `ELECTRON_RUN_AS_NODE`. The scripts drop it, but 
 - Every Bun bundle goes into an ignored folder (`.dev`, `.stage`, `.out`), so no `.js` file is ever tracked (V1).
 - **Title bar (V67), like VS Code's.** The main window has no Windows title bar (`titleBarStyle: "hidden"`); Windows draws only its caption buttons (`titleBarOverlay`, 32 px). The page draws the rest (`components/shell/title-bar.tsx`): a drag strip with a ☰ button that opens the app menu, the mark and the name. It sends its colours to main whenever the skin changes, so the buttons match. CSS gets the bar's height from `env(titlebar-area-height)` as `--tb` (0 on the web and in every other window), and anything sized to the window uses `--app-h` instead of `100svh`. Without a menu bar Electron doesn't run the menu's accelerators, so main handles the View menu's keys itself (`menu-keys.ts`).
 
-## The local server
+## The local server (`desktop:dev`; preview and the installer until T90)
 
 - It listens on `127.0.0.1` only. The window loads it as `http://localhost:<port>`, because WebAuthn refuses an IP address as a passkey site (ADR-0014).
 - Every request must name it exactly (`Host: localhost:<port>`, and not `127.0.0.1:<port>`). It must also carry a token that's new on each launch. Main adds the token to the app's own requests (`session.webRequest`), and page script never sees it (V68).

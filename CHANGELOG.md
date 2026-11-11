@@ -15,6 +15,15 @@ written after the fact, one per phase, and have no git tags.
 
 ## [Unreleased]
 
+### Changed
+
+- The desktop app now opens your Wanheda account from the web: no .env file to import, and new web features reach it without a new installer. If it can't reach Wanheda, it says so and offers Retry.
+- In Money, the Entries title and Import button sit beside the search on wider screens, and on their own row above it on a phone.
+
+### Fixed
+
+- Reading a note aloud now marks Notes as running in the dock, not the Reader.
+
 ## [0.7.4] - 2026-11-11
 
 ### Changed

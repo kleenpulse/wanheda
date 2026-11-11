@@ -1,7 +1,7 @@
 import { House, Music, Timer } from "lucide-react";
 import { describe, expect, it } from "vitest";
 import { MODULES, TOOLS, type ModuleManifest, type ToolManifest, type WindowId } from "@/lib/modules";
-import { dockEntries, type DockState } from "./dock";
+import { appForHref, dockEntries, type DockState } from "./dock";
 
 const IDLE: DockState = { live: new Set(), open: new Set() };
 
@@ -44,6 +44,25 @@ describe("dockEntries", () => {
   it("drops a tool with no known window", () => {
     const orphan: ToolManifest = { id: "x", title: "X", icon: Timer, blurb: "", pinned: true };
     expect(dockEntries([], [orphan], IDLE).tools).toEqual([]);
+  });
+
+  it("gives a live activity to its owner, not to every entry that declares it", () => {
+    const live = new Set(["speech"] as const);
+    const ids = (owner?: string) =>
+      dockEntries(MODULES, TOOLS, { live, open: new Set(), ...(owner ? { owner: new Map([["speech", owner]]) } : {}) })
+        .apps.filter((a) => a.running)
+        .map((a) => a.id);
+    expect(ids("notes")).toEqual(["notes"]);
+    expect(ids("reader")).toEqual(["reader"]);
+    // No known owner (a voice sample has no link): the declaring app.
+    expect(ids()).toEqual(["reader"]);
+  });
+
+  it("finds the app a link opens", () => {
+    expect(appForHref(MODULES, "/notes?n=abc")).toBe("notes");
+    expect(appForHref(MODULES, "/reader?d=x")).toBe("reader");
+    expect(appForHref(MODULES, undefined)).toBeNull();
+    expect(appForHref(MODULES, "/nowhere")).toBeNull();
   });
 
   it("pins Home and the timer in the real registry", () => {

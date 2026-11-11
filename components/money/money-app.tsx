@@ -228,16 +228,18 @@ function EntriesView({ scope }: { scope: Scope }) {
   return (
     <div className="grid grid-cols-1 items-start gap-6 @4xl:grid-cols-[minmax(0,1fr)_minmax(320px,400px)]">
       <section aria-labelledby="money-entries" className="flex min-w-0 flex-col gap-3">
-        <div className="flex items-center justify-between gap-3">
-          <h2 id="money-entries" className="font-display text-[17px] leading-tight text-foreground">
-            Entries · {periodTitle(period, today)}
-          </h2>
-          <Link href="/money/import" className={buttonClass("surface", "pill-sm", "shrink-0")}>
-            <Upload aria-hidden />
-            Import
-          </Link>
-        </div>
         <TxnList
+          heading={
+            <h2 id="money-entries" className="font-display text-[17px] leading-tight text-foreground">
+              Entries · {periodTitle(period, today)}
+            </h2>
+          }
+          actions={
+            <Link href="/money/import" className={buttonClass("surface", "pill-sm", "shrink-0")}>
+              <Upload aria-hidden />
+              Import
+            </Link>
+          }
           txns={periodTxns}
           today={today}
           categories={categories}

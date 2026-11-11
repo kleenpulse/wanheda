@@ -1,6 +1,7 @@
 /*
  * Where a URL may go when a page opens a window or navigates (SPEC V67).
- * Pages from the local server (and blob: URLs they made) stay in the app;
+ * Pages from the app's origin (the hosted app, or `next dev` in dev; ADR-0016)
+ * and blob: URLs they made stay in the app;
  * http(s) links go to the system browser; everything else is dropped.
  *
  * GitHub and Google sign-in are the one exception (V68): main opens the
@@ -19,6 +20,8 @@ export type Destination =
   | { kind: "deny" };
 
 const EXTERNAL = new Set(["http:", "https:"]);
+/** The app's own pages: the hosted app (https) or `next dev` (http), and blobs they made. */
+const APP_PAGE = new Set(["http:", "https:", "blob:"]);
 
 function parse(raw: string): URL | null {
   try {
@@ -32,7 +35,7 @@ export function classifyUrl(raw: string, appOrigin: string | null): Destination 
   const url = parse(raw);
   if (!url) return { kind: "deny" };
   // For blob: URLs, `origin` is the origin that made them.
-  if (appOrigin && url.origin === appOrigin && (url.protocol === "http:" || url.protocol === "blob:")) return { kind: "app" };
+  if (appOrigin && url.origin === appOrigin && APP_PAGE.has(url.protocol)) return { kind: "app" };
   const provider = authorizeProvider(url);
   if (provider) return { kind: "oauth-sign-in", provider, url: url.href };
   if (url.protocol === "blob:") return { kind: "deny" };
@@ -49,7 +52,7 @@ export type AuthStep = { kind: "github" } | { kind: "app"; url: string } | { kin
 export function classifyAuthUrl(raw: string, appOrigin: string | null): AuthStep {
   const url = parse(raw);
   if (!url || url.username || url.password) return { kind: "deny" };
-  if (appOrigin && url.origin === appOrigin && url.protocol === "http:") return { kind: "app", url: url.href };
+  if (appOrigin && url.origin === appOrigin && EXTERNAL.has(url.protocol)) return { kind: "app", url: url.href };
   if (url.protocol === "https:" && url.host === "github.com" && GITHUB_SIGN_IN.test(url.pathname)) return { kind: "github" };
   // "Forgot password?", "Create an account" and the like: the system browser.
   if (EXTERNAL.has(url.protocol)) return { kind: "external", url: url.href };

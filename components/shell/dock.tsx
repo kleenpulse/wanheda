@@ -13,7 +13,7 @@ import { useActivity } from "@/lib/activity/store";
 import { useSpeech } from "@/lib/speech/store";
 import { MODULES, TOOLS, isActive, type ActivityKind } from "@/lib/modules";
 import { DOCK_SPRING } from "@/lib/motion";
-import { dockEntries, type DockEntry } from "@/lib/shell/dock";
+import { appForHref, dockEntries, type DockEntry } from "@/lib/shell/dock";
 import { AppIcon } from "@/components/shell/app-icon";
 import { cn } from "@/lib/utils";
 import { useWindows } from "@/lib/windows/store";
@@ -48,6 +48,8 @@ export function Dock() {
   const pathname = usePathname();
   const hasTimers = useActivity((s) => s.timers.length > 0);
   const speaking = useSpeech((s) => s.status !== "idle");
+  // The app the speech came from (a note is Notes'), so the dot lands on it and not always on the Reader.
+  const speechApp = useSpeech((s) => (s.status === "idle" ? null : appForHref(MODULES, s.source?.href)));
   const music = useMusicPlayer((s) => s.status !== "idle");
   const open = useWindows((s) => s.open);
   const openWindow = useWindows((s) => s.openWindow);
@@ -59,8 +61,9 @@ export function Dock() {
   // Timers from the bus, speech from the speech store, music from the player.
   const { apps, tools } = React.useMemo(() => {
     const live = new Set<ActivityKind>([...(hasTimers ? (["timer"] as const) : []), ...(speaking ? (["speech"] as const) : []), ...(music ? (["media"] as const) : [])]);
-    return dockEntries(MODULES, TOOLS, { live, open: new Set(open) });
-  }, [hasTimers, speaking, music, open]);
+    const owner = new Map<ActivityKind, string>(speechApp ? [["speech", speechApp]] : []);
+    return dockEntries(MODULES, TOOLS, { live, open: new Set(open), owner });
+  }, [hasTimers, speaking, speechApp, music, open]);
 
   return (
     <nav
@@ -86,10 +89,10 @@ export function Dock() {
             cursor={cursor}
             reduced={reduced}
             current={current}
-            // Already in the Reader while it reads aloud: the click brings the read-aloud window up
-            // (it fades in, or comes to the front) instead of leaving the open document for the library.
+            // Already in the app that is reading aloud: the click brings the read-aloud window up
+            // (it fades in, or comes to the front) instead of leaving the open document or note.
             intercept={
-              current && e.id === "reader" && speaking
+              current && speaking && e.id === (speechApp ?? "reader")
                 ? () => {
                     openWindow("reader.speech");
                   }

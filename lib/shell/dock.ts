@@ -1,6 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import type { Route } from "next";
-import { isWindowId, type ActivityKind, type ModuleManifest, type ToolManifest, type WindowId } from "@/lib/modules";
+import { isActive, isWindowId, type ActivityKind, type ModuleManifest, type ToolManifest, type WindowId } from "@/lib/modules";
 
 // The dock's rules (FR-SHELL-4), pure so they can be tested. An entry shows
 // when it is pinned or running; running means one of its activity kinds is
@@ -19,11 +19,26 @@ export interface DockEntry {
 export interface DockState {
   live: ReadonlySet<ActivityKind>;
   open: ReadonlySet<WindowId>;
+  /**
+   * The one entry a live activity belongs to, by id, when it is known: a note read aloud is Notes
+   * running, not the Reader. A kind without an owner falls back to every entry that declares it.
+   */
+  owner?: ReadonlyMap<ActivityKind, string>;
+}
+
+/** The app an in-app link opens: the one whose route leads its path. Null for no link, or one outside every app. */
+export function appForHref(apps: readonly ModuleManifest[], href: string | undefined): string | null {
+  const path = href?.split(/[?#]/)[0];
+  if (!path) return null;
+  return apps.find((m) => isActive(path, m.route))?.id ?? null;
 }
 
 function isRunning(m: ToolManifest, state: DockState): boolean {
+  const live = (k: ActivityKind) => state.live.has(k);
+  const owned = [...(state.owner ?? [])].some(([k, id]) => id === m.id && live(k));
   return (
-    (m.activities ?? []).some((k) => state.live.has(k)) ||
+    owned ||
+    (m.activities ?? []).some((k) => live(k) && !state.owner?.has(k)) ||
     (m.windows ?? []).some((w) => isWindowId(w.id) && state.open.has(w.id))
   );
 }
