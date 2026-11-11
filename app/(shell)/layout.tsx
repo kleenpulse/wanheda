@@ -67,6 +67,8 @@ async function OwnerShell({ children }: { children: React.ReactNode }) {
 function ShellFallback() {
   return (
     <div
+      // data-shell: the document keeps its scrollbar's room under the shell (globals.css), fallback included.
+      data-shell
       className="relative flex min-h-(--app-h) w-full shrink-0 [--rail-w:0px] md:[--rail-w:84px] md:[html[data-rail=open]_&]:[--rail-w:232px]"
       aria-busy
     >

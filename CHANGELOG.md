@@ -24,6 +24,11 @@ written after the fact, one per phase, and have no git tags.
 - Videos you add from a folder now stay in that folder. The Videos tab shows your folders as tiles; open one to see its videos, with episodes in order, and go back to all folders with one click. Before, every video was mixed into one long list.
 - Adding a folder of videos no longer starts playing one of them. It just adds them.
 
+### Fixed
+
+- Notices in the dark theme were almost see-through over pictures, such as "Added 74 videos" over the Videos tab. They now have a solid frosted background you can read anywhere.
+- Pages no longer jump sideways when the scrollbar appears or disappears, such as when you open a folder with only a few videos.
+
 ## [0.7.2] - 2026-11-11
 
 ### Added

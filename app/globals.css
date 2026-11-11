@@ -687,6 +687,15 @@
 		--tb: env(titlebar-area-height, 0px);
 		--app-h: calc(100svh - var(--tb));
 	}
+	/* The main app scrolls on the document. The scrollbar's room is always kept
+	   there, so a page that grows or shrinks past the window's height (a folder
+	   opened, a list loading) never moves sideways. Only under the shell
+	   (`data-shell`): the mini windows and the sign-in pages never scroll and
+	   would just lose the strip. */
+	html:has([data-shell]) { scrollbar-gutter: stable; }
+	/* Radix's scroll lock (the command palette) insets the body by the
+	   scrollbar's width when it hides the bar; the gutter already holds that room. */
+	html:has([data-shell]) body[data-scroll-locked] { margin-right: 0 !important; }
 	::selection { background: color-mix(in oklab, var(--signal) 30%, transparent); }
 	:focus-visible { outline-offset: 2px; }
 	/* Everything you can press shows the hand. Zero specificity, so a cursor-* utility still wins. */

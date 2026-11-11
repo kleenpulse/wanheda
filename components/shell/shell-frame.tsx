@@ -134,6 +134,8 @@ export function ShellFrame({
         // shrink-0: body is a flex column and min-h-(--app-h) replaces min-height:auto,
         // so without it the frame shrinks to the viewport and the sticky rail
         // scrolls away on any page taller than the screen.
+        // data-shell: the document keeps its scrollbar's room under the shell (globals.css).
+        data-shell
         className="relative flex min-h-(--app-h) w-full shrink-0 [--rail-w:0px] md:[--rail-w:var(--rail-w-md)]"
         style={{ ["--rail-w-md" as string]: `${railW}px` }}
       >

@@ -43,7 +43,12 @@ The desktop app can now play a video whose sound Chrome can't decode (AC3, E-AC3
 
 ## Also on this branch (after the review)
 
-- Videos tab: the library is shown as one shelf per folder the videos were added from (the owner reported imports losing their folders). `folderGroups`, `folderLabel` and `pageGroups` in `lib/media/episodes.ts`, used by `components/media/videos-grid.tsx`. Reviewer: FIX, then LGTM. Not seen on screen by the Builder (no browser tool this session).
+- Videos tab (`7ad9f1d`, then `380d98a`): the library is shown as the folders its videos were added from. A folder tile opens in place (`?folder=`), the player's Back lands in that folder, loose videos sit after the folders. `folderGroups` and `folderLabel` in `lib/media/episodes.ts`; `FolderCard` in `components/media/media-cards.tsx`; `components/media/videos-grid.tsx`, `watch-nav.ts`. Folders are flat (one tile per folder that holds videos), newest add first: the Builder's choice, not yet confirmed by the owner.
+- Adding a folder no longer opens its first video (`components/media/add-bar.tsx`). A picked file, a pasted link and a dropped file still open what was added; the owner was told and may want those quiet too.
+- Dark toasts were see-through over pictures (`dark:bg-card-nested`, white at 4.5%): they now use the menus' glass fill and blur (`components/ui/toaster.tsx`).
+- The page no longer shifts when the scrollbar comes and goes: `scrollbar-gutter: stable` on the document under `[data-shell]` (ShellFrame and ShellFallback), and Radix's scroll-lock margin is cancelled there (`app/globals.css`).
+- Reviewer: LGTM (with nits) on each. Open nits: "All folders" replaces the URL while opening pushed it (one dead Back press); focus isn't moved when a folder opens or closes; with the page scroll-locked a `fixed inset-0` scrim stops 6 px short of the window's right edge (needs eyes: the command palette, the player's theatre mode).
+- None of this was seen on screen by the Builder (no browser tool this session).
 - A test clip for T80 is at `D:UsersskyepVideos	80-test-eac3.mkv` (3 min, HEVC 10-bit video, E-AC3 sound only). The owner's Videos folder has no AC3 or DTS file; its 13 E-AC3 episodes default to an AAC track, so they never convert.
 
 ## In progress / not finished
