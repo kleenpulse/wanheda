@@ -108,55 +108,50 @@ export function AddBar({ onAdded }: { /** One file or link was added (never a fo
           void addVideos(files[0]?.webkitRelativePath.split("/")[0] ?? "the folder", () => Promise.resolve(videosInFiles(files)));
         }}
       />
-      <form
-        className="flex items-center gap-2"
-        onSubmit={(e) => {
-          e.preventDefault();
-          setError(null);
-          void api.addLink(link).then((r) => {
-            if ("error" in r) setError(r.error);
-            else {
-              setLink("");
-              onAdded(r);
-            }
-          });
-        }}
-      >
-        <label className="sr-only" htmlFor="media-link">
-          Link to play
-        </label>
-        <input
-          id="media-link"
-          value={link}
-          onChange={(e) => {
-            setLink(e.currentTarget.value);
-            setError(null);
-          }}
-          inputMode="url"
-          autoComplete="off"
-          spellCheck={false}
-          placeholder="Paste a YouTube, Vimeo, SoundCloud, Spotify or video link"
-          aria-invalid={error ? true : undefined}
-          aria-describedby={error ? "media-link-error" : undefined}
-          className="h-10 min-w-0 flex-1 rounded-pill bg-foreground/6 px-4 text-sm text-foreground outline-none placeholder:text-ink-3 focus-visible:ring-2 focus-visible:ring-ring dark:bg-card-nested"
-        />
-        <button type="submit" disabled={!link.trim()} className={buttonClass("inverse", "circle-sm")} aria-label="Add link">
-          <Plus aria-hidden />
-        </button>
-      </form>
-      {error ? (
-        <p id="media-link-error" role="alert" className="flex items-center gap-1.5 px-1 text-[13px] text-signal-ink">
-          <TriangleAlert aria-hidden className="size-3.5 shrink-0" />
-          {error}
-        </p>
-      ) : null}
+      {/* One row (user 2026-11-11): the link and its +, then Open a file and Open a folder. Narrow (beside the player), the two wrap under the field. */}
       <div className="flex flex-wrap items-center gap-2">
+        <form
+          className="flex min-w-[min(100%,22rem)] flex-1 items-center gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            setError(null);
+            void api.addLink(link).then((r) => {
+              if ("error" in r) setError(r.error);
+              else {
+                setLink("");
+                onAdded(r);
+              }
+            });
+          }}
+        >
+          <label className="sr-only" htmlFor="media-link">
+            Link to play
+          </label>
+          <input
+            id="media-link"
+            value={link}
+            onChange={(e) => {
+              setLink(e.currentTarget.value);
+              setError(null);
+            }}
+            inputMode="url"
+            autoComplete="off"
+            spellCheck={false}
+            placeholder="Paste a YouTube, Vimeo, SoundCloud, Spotify or video link"
+            aria-invalid={error ? true : undefined}
+            aria-describedby={error ? "media-link-error" : undefined}
+            className="h-10 min-w-0 flex-1 rounded-pill bg-foreground/6 px-4 text-sm text-foreground outline-none placeholder:text-ink-3 focus-visible:ring-2 focus-visible:ring-ring dark:bg-card-nested"
+          />
+          <button type="submit" disabled={!link.trim()} className={buttonClass("inverse", "circle-sm")} aria-label="Add link">
+            <Plus aria-hidden />
+          </button>
+        </form>
         <button
           type="button"
           onClick={pick.open}
           onPointerEnter={preloadSurface}
           disabled={busy || adding !== null}
-          className={buttonClass("ghost", "pill-sm", "bg-foreground/6 text-foreground dark:bg-card-nested")}
+          className={buttonClass("ghost", "pill-sm", "shrink-0 bg-foreground/6 text-foreground dark:bg-card-nested")}
         >
           <FileVideo aria-hidden />
           {busy ? "Reading…" : "Open a file"}
@@ -167,7 +162,7 @@ export function AddBar({ onAdded }: { /** One file or link was added (never a fo
           onPointerEnter={preloadSurface}
           disabled={busy || adding !== null}
           aria-live="polite"
-          className={buttonClass("ghost", "pill-sm", "bg-foreground/6 text-foreground dark:bg-card-nested")}
+          className={buttonClass("ghost", "pill-sm", "shrink-0 bg-foreground/6 text-foreground dark:bg-card-nested")}
         >
           <FolderOpen aria-hidden />
           {adding?.of === null ? (
@@ -181,6 +176,12 @@ export function AddBar({ onAdded }: { /** One file or link was added (never a fo
           )}
         </button>
       </div>
+      {error ? (
+        <p id="media-link-error" role="alert" className="flex items-center gap-1.5 px-1 text-[13px] text-signal-ink">
+          <TriangleAlert aria-hidden className="size-3.5 shrink-0" />
+          {error}
+        </p>
+      ) : null}
     </div>
   );
 }

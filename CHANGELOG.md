@@ -23,6 +23,7 @@ written after the fact, one per phase, and have no git tags.
 
 - Videos you add from a folder now stay in that folder. The Videos tab shows your folders as tiles; open one to see its videos, with episodes in order, and go back to all folders with one click. Before, every video was mixed into one long list.
 - Adding a folder of videos no longer starts playing one of them. It just adds them.
+- In Media, Open a file and Open a folder now sit on the same line as the link box, right after its + button.
 
 ### Fixed
 
