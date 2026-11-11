@@ -1041,6 +1041,51 @@ html[data-transparency="reduce"] [data-wallpaper-cover="page"] [data-sheet] {
 		animation: none !important;
 	}
 }
+/* The up-next rail in full screen (components/media/up-next-rail.tsx): a drum.
+   Each card's own view timeline turns it as it crosses the rail: facing you
+   at the middle, tilted back, smaller and dimmer toward the top and bottom.
+   Unlayered, so `scale: 1` beats the flat stack's utilities: the wheel sizes
+   the cards here. The room above the first card and below the last lets each
+   come round to the middle, where the wheel rests (snap). Not with reduced
+   motion, and not where view timelines are missing (a time-based run would
+   park every card at the last keyframe): there the rail is the flat stack,
+   with no spacers and no snap. */
+@keyframes rail-drum {
+	0% {
+		transform: perspective(52rem) rotateX(-42deg) scale(0.78);
+		opacity: 0.3;
+	}
+	44%,
+	56% {
+		transform: perspective(52rem) rotateX(0deg) scale(1);
+		opacity: 1;
+	}
+	100% {
+		transform: perspective(52rem) rotateX(42deg) scale(0.78);
+		opacity: 0.3;
+	}
+}
+@supports (animation-timeline: view()) {
+	@media (prefers-reduced-motion: no-preference) {
+		html:not([data-motion="reduce"]) .rail-drum {
+			scroll-snap-type: y proximity;
+		}
+		html:not([data-motion="reduce"]) .rail-drum::before,
+		html:not([data-motion="reduce"]) .rail-drum::after {
+			content: "";
+			flex: none;
+			height: 36%;
+		}
+		html:not([data-motion="reduce"]) .rail-drum > [data-rail-card] {
+			scroll-snap-align: center;
+			scale: 1;
+			animation: rail-drum linear both;
+			animation-timeline: view(block);
+			animation-range: cover 0% cover 100%;
+		}
+	}
+}
+
 /* Same clamp, chosen in-app instead of by the OS. */
 html[data-motion="reduce"] :is(*, *::before, *::after) {
 	animation-duration: 1ms !important;

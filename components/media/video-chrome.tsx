@@ -892,6 +892,7 @@ function VideoChrome({
               items={items}
               current={item}
               liveS={snap.second}
+              drum={full}
               container={root}
               onMenu={onMenu}
               onPick={(to) => {
