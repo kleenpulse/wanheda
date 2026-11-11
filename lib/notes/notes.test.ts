@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   CLOCK_SKEW_MS,
   checklistProgress,
+  noteMarkdown,
   clampEditedAt,
   displayTitle,
   draftNote,
@@ -253,5 +254,15 @@ describe("sortNotes", () => {
       note({ id: "new", editedAt: 2 }),
     ]);
     expect(sorted.map((n) => n.id)).toEqual(["pin", "new", "old"]);
+  });
+});
+
+describe("noteMarkdown", () => {
+  it("puts the title over the body as a heading", () => {
+    expect(noteMarkdown({ title: "  Plan ", bodyMd: "- [ ] one" })).toBe("# Plan\n\n- [ ] one");
+  });
+
+  it("is the body alone when there is no title", () => {
+    expect(noteMarkdown({ title: "   ", bodyMd: "@Vxrcel\n\nText" })).toBe("@Vxrcel\n\nText");
   });
 });

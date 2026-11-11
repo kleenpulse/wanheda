@@ -15,6 +15,11 @@ written after the fact, one per phase, and have no git tags.
 
 ## [Unreleased]
 
+### Added
+
+- A copy button at the top right of every note copies the whole note as Markdown, its title as a heading over the text. The icon turns into a check for a moment so you know it worked.
+- Your read-aloud voices follow you. Download a voice on one device and, the next time you open Wanheda somewhere it isn't yet (the Windows app, another browser), it asks whether to get it there too, with its size, so nothing downloads without your say. Choose Not now and it stays quiet until there's another voice to get. Settings → Voices shows the same offer.
+
 ## [0.7.1] - 2026-11-11
 
 ### Added

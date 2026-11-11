@@ -23,6 +23,7 @@ import { NavRail } from "@/components/shell/nav-rail";
 import { useRailLock } from "@/components/shell/rail-lock";
 import { AnchoredNotes, anchoredNote, notePoint } from "@/components/ui/anchored-note";
 import { Toaster } from "@/components/ui/toaster";
+import { VoiceOffer } from "@/components/speech/voice-offer";
 import { WindowLayer } from "@/components/windows/window-layer";
 import type { Notice } from "@/lib/notifications/notifications";
 import type { Prefs } from "@/lib/prefs/prefs";
@@ -144,6 +145,7 @@ export function ShellFrame({
         <Dock />
         <Island />
         <SpeechMediaSession />
+        <VoiceOffer />
         <CommandPalette railExpanded={shown} onToggleRail={toggle} />
         <NotificationCentre />
         <Toaster />

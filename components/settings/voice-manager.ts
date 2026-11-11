@@ -1,6 +1,7 @@
 "use client";
 
 import { create } from "zustand";
+import { voiceAdded, voiceRemoved } from "@/components/settings/account-voices";
 import { dismissToast, toast } from "@/components/ui/toaster";
 import { piper } from "@/lib/speech/piper";
 import { nativePiper } from "@/lib/speech/piper-native";
@@ -124,6 +125,7 @@ export const useVoiceManager = create<VoiceManagerState>()((set, get) => {
       drop(id);
       const before = get().installed ?? [];
       setInstalled((ids) => [...ids, id]);
+      voiceAdded(id);
       // The first voice on the device becomes the one speech uses.
       if (!before.includes(voicePref.get())) voicePref.set(id);
       announce();
@@ -147,6 +149,7 @@ export const useVoiceManager = create<VoiceManagerState>()((set, get) => {
       });
       set((s) => ({ deleting: s.deleting.filter((d) => d !== id) }));
       setInstalled((ids) => ids.filter((d) => d !== id));
+      voiceRemoved(id);
       if (voicePref.get() === id) {
         const { installed, deleting } = get();
         voicePref.set(installed?.find((d) => !deleting.includes(d)) ?? DEFAULT_VOICE);

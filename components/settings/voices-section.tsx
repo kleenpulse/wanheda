@@ -4,6 +4,8 @@ import * as React from "react";
 import { Download, ExternalLink, Play, RotateCcw, RotateCw, Square, Trash2, X } from "lucide-react";
 import { SettingRow, SettingsCard } from "@/components/settings/setting-row";
 import { formatBytes, useVoiceManager, type VoiceDownload } from "@/components/settings/voice-manager";
+import { getVoices, opfsAvailable, useMissingVoices } from "@/components/speech/voice-offer";
+import { useAccountVoices } from "@/components/settings/account-voices";
 import { buttonClass } from "@/components/ui/button";
 import { Segmented } from "@/components/ui/segmented";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -11,6 +13,7 @@ import { useHydrated } from "@/hooks/use-hydrated";
 import { ratePref, SPEEDS, voicePref } from "@/lib/speech/prefs";
 import { useSpeech } from "@/lib/speech/store";
 import { CATALOG, voiceSize, type CatalogVoice, type VoiceQuality } from "@/lib/speech/voices";
+import { bytesOf, voiceNames } from "@/lib/speech/account-voices";
 
 /*
   Settings → Voices (SPEC V46, T55): the read-aloud voices this device holds,
@@ -48,10 +51,6 @@ const FILL_BUTTON = buttonClass("ghost", "pill-sm", "bg-foreground/[0.06] text-f
 
 const SAMPLE = ["This is how I sound reading your documents.", "A short sentence, then a longer one, with a pause or two along the way."];
 const sampleId = (id: string) => `voice-sample:${id}`;
-
-function opfsAvailable(): boolean {
-  return typeof navigator !== "undefined" && typeof navigator.storage?.getDirectory === "function";
-}
 
 /** Installed voices, minus deletes waiting on their Undo. */
 function useHere(): readonly string[] | null {
@@ -227,6 +226,23 @@ function VoiceRow({ voice, here, isDefault }: { voice: CatalogVoice; here: reado
   );
 }
 
+/** The account's voices this device lacks (SPEC V83), with one button for all of them. */
+function VoiceOfferRow() {
+  const missing = useMissingVoices();
+  if (!missing || missing.length === 0 || !opfsAvailable()) return null;
+  return (
+    <div className="mx-5 mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-card bg-signal/8 px-4 py-3">
+      <p className="min-w-0 text-[13px] text-foreground">
+        From your other devices: {voiceNames(missing)} <span className="tabular text-ink-2">· {formatBytes(bytesOf(missing))}</span>
+      </p>
+      <button type="button" onClick={() => { getVoices(missing); }} className={FILL_BUTTON}>
+        <Download aria-hidden />
+        {missing.length === 1 ? "Get it" : "Get them"}
+      </button>
+    </div>
+  );
+}
+
 function Catalog({ here }: { here: readonly string[] | null }) {
   const [lang, setLang] = React.useState<LangFilter>("all");
   const [quality, setQuality] = React.useState<QualityFilter>("all");
@@ -262,6 +278,7 @@ function Catalog({ here }: { here: readonly string[] | null }) {
         <Segmented label="Quality" value={quality} options={QUALITY_OPTIONS} onChange={setQuality} />
         <Segmented label="Show" value={show} options={SHOW_OPTIONS} onChange={setShow} />
       </div>
+      <VoiceOfferRow />
       {!opfsAvailable() && hydrated ? (
         <p className="px-5 py-4 text-[13px] text-ink-2">This browser can&apos;t keep voices, so the browser&apos;s own voice reads instead.</p>
       ) : null}
@@ -285,6 +302,7 @@ export function VoicesSection() {
 
   React.useEffect(() => {
     void useVoiceManager.getState().refresh();
+    void useAccountVoices.getState().load();
   }, []);
 
   return (
