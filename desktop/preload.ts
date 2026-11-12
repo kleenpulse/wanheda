@@ -102,6 +102,10 @@ contextBridge.exposeInMainWorld("wanheda", {
       ipcRenderer.send(CHANNELS.captureClose);
     },
   },
+  auth: {
+    /** Main window: sign in through the system browser (ADR-0016). */
+    signInWithBrowser: (): Promise<boolean> => ipcRenderer.invoke(CHANNELS.signInBrowser),
+  },
   titleBar: {
     colors(colors: TitleBarColors): void {
       ipcRenderer.send(CHANNELS.titleBarColors, colors);

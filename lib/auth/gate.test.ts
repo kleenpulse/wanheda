@@ -57,6 +57,13 @@ describe("isPublicPath", () => {
     expect(isPublicPath("/api/authority")).toBe(false);
     expect(isPublicPath("/api")).toBe(false);
   });
+
+  // ADR-0016: the desktop app's window spends its token signed out; minting needs a session.
+  it("opens the desktop redeem route only", () => {
+    expect(isPublicPath("/api/desktop/redeem")).toBe(true);
+    expect(isPublicPath("/api/desktop/handoff")).toBe(false);
+    expect(isPublicPath("/desktop/sign-in")).toBe(false);
+  });
 });
 
 describe("safeNextPath", () => {

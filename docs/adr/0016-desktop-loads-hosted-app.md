@@ -46,6 +46,14 @@ Almost nothing native depends on the local server. Every native feature goes thr
 - **Keep the `.env` import.** Rejected: nobody but the owner can use it.
 - **Raven's model: PGlite on the device** (T83). Rejected for now. The desktop's data would be separate from the web's until a sync layer exists. It may come back as an offline mode.
 
+## Amendment, 2026-11-12 (T89)
+
+Built as decided, with three changes in the details:
+
+- **Not Better Auth's `one-time-token` plugin.** Its verify hands the app the browser's own session, so signing out of one would sign out the other. A small plugin of our own (`lib/auth/desktop-handoff.ts`, two server-only endpoints) mints the same kind of token (single use, 2 minutes, only a hash stored) and makes the app a session of its own when the token is spent.
+- **A click, not a redirect.** Signed in, `/desktop/sign-in` shows the account and an "Open the Wanheda app" link; the token is minted only then (`/api/desktop/handoff`), and "Use another account" is next to it. It's a link because the CSP's `form-action 'self'` blocks a form's redirect to `wanheda:`.
+- **The redeem route needs a header only main sends** (`x-wanheda-redeem`). Without it a stranger could send their token to someone's web browser and sign it into their account.
+
 ## Tasks
 
 | Task | What |

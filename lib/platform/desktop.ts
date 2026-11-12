@@ -45,6 +45,12 @@ export type WanhedaDesktop = {
    * needs) before using anything added later. Shells before 0.8 have none: read it as 0.
    */
   readonly version?: number;
+  /**
+   * Sign-in through the system browser (ADR-0016), from bridge version 2. The shell opens the
+   * browser's sign-in page and signs this window in when the browser hands the sign-in back.
+   * False when it can't (`desktop:dev`, which keeps GitHub's own window).
+   */
+  readonly auth?: { signInWithBrowser(): Promise<boolean> };
   /** Paths in this app the shell wants shown (a `wanheda://` link was opened). Returns an unsubscribe. */
   onOpen(callback: (path: string) => void): () => void;
   /** Global shortcuts and the capture window, through the shell. Returns an unsubscribe. */
@@ -129,6 +135,12 @@ export function desktopBridge(): WanhedaDesktop | null {
 
 export function isDesktop(): boolean {
   return desktopBridge() !== null;
+}
+
+/** The shell's browser sign-in, or null (the web, or a shell older than bridge version 2). */
+export function browserSignIn(): (() => Promise<boolean>) | null {
+  const auth = desktopBridge()?.auth;
+  return typeof auth?.signInWithBrowser === "function" ? () => auth.signInWithBrowser() : null;
 }
 
 const BASE = "http://wanheda.invalid";

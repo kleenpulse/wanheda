@@ -16,7 +16,8 @@ import { isVoiceId, parseSynthRequest } from "./tts-model";
 import { draggedIslandOffset, EMPTY_SNAPSHOT, ISLAND_DRAG_IDLE_MS, ISLAND_PATH, ISLAND_SIZE, islandPosition, overIsland, parseIslandCommand, parseIslandDrag, parseIslandReport, parseIslandSnapshot, shouldShowIsland, type IslandReport, type IslandSnapshot } from "./island";
 import { createLog } from "./log";
 import { menuKey, type MenuKey } from "./menu-keys";
-import { CALLBACK_PATHS, callbackQuery, signInFrom, type PendingSignIn, type Provider } from "./oauth";
+import { acceptHandoff, authLink, newHandoff, REDEEM_HEADER, redeemUrl, signInPageUrl, type AuthLink, type PendingHandoff } from "./handoff";
+import type { Provider } from "./oauth";
 import { parseAppOrigin, unreachablePage, unreachableRetry } from "./origin";
 import { classifyAuthUrl, classifyUrl, navigationStep, permissionAllowed } from "./policy";
 import { freePort, isPortFree, savePort, savedPort } from "./ports";
@@ -118,8 +119,8 @@ function boot(): void {
   const transcoder = createTranscoder({ ffmpeg: ffmpegPath(), log });
   /** The title bar's colours from the main window's page (its skin), kept for a window made again. */
   let titleBarColors: TitleBarColors | null = null;
-  // GitHub sign-in: the one started in the system browser, waiting for GitHub to send it back.
-  let pendingSignIn: PendingSignIn | null = null;
+  // The sign-in started in the system browser, waiting for its `wanheda://auth` link (desktop/handoff.ts).
+  let pendingHandoff: PendingHandoff | null = null;
   // Dev only: GitHub sign-in's own window (no preload), and the contents it owns.
   let authWindow: BrowserWindow | null = null;
   const authContents = new Set<number>();
@@ -150,6 +151,10 @@ function boot(): void {
     { scheme: TRANSCODE_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, corsEnabled: true } },
   ]);
 
+  ipcMain.handle(CHANNELS.signInBrowser, (event): boolean => {
+    if (!fromWindow(event, mainWindow)) throw new Error("Not allowed.");
+    return startBrowserSignIn();
+  });
   ipcMain.handle(CHANNELS.mediaTranscodable, (event): Promise<string[]> => {
     if (!fromWindow(event, mainWindow)) throw new Error("Not allowed.");
     return transcoder.transcodable();
@@ -417,12 +422,18 @@ function boot(): void {
     createCaptureWindow();
     createIslandWindow();
     // A load that fails (offline, say) shows "Can't reach Wanheda" (did-fail-load) instead of stopping the app.
-    await mainWindow?.loadURL(`${appOrigin ?? ""}${first}`).catch((err: unknown) => { log.info(`first load: ${errText(err)}`); });
+    // The code only: a navigation that cuts this load short (the sign-in's redeem URL) puts its own URL in the message.
+    await mainWindow?.loadURL(`${appOrigin ?? ""}${first}`).catch((err: unknown) => { log.info(`first load: ${loadErrorCode(err)}`); });
   }
 
-  /** Shows a link's page now, or once the server is up. */
+  /** Finishes a browser sign-in, or shows a link's page now (or once the app's address is known). */
   function openLink(link: string | undefined): void {
     if (link === undefined) return;
+    const handoff = authLink(link);
+    if (handoff) {
+      finishBrowserSignIn(handoff);
+      return;
+    }
     const path = linkPath(link);
     if (!path) { log.info("ignored a link Wanheda doesn't open"); return; }
     if (!appOrigin) {
@@ -648,11 +659,6 @@ function boot(): void {
     if (captureWindow && !captureWindow.isDestroyed()) void captureWindow.loadURL(`${handle.origin}${CAPTURE_PATH}`);
     if (islandWindow && !islandWindow.isDestroyed()) void islandWindow.loadURL(`${handle.origin}${ISLAND_PATH}`);
     handle.onExit((detail) => void serverDied(handle, detail));
-    handle.onOAuthCallback((provider, search) => {
-      if (handle === server) finishSignIn(provider, search);
-    });
-    // A sign-in started against another server (or origin) can't finish on this one.
-    pendingSignIn = null;
     log.info(`server ready at ${handle.origin}`);
   }
 
@@ -1275,41 +1281,55 @@ function boot(): void {
   }
 
   /**
-   * GitHub or Google sign-in (V68). Packaged and preview: the provider's pages
-   * open in the default browser, like VS Code's and gh's sign-in, and the
-   * server hands the browser's return to finishSignIn. Dev (`next dev`, no
-   * token gate to catch that return): GitHub uses the auth window below;
+   * The page started a GitHub or Google sign-in in the main window (V68). The
+   * hosted app (preview, packaged) signs in through the system browser
+   * instead, with whichever method the owner picks there. Dev (`next dev`,
+   * where `wanheda://` isn't registered): GitHub uses the auth window below;
    * Google refuses embedded browsers, so it needs a preview or packaged build.
    */
   function startOAuthSignIn(provider: Provider, url: string): void {
-    // The hosted app (preview, packaged) signs in here too until T89's browser handoff: the loopback relay needs a local server.
-    if (mode === "dev" || hosted) {
-      if (provider === "github") openAuthWindow(url);
-      else log.info("sign-in: Google refuses embedded windows; it needs the browser handoff (T89)");
+    if (hosted) {
+      startBrowserSignIn();
       return;
     }
-    const started = signInFrom(url, appOrigin, Date.now());
-    if (!started) {
-      log.info(`sign-in: ${provider}'s page doesn't come back to this app; not opened`);
-      return;
-    }
-    pendingSignIn = started;
-    void shell.openExternal(url);
-    log.info(`sign-in: ${provider} opened in the browser`);
+    if (provider === "github") openAuthWindow(url);
+    else log.info("sign-in: Google refuses embedded windows; use a preview or packaged build");
   }
 
-  /** The browser came back from the provider: finish in the app's window, which holds the state cookie and the token. */
-  function finishSignIn(provider: Provider, search: string): void {
-    const query = callbackQuery(provider, search, pendingSignIn, Date.now());
-    if (!query || !appOrigin) {
-      log.info("sign-in: a callback that doesn't answer this app's sign-in was ignored");
+  /**
+   * Sign-in through the system browser (ADR-0016, desktop/handoff.ts): a new
+   * nonce (the newest wins) and the hosted app's sign-in page in the default
+   * browser. False where the browser's answer can't come back (dev).
+   */
+  function startBrowserSignIn(): boolean {
+    if (!hosted || !appOrigin) {
+      log.info("sign-in: the browser handoff needs the hosted app (preview or packaged)");
+      return false;
+    }
+    pendingHandoff = newHandoff(Date.now());
+    void shell.openExternal(signInPageUrl(appOrigin, pendingHandoff.nonce));
+    log.info("sign-in: opened in the browser");
+    return true;
+  }
+
+  /**
+   * The browser handed the sign-in back. Only the answer to the sign-in main
+   * started counts; the window then spends the token and gets its own session.
+   * Neither value is logged.
+   */
+  function finishBrowserSignIn(link: AuthLink): void {
+    if (!appOrigin || !acceptHandoff(link, pendingHandoff, Date.now())) {
+      log.info("sign-in: a link that doesn't answer this app's sign-in was ignored");
       return;
     }
-    pendingSignIn = null;
+    pendingHandoff = null;
     showWindow();
     const target = mainWindow;
     if (!target || target.isDestroyed()) return;
-    void target.loadURL(`${appOrigin}${CALLBACK_PATHS[provider]}?${query}`);
+    void target
+      .loadURL(redeemUrl(appOrigin, link.token), { extraHeaders: `${REDEEM_HEADER}: 1\n` })
+      // The code only: Electron's message holds the URL, and the URL holds the token.
+      .catch((err: unknown) => { log.info(`sign-in: the window couldn't load the sign-in (${loadErrorCode(err)})`); });
     log.info("sign-in: back from the browser");
   }
 
@@ -1504,6 +1524,12 @@ async function closeWindows(): Promise<boolean> {
 
 function errText(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
+}
+
+/** A failed loadURL's code ("ERR_ABORTED"), without its message, which names the URL. */
+function loadErrorCode(err: unknown): string {
+  const code = err && typeof err === "object" && "code" in err ? err.code : undefined;
+  return typeof code === "string" && /^ERR_[A-Z0-9_]+$/.test(code) ? code : "unknown";
 }
 
 type MenuActions = { setKeepRunning: (on: boolean) => void; importEnv: () => void; useDemo: () => void };

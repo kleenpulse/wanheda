@@ -49,19 +49,19 @@ Terminals inside VS Code carry `ELECTRON_RUN_AS_NODE`. The scripts drop it, but 
 - **File → Import .env file…** replaces them, and **File → Use demo mode…** forgets them. Both restart the server on the same port.
 - If the keychain changed or can't open the file, Wanheda asks Quit or Start fresh. The old file stays next to the new one as `secrets.json.broken-<time>`.
 
-## GitHub and Google sign-in
+## Sign-in (T89, ADR-0016)
 
-Desktop sign-in needs its own GitHub OAuth app ("Wanheda Desktop", an owner action), with callback `http://localhost:<saved port>/api/auth/callback/github`. Put its id and secret in the `.env` file you import. Google is optional: add `http://localhost:<saved port>/api/auth/callback/google` as a redirect URI on a Google Web client, and put `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in the same file.
+Preview and packaged builds sign in through the system browser, with any method the web offers (GitHub, Google or a passkey). There is no desktop OAuth app and no loopback callback.
 
-Both work the same way below; GitHub is named for short. Main knows each provider's authorize page and callback, and a pending sign-in only accepts the callback of the provider it started.
+1. The login page in the app shows **Sign in with your browser** (`window.wanheda.auth.signInWithBrowser`, bridge version 2). Main makes a nonce (32 random bytes), keeps it for 10 minutes (a newer start replaces it) and opens `<app>/desktop/sign-in?nonce=<nonce>` in the default browser (`handoff.ts`).
+2. The browser signs in there as on the web (signed out, the proxy sends it to `/login`, which comes back to the page). The page shows who is signed in, **Open the Wanheda app** and **Use another account**. Nothing is minted until the click.
+3. **Open the Wanheda app** is a plain link to `/api/desktop/handoff?nonce=<nonce>`. The server mints a single-use token for that user (2 minutes; only its SHA-256 is stored, in Better Auth's verification table) and answers 303 to `wanheda://auth?token=<t>&nonce=<nonce>`. A link, not a form: the CSP's `form-action 'self'` would block a form's redirect to `wanheda:`.
+4. Windows starts Wanheda with the link (the running copy gets it through `second-instance`). Main reads it with its own parser (exact keys, both values 43 URL-safe characters, `MAX_LINK`) and takes it only if the nonce is the one it is waiting for and hasn't used, so a stranger's link can't sign the app into their account. Anything else is ignored and logged without its values.
+5. Main loads `<app>/api/desktop/redeem?token=<t>` in the main window with the header `x-wanheda-redeem: 1`. The route refuses the token without that header (a link elsewhere can't add one, so a stranger's token can't sign a web browser in either). Better Auth spends the token and makes the app **a session of its own**, so signing out of the app leaves the browser signed in, and the reverse. The response sets the cookie in the app's cookie jar and moves on to `/`.
 
-Sign-in happens in the default browser, the way VS Code and `gh` do it (`oauth.ts`):
+The two Better Auth endpoints are server-only (`lib/auth/desktop-handoff.ts`, not on the HTTP router). Better Auth's own `one-time-token` plugin wasn't used: it hands the browser's session to the app. Neither the token nor the nonce is ever logged; a failed load logs its error code only, because Electron's message names the URL.
 
-1. The app's window starts it, so Better Auth's signed state cookie lands in the app's session. Main opens GitHub's authorize page in the browser instead of letting the window go there. It remembers that sign-in's `state` only if GitHub will send it back to this app's callback, and for 10 minutes: the life of Better Auth's verification row. Better Auth's signed state cookie lapses after 5 minutes, so a slower return reaches Better Auth and gets its "try again" on the login page.
-2. GitHub sends the browser back to `http://localhost:<port>/api/auth/callback/github`. That request has no token, so the server doesn't hand it to Next. It passes the query to main and moves the tab to `/desktop/signed-in`, a script-free "Back to Wanheda" page, so the code leaves the address bar. These two GETs are the only tokenless requests the server takes, and they still need the exact Host.
-3. Main loads the callback in the app's window, where the state cookie and token are, and Better Auth finishes there. It does this only when the query answers the pending sign-in (same `state`, a code or an error, known parameters only). Anything else is ignored and logged, including the return of an older tab after "Open GitHub again"; its page says to start again from the app.
-
-`desktop:dev` runs `next dev`, which has no token gate to catch the browser's return, so dev signs in in a separate window instead: no preload, the app's session, GitHub's sign-in pages only, and it closes when it reaches the app. Google refuses embedded windows, so Google sign-in in dev is skipped (logged); use `desktop:preview`.
+A page that still starts GitHub or Google in the main window (an older page, say) starts the browser sign-in instead. `desktop:dev` runs `next dev` and doesn't register `wanheda://`, so the browser can't hand anything back: dev signs in with GitHub in a separate window (no preload, the app's session, GitHub's sign-in pages only, closes when it reaches the app). Google refuses embedded windows, so Google sign-in in dev is skipped (logged); use `desktop:preview`.
 
 ## Native features (T76, V71)
 

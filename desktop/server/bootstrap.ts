@@ -3,7 +3,6 @@ import http, { type IncomingMessage, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
 import { createRequire } from "node:module";
 import { join } from "node:path";
-import { browserReturn, RETURNED_HEADERS, RETURNED_HTML, RETURNED_PATH, type Provider } from "../oauth";
 import { LISTEN_HOST, ORIGIN_HOST, originFor, TOKEN_HEADER } from "../shared";
 import { checkRequest } from "./guard";
 
@@ -13,15 +12,13 @@ import { checkRequest } from "./guard";
  * (node_modules/next/dist/server/lib/start-server.js), with three changes
  * (SPEC V68): it only listens on 127.0.0.1, every request must pass the Host +
  * token guard, and it never writes into its own folder (no ISR flush, no gzip;
- * the install folder may be read-only). The one tokenless request it takes is
- * the system browser coming back from GitHub (desktop/oauth.ts): its query goes
- * to the shell, never to Next.
+ * the install folder may be read-only).
  *
  * It reports {ready, port} or {failed} to the shell, and on {shutdown} it
  * drains (at most 3 s), closes Next, then exits.
  */
 
-type Report = { type: "ready"; port: number } | { type: "failed"; message: string } | { type: "oauth-callback"; provider: Provider; search: string };
+type Report = { type: "ready"; port: number } | { type: "failed"; message: string };
 type Handlers = {
   requestHandler(req: IncomingMessage, res: ServerResponse): Promise<void>;
   server?: { close(): Promise<void> };
@@ -116,19 +113,6 @@ async function start(): Promise<void> {
   const { getRequestHandlers } = nextRequire("next/dist/server/lib/start-server") as StartServerModule;
 
   const server = http.createServer((req, res) => {
-    const back = browserReturn(req.method, req.url, req.headers.host, port, req.headers[TOKEN_HEADER] !== undefined);
-    if (back) {
-      // The shell decides whether it answers the sign-in it started; the tab learns nothing either way.
-      if (back.kind === "callback") {
-        report({ type: "oauth-callback", provider: back.provider, search: back.search });
-        res.writeHead(303, { location: RETURNED_PATH, "cache-control": "no-store", "referrer-policy": "no-referrer" });
-        res.end();
-      } else {
-        res.writeHead(200, RETURNED_HEADERS);
-        res.end(RETURNED_HTML);
-      }
-      return;
-    }
     const verdict = checkRequest(req.headers, port, token);
     if (!verdict.ok || !handlers) {
       res.statusCode = verdict.ok ? 503 : 403;

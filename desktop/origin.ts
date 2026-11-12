@@ -4,6 +4,8 @@
  * (scripts/bundle.ts); dev keeps its local `next dev` origin.
  */
 
+import { REDEEM_PATH } from "./handoff";
+
 /** Production. A Vercel preview deployment can stand in for testing (`WANHEDA_APP_URL=… bun run desktop:preview`). */
 export const DEFAULT_APP_URL = "https://wanheda-chi.vercel.app";
 
@@ -41,7 +43,9 @@ export function unreachableRetry(failure: { errorCode: number; url: string; isMa
   } catch {
     return null;
   }
-  return url.origin === appOrigin ? url.href : null;
+  if (url.origin !== appOrigin) return null;
+  // The sign-in's redeem URL holds a spent token and only works with main's header: start again from the login page.
+  return url.pathname === REDEEM_PATH ? `${appOrigin}/login` : url.href;
 }
 
 function escapeHtml(text: string): string {

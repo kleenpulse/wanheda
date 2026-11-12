@@ -1,20 +1,23 @@
 "use client";
 
-import { Fingerprint, LogIn } from "lucide-react";
+import { Fingerprint, Globe, LogIn } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState, type FocusEvent, type PointerEvent } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, type FocusEvent, type PointerEvent } from "react";
 import type { Route } from "next";
 import { useAuthWord } from "@/components/auth/auth-word";
 import { buttonClass } from "@/components/ui/button";
 import { pickFromDom, resolveWord, wordDelay } from "@/lib/auth/auth-word";
 import { authClient } from "@/lib/auth/client";
 import { parseLastMethod, type SignInMethod } from "@/lib/auth/last-method";
-import { isDesktop } from "@/lib/platform/desktop";
+import { browserSignIn, isDesktop } from "@/lib/platform/desktop";
 
 type Provider = "github" | "google";
 type Pending = Provider | "passkey" | null;
 
 const NAME: Record<Provider, string> = { github: "GitHub", google: "Google" };
+
+const noSubscribe = () => () => {};
+const hasBrowserSignIn = () => browserSignIn() !== null;
 
 export function SignInPanel({
   next,
@@ -33,6 +36,10 @@ export function SignInPanel({
   const [message, setMessage] = useState<string | null>(error);
   // Desktop: the provider opened in the default browser, and this window waits for it to come back.
   const [inBrowser, setInBrowser] = useState<Provider | null>(null);
+  // Desktop app on the hosted origin (ADR-0016): sign-in happens in the system browser, any method.
+  const viaBrowser = useSyncExternalStore(noSubscribe, hasBrowserSignIn, () => false);
+  const [browser, setBrowser] = useState<"idle" | "pending" | "opened" | "unavailable">("idle");
+  const browserFirst = viaBrowser && browser !== "unavailable";
   // What the sign-in swarm spells (V82). Hover and keyboard focus are kept
   // apart: the mouse leaving must not drop a word the keyboard still holds.
   const [hovered, setHovered] = useState<SignInMethod | null>(null);
@@ -121,7 +128,11 @@ export function SignInPanel({
     setInBrowser(null);
     const result = await authClient.signIn.passkey();
     if (result.error) {
-      setMessage(`No passkey sign-in. Use ${google ? "GitHub or Google" : "GitHub"}, then add a passkey.`);
+      setMessage(
+        browserFirst
+          ? "No passkey sign-in. Sign in with your browser, then add a passkey."
+          : `No passkey sign-in. Use ${google ? "GitHub or Google" : "GitHub"}, then add a passkey.`,
+      );
       settle();
       return;
     }
@@ -129,16 +140,40 @@ export function SignInPanel({
     router.refresh();
   }
 
-  const providers: Provider[] = google ? ["github", "google"] : ["github"];
+  async function withBrowser() {
+    const start = browserSignIn();
+    if (!start) return;
+    setBrowser("pending");
+    setMessage(null);
+    let opened = false;
+    try {
+      opened = await start();
+    } catch {
+      opened = false;
+    }
+    setBrowser(opened ? "opened" : "unavailable");
+    if (!opened) setMessage("This build can't sign in through the browser. Use a button below.");
+  }
+
+  // On the desktop app the providers' pages open in the browser's sign-in, not here.
+  const providers: Provider[] = browserFirst ? [] : google ? ["github", "google"] : ["github"];
+  const busy = pending !== null || browser === "pending";
 
   return (
     <div ref={panel} className="mt-8 flex flex-col gap-3">
+      {browserFirst ? (
+        <button type="button" onClick={() => void withBrowser()} disabled={busy} className={buttonClass("inverse", "pill", "relative")}>
+          <Globe aria-hidden />
+          {browser === "pending" ? "Opening your browser" : browser === "opened" ? "Open the browser again" : "Sign in with your browser"}
+          {lastUsed === "github" || lastUsed === "google" ? <LastUsed /> : null}
+        </button>
+      ) : null}
       <button
         type="button"
         {...track("passkey")}
         onClick={() => void withPasskey()}
-        disabled={pending !== null}
-        className={buttonClass("inverse", "pill", "relative")}
+        disabled={busy}
+        className={buttonClass(browserFirst ? "surface" : "inverse", "pill", "relative")}
       >
         <Fingerprint aria-hidden />
         {pending === "passkey" ? "Waiting for passkey" : "Sign in with a passkey"}
@@ -150,7 +185,7 @@ export function SignInPanel({
           type="button"
           {...track(provider)}
           onClick={() => void withProvider(provider)}
-          disabled={pending !== null}
+          disabled={busy}
           className={buttonClass("surface", "pill", "relative")}
         >
           <LogIn aria-hidden />
@@ -163,7 +198,12 @@ export function SignInPanel({
         </button>
       ))}
       <p role="status" aria-live="polite" className={`min-h-5 text-center text-[13px] ${message ? "text-critical" : "text-ink-2"}`}>
-        {message ?? (inBrowser ? `Finish signing in on ${NAME[inBrowser]}. Wanheda picks it up from there.` : null)}
+        {message ??
+          (browser === "opened"
+            ? "Finish signing in in your browser. Wanheda picks it up from there."
+            : inBrowser
+              ? `Finish signing in on ${NAME[inBrowser]}. Wanheda picks it up from there.`
+              : null)}
       </p>
     </div>
   );
