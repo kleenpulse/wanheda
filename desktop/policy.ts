@@ -4,11 +4,10 @@
  * and blob: URLs they made stay in the app;
  * http(s) links go to the system browser; everything else is dropped.
  *
- * GitHub and Google sign-in are the one exception (V68): main opens the
- * authorize page in the system browser and finishes the sign-in in the app's
- * window when the browser comes back (desktop/oauth.ts). In dev only, GitHub's
- * OAuth pages open in a separate auth window with no preload instead
- * (classifyAuthUrl).
+ * GitHub and Google sign-in are the one exception (V68): main catches the
+ * authorize page. The hosted app signs in through the system browser instead
+ * (desktop/handoff.ts); in dev only, GitHub's OAuth pages open in a separate
+ * auth window with no preload (classifyAuthUrl).
  */
 
 import { authorizeProvider, type Provider } from "./oauth";

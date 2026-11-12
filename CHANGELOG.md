@@ -18,6 +18,7 @@ written after the fact, one per phase, and have no git tags.
 ### Changed
 
 - The desktop app now opens your Wanheda account from the web: no .env file to import, and new web features reach it without a new installer. If it can't reach Wanheda, it says so and offers Retry.
+- The desktop app signs in through your web browser: choose Sign in with your browser, sign in there with GitHub, Google or a passkey, then open the app. The app gets its own sign-in, so signing out of one doesn't sign you out of the other.
 - In Money, the Entries title and Import button sit beside the search on wider screens, and on their own row above it on a phone.
 
 ### Fixed

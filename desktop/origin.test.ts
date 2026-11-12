@@ -34,6 +34,8 @@ describe("unreachableRetry", () => {
   test("a failed main-frame load of the app's own page is retried there", () => {
     expect(unreachableRetry({ errorCode: -106, url: `${app}/money?tab=a`, isMainFrame: true }, app)).toBe(`${app}/money?tab=a`);
     expect(unreachableRetry({ errorCode: -105, url: `${app}/`, isMainFrame: true }, app)).toBe(`${app}/`);
+    // Never the redeem URL: its token is spent and Retry can't send main's header.
+    expect(unreachableRetry({ errorCode: -106, url: `${app}/api/desktop/redeem?token=${"t".repeat(43)}`, isMainFrame: true }, app)).toBe(`${app}/login`);
   });
 
   test("aborted loads, subframes, other origins and no origin are not failures", () => {

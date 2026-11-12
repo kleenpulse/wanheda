@@ -13,8 +13,9 @@ import { isShortcutId, parseAccelerator, type MediaCommand, type ShortcutId } fr
  * the page is the hosted app and updates with every deploy, the shell only with
  * the installer. Raise it when the bridge gains something a page must detect.
  * 1 = T88 (the hosted app; `settings.secrets` gone when `state.secrets` is null).
+ * 2 = T89 (`auth.signInWithBrowser`).
  */
-export const BRIDGE_VERSION = 1;
+export const BRIDGE_VERSION = 2;
 
 export const CHANNELS = {
   /** main → page: show this path in the app (a `wanheda://` link was opened). */
@@ -81,6 +82,8 @@ export const CHANNELS = {
   titleBarColors: "wanheda:title-bar-colors",
   /** main window page → main: open the app menu under the title bar's menu button (`MenuAnchor`). */
   titleBarMenu: "wanheda:title-bar-menu",
+  /** main window page ⇄ main (invoke): start a sign-in in the system browser (desktop/handoff.ts); false when this build can't. */
+  signInBrowser: "wanheda:sign-in-browser",
 } as const;
 
 /** The quick-capture page. */

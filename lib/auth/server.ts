@@ -7,6 +7,7 @@ import { lastLoginMethod } from "better-auth/plugins";
 import { authSettings, has, type AuthSettings } from "@/lib/capabilities";
 import { getDb, type Db } from "@/lib/db";
 import * as schema from "@/lib/db/schema";
+import { desktopHandoff } from "./desktop-handoff";
 import { LAST_METHOD_COOKIE } from "./last-method";
 import { assertVerifiedSignup } from "./signup-guard";
 
@@ -65,6 +66,8 @@ function createAuth(db: Db, settings: AuthSettings) {
       // The /login "Last used" badge (V81): a readable cookie with the method
       // name, set only when a sign-in succeeds. Nothing in the database.
       lastLoginMethod({ cookieName: LAST_METHOD_COOKIE }),
+      // The desktop app's sign-in through the system browser (ADR-0016). Server-only endpoints.
+      desktopHandoff(),
       // Must stay last: it sets cookies from server actions.
       nextCookies(),
     ],

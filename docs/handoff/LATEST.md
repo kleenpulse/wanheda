@@ -1,8 +1,10 @@
 # Latest hand-off
 
-**Newest:** [2026-11-11-phase-8-t88-desktop-hosted.md](2026-11-11-phase-8-t88-desktop-hosted.md). **T88 is PR #102 (stacked on PR #101), with the other session's dock fix and Money layout as their own commits: preview and packaged builds load the hosted app, no server, no `.env`, "Can't reach Wanheda" with Retry, `bridge.version` 1. Next: owner merges #101 then #102; then T89.**
+**Newest:** [2026-11-12-phase-8-t89-desktop-sign-in.md](2026-11-12-phase-8-t89-desktop-sign-in.md). **T89 on `phase-8/desktop-sign-in`, Reviewer LGTM with nits (fixed), PR open for the owner: "Sign in with your browser" (nonce ⇒ `/desktop/sign-in` ⇒ single-use token ⇒ `wanheda://auth` ⇒ redeem with a header main alone sends), the app gets its own session, loopback relay removed, `bridge.version` 2. Owner confirmed 2026-11-12: `OWNER_EMAILS` removed from Vercel, Google sign-in live in production. Still open: the Neon deletion test.**
 
-**Before it:** [2026-11-11-phase-8-desktop-hosted-adr.md](2026-11-11-phase-8-desktop-hosted-adr.md). ADR-0016 + SPEC T88–T91 (PR #101); `v0.7.4` tagged on `52c2c3f` and pushed.
+**Before it:** [2026-11-11-phase-8-t88-desktop-hosted.md](2026-11-11-phase-8-t88-desktop-hosted.md). T88 (PR #102) and ADR-0016 (PR #101), both merged at `9f92bcc`: preview and packaged builds load the hosted app.
+
+**Earlier:** [2026-11-11-phase-8-desktop-hosted-adr.md](2026-11-11-phase-8-desktop-hosted-adr.md). ADR-0016 + SPEC T88–T91 (PR #101); `v0.7.4` tagged on `52c2c3f` and pushed.
 
 **Earlier:** [2026-11-11-phase-8-v0.7.3.md](2026-11-11-phase-8-v0.7.3.md). v0.7.3 released (tag on `1edc90d`). Open: a floating island that took no clicks in the owner's preview (not reproduced).
 
@@ -25,12 +27,12 @@
 
 Read the hand-off first, then verify it against the repo before trusting it (git, tripwire, typecheck, tests).
 
-### Builder prompt (after #101 and #102: T89)
+### Builder prompt (after T89 merges: T90)
 
 ```text
 You are the BUILDER for Wanheda (D:\Vxrcel\wanheda), lean mode, no worktrees. Check the branch first: the checkout is shared.
-Read docs/handoff/LATEST.md → 2026-11-11-phase-8-t88-desktop-hosted.md, and verify it (git status, tripwire, typecheck, tests).
-If PR #101 and #102 are merged: git switch main, fetch + incoming-commit check, pull, git tidy. If not, stop and say so.
-Then T89 (sign-in handoff) on phase-8/desktop-sign-in. Commit, push and PR only on the owner's word (or a Reviewer LGTM).
-Read ADR-0016, desktop/main.ts, oauth.ts, lib/auth/server.ts first. No large downloads without asking.
+Read docs/handoff/LATEST.md → 2026-11-12-phase-8-t89-desktop-sign-in.md, and verify it (git status, tripwire, typecheck, tests).
+If the T89 PR is merged: git switch main, fetch + incoming-commit check, pull, git tidy. If not, stop and say so.
+First ask the owner to check a browser sign-in in desktop:preview against production (hand-off "Next steps" 2).
+Then T90 (drop the server from the installer) on phase-8/desktop-no-server. Commit, push and PR only on the owner's word (or a Reviewer LGTM).
 ```

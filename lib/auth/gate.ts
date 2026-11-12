@@ -4,8 +4,11 @@ import { isListed } from "./allowlist";
 // The access decisions, with no IO, so every branch is unit-tested. proxy.ts
 // and owner.ts gather the inputs and act on the result.
 
-/** Reachable without a session in gated mode (FRD D3). */
-const PUBLIC_PREFIXES = ["/login", "/api/auth", "/api/webhooks"] as const;
+/**
+ * Reachable without a session in gated mode (FRD D3). The desktop app's
+ * window is signed out when it spends its sign-in token (ADR-0016).
+ */
+const PUBLIC_PREFIXES = ["/login", "/api/auth", "/api/webhooks", "/api/desktop/redeem"] as const;
 
 export function isPublicPath(pathname: string): boolean {
   return PUBLIC_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
