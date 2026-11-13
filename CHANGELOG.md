@@ -15,6 +15,10 @@ written after the fact, one per phase, and have no git tags.
 
 ## [Unreleased]
 
+### Changed
+
+- The island's read-aloud card is shorter: Open now sits at the end of the Speed, Voice and Sleep row instead of on a row of its own.
+
 ### Fixed
 
 - A note with a table no longer shows raw Markdown (pipes and dashes) in the Notes list, on the Board or in the pinned notes widget: each row reads as text, like "Status: Draft 1".
