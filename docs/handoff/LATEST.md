@@ -1,8 +1,12 @@
 # Latest hand-off
 
-**Newest:** [2026-11-13-phase-8-t91-service-worker.md](2026-11-13-phase-8-t91-service-worker.md). **T91 (offline service worker) + the social avatar built on `phase-8/t91-service-worker`, uncommitted, waiting for the owner's go-ahead (or a Reviewer LGTM). Offline cold start checked in a real browser against a killed server.**
+**Newest:** [2026-11-13-phase-8-v0.7.5-cut.md](2026-11-13-phase-8-v0.7.5-cut.md). **v0.7.5 cut on `release/v0.7.5`, PR #106, waiting for the owner's merge. After the merge: `bun run bump --tag` on `main`, push the tag, and CI drafts the release with the installer.**
 
-**Before it:** [2026-11-13-phase-8-t90-merged.md](2026-11-13-phase-8-t90-merged.md). T90 merged as PR #104 (`main` at `f302c04`, deployed).
+**Before it:** [2026-11-13-phase-8-t91-merged.md](2026-11-13-phase-8-t91-merged.md). T91 (offline service worker) + the social avatar merged as PR #105 (`main` at `e4d830b`, deployed; prod serves `/sw.js`).
+
+**Earlier:** [2026-11-13-phase-8-t91-service-worker.md](2026-11-13-phase-8-t91-service-worker.md). T91 + avatar built on `phase-8/t91-service-worker`; offline cold start checked in a real browser against a killed server.
+
+**Earlier:** [2026-11-13-phase-8-t90-merged.md](2026-11-13-phase-8-t90-merged.md). T90 merged as PR #104 (`main` at `f302c04`, deployed).
 
 **Before it:** [2026-11-13-phase-8-t90-desktop-no-server.md](2026-11-13-phase-8-t90-desktop-no-server.md). **T90 built on `phase-8/desktop-no-server`, uncommitted, waiting for the owner's go-ahead (or a Reviewer LGTM): the installer ships no server (160.2 MB, was 175.5 MB), no `.env` import or keys anywhere, dev's `next dev` reads the repo's `.env` files, old `secrets.json` deleted at start. Owner confirmed the T89 browser sign-in works in `desktop:preview`.**
 
@@ -35,12 +39,13 @@
 
 Read the hand-off first, then verify it against the repo before trusting it (git, tripwire, typecheck, tests).
 
-### Builder prompt (T91 + avatar built, uncommitted)
+### Builder prompt (after v0.7.5 is merged)
 
 ```text
 You are the BUILDER for Wanheda (D:/Vxrcel/wanheda), lean mode, no worktrees. Check the branch first: the checkout is shared.
-Read docs/handoff/LATEST.md → 2026-11-13-phase-8-t91-service-worker.md and verify it (git status, tripwire, typecheck, tests).
-Branch phase-8/t91-service-worker holds T91 (offline service worker) + the social avatar, uncommitted, with the T90 hand-off docs.
-Commit (stage files explicitly), push and open the PR only on the owner's word (or a Reviewer LGTM); the owner merges.
-After the deploy, walk the owner through the offline check in the hand-off's Next steps.
+Read docs/handoff/LATEST.md → 2026-11-13-phase-8-v0.7.5-cut.md, and verify it (git status, tripwire, typecheck, tests).
+The owner merged release PR #106: switch to main, fetch + incoming-commit check, pull, git tidy.
+Tag it: bun run bump --tag, then git push origin v0.7.5; check that CI's draft release has the installer.
+Then ask the owner about the T91 offline + avatar checks and what's next (Phase 8 has no open SPEC row).
+Commit, push and PR only on the owner's word (or a Reviewer LGTM).
 ```

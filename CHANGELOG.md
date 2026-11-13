@@ -15,6 +15,8 @@ written after the fact, one per phase, and have no git tags.
 
 ## [Unreleased]
 
+## [0.7.5] - 2026-11-13
+
 ### Changed
 
 - The desktop app now opens your Wanheda account from the web: no .env file to import, and new web features reach it without a new installer. If it can't reach Wanheda, it says so and offers Retry.
