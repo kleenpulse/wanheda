@@ -15,6 +15,10 @@ written after the fact, one per phase, and have no git tags.
 
 ## [Unreleased]
 
+### Fixed
+
+- A note with a table no longer shows raw Markdown (pipes and dashes) in the Notes list, on the Board or in the pinned notes widget: each row reads as text, like "Status: Draft 1".
+
 ## [0.7.5] - 2026-11-13
 
 ### Changed

@@ -291,15 +291,41 @@ export function toggleTaskAt(body: string, offset: number): string {
   return `${body.slice(0, at)}${m[1] === " " ? "x" : " "}${body.slice(at + 1)}`;
 }
 
-/** One line of Markdown as plain text, for titles and excerpts. */
-function plainLine(text: string): string {
+/** A table's divider row (`|---|:--:|`) or a horizontal rule (`---`, `***`, `___`): nothing to read. */
+function isRule(text: string): boolean {
+  const t = text.trim();
+  return (/^[|:\s-]+$/.test(t) && t.includes("|") && t.includes("-")) || /^([-*_])(?:\s*\1){2,}$/.test(t);
+}
+
+/** A table row as text: "Status: Draft 1" for a key and value, cells joined by " · " otherwise. Empty cells drop out. */
+function tableRow(text: string): string | null {
+  const t = text.trim();
+  if (!t.startsWith("|")) return null;
+  const cells = t
+    .replace(/^\||(?<!\\)\|$/g, "")
+    .split(/(?<!\\)\|/)
+    .map((cell) => plainInline(cell).replace(/\\\|/g, "|"))
+    .filter(Boolean);
+  return cells.length === 2 ? `${cells[0] ?? ""}: ${cells[1] ?? ""}` : cells.join(" · ");
+}
+
+/** Links to their text, emphasis and code marks gone. */
+function plainInline(text: string): string {
   return text
-    .replace(/^(?:\s*>)*\s*/, "")
-    .replace(/^#{1,6}\s+/, "")
-    .replace(/^(?:[-*+]|\d{1,9}[.)])\s+(?:\[[ xX]\]\s+)?/, "")
     .replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1")
     .replace(/[*_~`]+/g, "")
     .trim();
+}
+
+/** One line of Markdown as plain text, for titles and excerpts. */
+function plainLine(text: string): string {
+  if (isRule(text)) return "";
+  // Prefixes first: only what's left decides whether the line is a table row.
+  const rest = text
+    .replace(/^(?:\s*>)*\s*/, "")
+    .replace(/^#{1,6}\s+/, "")
+    .replace(/^(?:[-*+]|\d{1,9}[.)])\s+(?:\[[ xX]\]\s+)?/, "");
+  return tableRow(rest) ?? plainInline(rest);
 }
 
 function bodyLines(body: string): string[] {
