@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { acceleratorFromKey, acceleratorKeys, desktopBridge, desktopFileUrl, desktopNotice, isAppPath, isDesktop, isDesktopCommand } from "./desktop";
+import { acceleratorFromKey, acceleratorKeys, desktopBridge, desktopFileUrl, desktopNotice, desktopUpdate, isAppPath, isDesktop, isDesktopCommand, parseUpdateState } from "./desktop";
 
 describe("desktopBridge", () => {
   afterEach(() => vi.unstubAllGlobals());
@@ -86,5 +86,38 @@ describe("isDesktopCommand", () => {
 describe("desktopFileUrl", () => {
   test("encodes each segment like the shell's fileUrl", () => {
     expect(desktopFileUrl("0123456789abcdef0123456789abcdef", "Album/AC#DC 100%/01?.mp3")).toBe("wanheda-file://0123456789abcdef0123456789abcdef/Album/AC%23DC%20100%25/01%3F.mp3");
+  });
+});
+
+describe("desktopUpdate", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  test("null on the web and in shells before bridge version 3", () => {
+    expect(desktopUpdate()).toBeNull();
+    vi.stubGlobal("window", { wanheda: { desktop: true, version: 2 } });
+    expect(desktopUpdate()).toBeNull();
+    vi.stubGlobal("window", { wanheda: { desktop: true, version: 3, update: { state: () => Promise.resolve({ kind: "none" }) } } });
+    expect(desktopUpdate()).toBeNull();
+  });
+
+  test("the shell's update when it has all three members", () => {
+    const update = { state: () => Promise.resolve({ kind: "none" }), onState: () => () => {}, restart: () => {} };
+    vi.stubGlobal("window", { wanheda: { desktop: true, version: 3, update } });
+    expect(desktopUpdate()).toBe(update);
+  });
+});
+
+describe("parseUpdateState", () => {
+  test("takes the shell's three shapes", () => {
+    expect(parseUpdateState({ kind: "none" })).toEqual({ kind: "none" });
+    expect(parseUpdateState({ kind: "ready", version: "0.8.0" })).toEqual({ kind: "ready", version: "0.8.0" });
+    expect(parseUpdateState({ kind: "downloading", version: "0.8.0", percent: 41.6 })).toEqual({ kind: "downloading", version: "0.8.0", percent: 41 });
+    expect(parseUpdateState({ kind: "downloading", version: "0.8.0", percent: 300 })).toEqual({ kind: "downloading", version: "0.8.0", percent: 100 });
+  });
+
+  test("anything else hides the pill", () => {
+    for (const bad of [null, undefined, "ready", 1, [], { kind: "ready" }, { kind: "ready", version: "<img>" }, { kind: "ready", version: "1.2" }, { kind: "downloading", version: "0.8.0" }, { kind: "downloading", version: "0.8.0", percent: Number.NaN }, { kind: "available", version: "0.8.0" }]) {
+      expect(parseUpdateState(bad)).toEqual({ kind: "none" });
+    }
   });
 });

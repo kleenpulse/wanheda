@@ -14,8 +14,9 @@ import { isShortcutId, parseAccelerator, type MediaCommand, type ShortcutId } fr
  * the installer. Raise it when the bridge gains something a page must detect.
  * 1 = T88 (the hosted app; `settings.secrets` gone when `state.secrets` is null).
  * 2 = T89 (`auth.signInWithBrowser`).
+ * 3 = T81 (`update`: the self-update's state and "Restart to update").
  */
-export const BRIDGE_VERSION = 2;
+export const BRIDGE_VERSION = 3;
 
 export const CHANNELS = {
   /** main → page: show this path in the app (a `wanheda://` link was opened). */
@@ -82,7 +83,16 @@ export const CHANNELS = {
   titleBarMenu: "wanheda:title-bar-menu",
   /** main window page ⇄ main (invoke): start a sign-in in the system browser (desktop/handoff.ts); false when this build can't. */
   signInBrowser: "wanheda:sign-in-browser",
+  /** main → main window page: where the self-update stands (`UpdateState`). */
+  updateState: "wanheda:update-state",
+  /** main window page ⇄ main (invoke): where it stands now, for a page that just loaded. */
+  updateStateGet: "wanheda:update-state-get",
+  /** main window page → main: "Restart to update" was clicked. Ignored unless an update is ready. */
+  updateRestart: "wanheda:update-restart",
 } as const;
+
+/** Where the self-update stands (T81), for the title bar's pill. */
+export type UpdateState = { kind: "none" } | { kind: "downloading"; version: string; percent: number } | { kind: "ready"; version: string };
 
 /** The quick-capture page. */
 export const CAPTURE_PATH = "/capture";

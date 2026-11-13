@@ -16,6 +16,7 @@ import { stage } from "./stage";
 import { FFMPEG_PIN } from "../ffmpeg-pin";
 import { inPlace } from "./fetch-ffmpeg";
 import { verifyMediaDir, verifySpeechDir } from "./verify";
+import { isOwnFeed, latestYmlProblem } from "../update-policy";
 
 if (process.platform !== "win32") {
   console.error("desktop:build makes the Windows installer, on Windows.");
@@ -88,6 +89,22 @@ const wrong = expected.filter(({ name, on }) => {
   return state !== (on ? ENABLED : DISABLED);
 });
 if (wrong.length > 0) throw new Error(`fuses aren't set as expected: ${wrong.map((fuse) => fuse.name).join(", ")}`);
+
+// Self-update (T81, V75): the app may only ever update from this repo's releases,
+// and the release's latest.yml must describe exactly this installer.
+const feed = join(unpacked, "resources", "app-update.yml");
+if (!existsSync(feed) || !isOwnFeed(readFileSync(feed, "utf8"))) throw new Error("resources/app-update.yml is missing or doesn't point at kleenpulse/wanheda's releases");
+const version = (JSON.parse(readFileSync(join(root, "package.json"), "utf8")) as { version: string }).version;
+const installer = `Wanheda-${version}-win-x64.exe`;
+const latest = join(out, "latest.yml");
+if (!existsSync(latest) || !existsSync(join(out, installer))) throw new Error(`latest.yml or ${installer} is missing from desktop/.out`);
+const problem = latestYmlProblem(readFileSync(latest, "utf8"), {
+  version,
+  file: installer,
+  sha512: createHash("sha512").update(readFileSync(join(out, installer))).digest("base64"),
+});
+if (problem) throw new Error(problem);
+console.log("  the update feed and latest.yml are checked");
 
 const shipped = readdirSync(out).filter((f) => /\.(exe|blockmap)$/.test(f) || /^latest\.yml$/.test(f));
 const sums = shipped.map((f) => `${createHash("sha256").update(readFileSync(join(out, f))).digest("hex")}  ${f}`);

@@ -1,7 +1,7 @@
 import { app, BrowserWindow, dialog, globalShortcut, ipcMain, protocol, type IpcMainEvent, type IpcMainInvokeEvent, Menu, type MessageBoxOptions, type MessageBoxReturnValue, nativeTheme, Notification, screen, session, shell, type MenuItemConstructorOptions, type Session, type WebContents } from "electron";
 import { readdirSync, rmSync } from "node:fs";
 import { basename, join } from "node:path";
-import { CAPTURE_PATH, canTakeCommand, CHANNELS, needsLoad, openPath, parseAudible, parseMenuAnchor, parseRootKind, parseTitleBarColors, parseTtsInstall, parseCaptureText, parseDesktopChange, parseNotice, trustedSender, type Command, type DesktopNotice, type DesktopSetResult, type DesktopState, type ShortcutStatus, type TitleBarColors } from "./bridge";
+import { CAPTURE_PATH, canTakeCommand, CHANNELS, needsLoad, openPath, parseAudible, parseMenuAnchor, parseRootKind, parseTitleBarColors, parseTtsInstall, parseCaptureText, parseDesktopChange, parseNotice, trustedSender, type Command, type DesktopNotice, type DesktopSetResult, type DesktopState, type ShortcutStatus, type TitleBarColors, type UpdateState } from "./bridge";
 import { delay, devEnv, ServerStartError, startDevServer, type ServerHandle } from "./dev-server";
 import { hasTray, onAllWindowsClosed, onWindowClose, showTrayHint, type Lifecycle } from "./lifecycle";
 import { linkArg, linkPath, WANHEDA_SCHEME } from "./links";
@@ -22,6 +22,9 @@ import { freePort, isPortFree, savePort, savedPort } from "./ports";
 import { loadSettings, saveSettings, type DesktopSettings } from "./settings";
 import { MEDIA_KEYS, SHORTCUT_IDS, type ShortcutId } from "./shortcuts";
 import { createTray, KEEP_RUNNING_LABEL, type WanhedaTray } from "./tray";
+import { updateMode } from "./update-policy";
+import { CHECK_FOR_UPDATES_LABEL, updateMenuLabel, updateNotice } from "./update-state";
+import { createUpdater } from "./updater";
 import { loadWindowState, MIN_SIZE, placeWindow, saveWindowState, type Rect } from "./window-state";
 
 /*
@@ -122,8 +125,22 @@ function boot(): void {
   let tray: WanhedaTray | null = null;
   // A link's path that came before the app's address was known (it started Wanheda, say); the newest wins.
   let pendingLink: string | null = null;
+  // "Restart now" on a downloaded update: the installer starts Wanheda again once it's done.
+  let restartForUpdate = false;
+  /** Self-update (T81, V75): packaged Windows builds only. */
+  const updater = createUpdater(updateMode({ packaged: app.isPackaged, platform: process.platform }), {
+    log,
+    showBox,
+    onState: showUpdateState,
+    restartToUpdate: () => {
+      restartForUpdate = true;
+      app.quit();
+    },
+    relaunch: () => { app.relaunch(); },
+  });
+  const checkForUpdates = updater.mode === "off" ? undefined : () => { updater.checkNow(); };
 
-  log.info(`starting (${mode}, Electron ${process.versions.electron})`);
+  log.info(`starting (${mode}, Electron ${process.versions.electron}, updates ${updater.mode})`);
   removeOldKeys(userData, log);
   registerLinks();
   openLink(linkArg(process.argv));
@@ -144,6 +161,13 @@ function boot(): void {
   ipcMain.handle(CHANNELS.signInBrowser, (event): boolean => {
     if (!fromWindow(event, mainWindow)) throw new Error("Not allowed.");
     return startBrowserSignIn();
+  });
+  ipcMain.handle(CHANNELS.updateStateGet, (event): UpdateState => {
+    if (!fromWindow(event, mainWindow)) throw new Error("Not allowed.");
+    return updater.state();
+  });
+  ipcMain.on(CHANNELS.updateRestart, (event) => {
+    if (fromWindow(event, mainWindow)) updater.restart();
   });
   ipcMain.handle(CHANNELS.mediaTranscodable, (event): Promise<string[]> => {
     if (!fromWindow(event, mainWindow)) throw new Error("Not allowed.");
@@ -349,6 +373,7 @@ function boot(): void {
     void shutdown().then((ok) => {
       if (!ok) {
         quitting = "no";
+        restartForUpdate = false;
         return;
       }
       quitting = "done";
@@ -356,7 +381,11 @@ function boot(): void {
       speech.stop();
       transcoder.stopAll();
       tray?.destroy();
-      app.exit(0);
+      // Only now, with the windows closed and the cookies flushed, may an installer replace the app (V75).
+      // Not while Windows logs off or shuts down: the update waits for the next quit.
+      const wait = sessionEnding ? 0 : updater.installOnQuit(restartForUpdate);
+      if (wait > 0) setTimeout(() => { app.exit(0); }, wait);
+      else app.exit(0);
     });
   });
 
@@ -366,12 +395,17 @@ function boot(): void {
     .catch((err: unknown) => fail(err));
 
   async function start(): Promise<void> {
-    Menu.setApplicationMenu(buildMenu(settings.keepRunning, setKeepRunning));
+    Menu.setApplicationMenu(buildMenu(settings.keepRunning, setKeepRunning, checkForUpdates));
     if (hasTray(process.platform)) {
       tray = createTray({
         open: showWindow,
         keepRunning: () => settings.keepRunning,
         setKeepRunning,
+        ...(checkForUpdates ? { checkForUpdates } : {}),
+        update: () => {
+          const label = updateMenuLabel(updater.state());
+          return label ? { label, click: () => { updater.restart(); } } : null;
+        },
         quit: () => { app.quit(); },
       });
     }
@@ -396,6 +430,7 @@ function boot(): void {
     applyShortcuts();
     createCaptureWindow();
     createIslandWindow();
+    updater.start();
     // A load that fails (offline, say) shows "Can't reach Wanheda" (did-fail-load) instead of stopping the app.
     // The code only: a navigation that cuts this load short (the sign-in's redeem URL) puts its own URL in the message.
     await mainWindow?.loadURL(`${appOrigin ?? ""}${first}`).catch((err: unknown) => { log.info(`first load: ${loadErrorCode(err)}`); });
@@ -536,7 +571,7 @@ function boot(): void {
 
   function setKeepRunning(on: boolean): void {
     updateSettings({ keepRunning: on });
-    Menu.setApplicationMenu(buildMenu(on, setKeepRunning));
+    Menu.setApplicationMenu(buildMenu(on, setKeepRunning, checkForUpdates));
     tray?.refresh();
     // A hidden window keeps music, timers and speech at full pace.
     if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.setBackgroundThrottling(!on);
@@ -597,6 +632,22 @@ function boot(): void {
       showWindow();
       if (notice.path) openInApp(notice.path);
     });
+  }
+
+  /**
+   * The title bar's pill shows the update. While the window is hidden or
+   * minimised it can't be seen, so a ready update also gets a notification.
+   */
+  function showUpdateState(state: UpdateState): void {
+    // Progress moves the pill, not the tray's item.
+    if (state.kind !== "downloading" || state.percent === 0) tray?.refresh();
+    const win = mainWindow;
+    // A page that misses this (still loading, say) asks for the state when its title bar mounts.
+    if (win && !win.isDestroyed()) win.webContents.send(CHANNELS.updateState, state);
+    const notice = updateNotice(state);
+    const shown = Boolean(win && !win.isDestroyed() && win.isVisible() && !win.isMinimized());
+    if (!notice || shown) return;
+    notify(notice.title, notice.body, () => { updater.restart(); });
   }
 
   /** Whether an IPC message came from `win`'s own top frame on the app's origin. */
@@ -1359,11 +1410,12 @@ function loadErrorCode(err: unknown): string {
   return typeof code === "string" && /^ERR_[A-Z0-9_]+$/.test(code) ? code : "unknown";
 }
 
-function buildMenu(keepRunning: boolean, setKeepRunning: (on: boolean) => void): Menu {
+function buildMenu(keepRunning: boolean, setKeepRunning: (on: boolean) => void, checkForUpdates?: () => void): Menu {
   const fileMenu: MenuItemConstructorOptions = {
     label: "File",
     submenu: [
       { label: KEEP_RUNNING_LABEL, type: "checkbox", checked: keepRunning, click: (item) => { setKeepRunning(item.checked); } },
+      ...(checkForUpdates ? [{ label: CHECK_FOR_UPDATES_LABEL, click: () => { checkForUpdates(); } }] : []),
       { type: "separator" },
       { role: "quit", label: "Quit Wanheda" },
     ],

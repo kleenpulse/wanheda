@@ -5,6 +5,16 @@ appId: io.github.kleenpulse.wanheda
 productName: Wanheda
 artifactName: Wanheda-${version}-${os}-${arch}.${ext}
 
+# Where the app looks for updates (SPEC T81, V75): this repo's published
+# releases. This writes resources/app-update.yml and latest.yml next to the
+# installer; scripts/build.ts checks both. Builds still run with
+# --publish never: CI uploads them to a draft release that a person publishes
+# (desktop/RELEASING.md). The updater can't see drafts.
+publish:
+  provider: github
+  owner: kleenpulse
+  repo: wanheda
+
 directories:
   # The staged main process; it has no dependencies, so nothing is collected.
   app: .stage/app

@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils, type IpcRendererEvent } from "electron";
-import { BRIDGE_VERSION, CHANNELS, type Command, type DesktopChange, type DesktopNotice, type DesktopSetResult, type DesktopState, type MenuAnchor, type TitleBarColors } from "./bridge";
+import { BRIDGE_VERSION, CHANNELS, type Command, type DesktopChange, type DesktopNotice, type DesktopSetResult, type DesktopState, type MenuAnchor, type TitleBarColors, type UpdateState } from "./bridge";
 import type { ListedFile, Root, RootKind } from "./files";
 import type { IslandCommand, IslandDrag, IslandReport, IslandSnapshot } from "./island";
 
@@ -26,6 +26,7 @@ const isCommand = (value: unknown): value is Command => Boolean(value) && typeof
 const isState = (value: unknown): value is DesktopState => Boolean(value) && typeof value === "object";
 const isSnapshot = (value: unknown): value is IslandSnapshot => Boolean(value) && typeof value === "object";
 const isBoolean = (value: unknown): value is boolean => typeof value === "boolean";
+const isUpdateState = (value: unknown): value is UpdateState => Boolean(value) && typeof value === "object";
 
 contextBridge.exposeInMainWorld("wanheda", {
   desktop: true,
@@ -104,6 +105,14 @@ contextBridge.exposeInMainWorld("wanheda", {
   auth: {
     /** Main window: sign in through the system browser (ADR-0016). */
     signInWithBrowser: (): Promise<boolean> => ipcRenderer.invoke(CHANNELS.signInBrowser),
+  },
+  update: {
+    /** Main window: where the self-update stands now, then every change. */
+    state: (): Promise<UpdateState> => ipcRenderer.invoke(CHANNELS.updateStateGet),
+    onState: (callback: (state: UpdateState) => void) => subscribe(CHANNELS.updateState, isUpdateState, callback),
+    restart(): void {
+      ipcRenderer.send(CHANNELS.updateRestart);
+    },
   },
   titleBar: {
     colors(colors: TitleBarColors): void {

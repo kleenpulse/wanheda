@@ -4,6 +4,7 @@ import { Menu } from "lucide-react";
 import * as React from "react";
 import { desktopBridge } from "@/lib/platform/desktop";
 import { Tip } from "@/components/ui/tooltip";
+import { UpdatePill } from "@/components/shell/update-pill";
 
 /** Window Controls Overlay (Chromium; not in TypeScript's DOM types yet). */
 type ControlsOverlay = EventTarget & { readonly visible: boolean };
@@ -79,6 +80,7 @@ export function TitleBar() {
             <circle cx="12" cy="5.5" r="1.5" className="fill-signal" />
           </svg>
           <span className="readout">Wanheda</span>
+          <UpdatePill className="mr-2 ml-auto" />
         </div>
       ) : null}
     </div>

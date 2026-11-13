@@ -15,6 +15,10 @@ written after the fact, one per phase, and have no git tags.
 
 ## [Unreleased]
 
+### Added
+
+- The desktop app now updates itself. When a new version is out, it downloads in the background and the title bar shows its progress, then a Restart to update button (also in the tray, and as a notification while the window is hidden). If you'd rather not restart now, the button waits for you, even after you quit and open Wanheda again. Updates download only the parts that changed, so they stay small. Install this version by hand once; after that, the app keeps itself up to date. You can also check yourself: File → Check for updates…, or the tray.
+
 ### Changed
 
 - The island's read-aloud card is shorter: Open now sits at the end of the Speed, Voice and Sleep row instead of on a row of its own.
