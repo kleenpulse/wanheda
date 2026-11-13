@@ -1,8 +1,10 @@
 # Latest hand-off
 
-**Newest:** [2026-11-13-phase-8-t91-merged.md](2026-11-13-phase-8-t91-merged.md). **T91 (offline service worker) + the social avatar merged as PR #105 (`main` at `e4d830b`, deployed; prod serves `/sw.js`). Next: the owner's offline checks, then the owner's pick.**
+**Newest:** [2026-11-13-phase-8-v0.7.5-cut.md](2026-11-13-phase-8-v0.7.5-cut.md). **v0.7.5 cut on `release/v0.7.5`, PR #106, waiting for the owner's merge. After the merge: `bun run bump --tag` on `main`, push the tag, and CI drafts the release with the installer.**
 
-**Before it:** [2026-11-13-phase-8-t91-service-worker.md](2026-11-13-phase-8-t91-service-worker.md). T91 + avatar built on `phase-8/t91-service-worker`; offline cold start checked in a real browser against a killed server.
+**Before it:** [2026-11-13-phase-8-t91-merged.md](2026-11-13-phase-8-t91-merged.md). T91 (offline service worker) + the social avatar merged as PR #105 (`main` at `e4d830b`, deployed; prod serves `/sw.js`).
+
+**Earlier:** [2026-11-13-phase-8-t91-service-worker.md](2026-11-13-phase-8-t91-service-worker.md). T91 + avatar built on `phase-8/t91-service-worker`; offline cold start checked in a real browser against a killed server.
 
 **Earlier:** [2026-11-13-phase-8-t90-merged.md](2026-11-13-phase-8-t90-merged.md). T90 merged as PR #104 (`main` at `f302c04`, deployed).
 
@@ -37,12 +39,13 @@
 
 Read the hand-off first, then verify it against the repo before trusting it (git, tripwire, typecheck, tests).
 
-### Builder prompt (after T91 merged)
+### Builder prompt (after v0.7.5 is merged)
 
 ```text
 You are the BUILDER for Wanheda (D:/Vxrcel/wanheda), lean mode, no worktrees. Check the branch first: the checkout is shared.
-Read docs/handoff/LATEST.md → 2026-11-13-phase-8-t91-merged.md (details in 2026-11-13-phase-8-t91-service-worker.md), and verify it (git status, tripwire, typecheck, tests).
-main is at e4d830b (T91 + avatar merged, deployed): fetch + incoming-commit check, pull. Commit the uncommitted hand-off docs with the next task.
-Ask the owner how the offline + avatar checks went, then what's next: Phase 8 has no open SPEC row after T91.
+Read docs/handoff/LATEST.md → 2026-11-13-phase-8-v0.7.5-cut.md, and verify it (git status, tripwire, typecheck, tests).
+The owner merged release PR #106: switch to main, fetch + incoming-commit check, pull, git tidy.
+Tag it: bun run bump --tag, then git push origin v0.7.5; check that CI's draft release has the installer.
+Then ask the owner about the T91 offline + avatar checks and what's next (Phase 8 has no open SPEC row).
 Commit, push and PR only on the owner's word (or a Reviewer LGTM).
 ```
