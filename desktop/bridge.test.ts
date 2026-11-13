@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { canTakeCommand, MAX_CAPTURE, MAX_NOTICE_BODY, MAX_NOTICE_TITLE, MAX_VALUE, openPath, parseAudible, parseCaptureText, parseDesktopChange, parseMenuAnchor, parseNotice, parseRootKind, parseSecretsAction, parseTitleBarColors, parseTtsInstall, needsLoad, trustedSender } from "./bridge";
+import { canTakeCommand, MAX_CAPTURE, MAX_NOTICE_BODY, MAX_NOTICE_TITLE, MAX_VALUE, openPath, parseAudible, parseCaptureText, parseDesktopChange, parseMenuAnchor, parseNotice, parseRootKind, parseTitleBarColors, parseTtsInstall, needsLoad, trustedSender } from "./bridge";
 
 describe("openPath", () => {
   test("takes allowlisted pages and their keys", () => {
@@ -97,12 +97,9 @@ describe("parseDesktopChange", () => {
 });
 
 describe("small parsers", () => {
-  test("audible and secrets actions", () => {
+  test("audible flags and folder kinds", () => {
     expect(parseAudible(true)).toBe(true);
     expect(parseAudible("true")).toBeNull();
-    expect(parseSecretsAction("import")).toBe("import");
-    expect(parseSecretsAction("demo")).toBe("demo");
-    expect(parseSecretsAction("delete")).toBeNull();
     expect(parseRootKind("music")).toBe("music");
     expect(parseRootKind("video")).toBe("video");
     expect(parseRootKind("docs")).toBeNull();

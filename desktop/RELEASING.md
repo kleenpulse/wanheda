@@ -9,7 +9,7 @@ How a new version of the Windows installer gets onto GitHub Releases. The instal
 3. After that PR is merged, update `main` (check the incoming commits first), then run `bun run bump --tag`. It adds the annotated tag `vX.Y.Z` on `main`'s HEAD and doesn't push.
 4. Push the tag: `git push origin vX.Y.Z`. That starts the **Desktop** workflow:
    - **rails:** the worm tripwire, before anything is installed.
-   - **build** (Windows): installs with `--ignore-scripts`, fetches the pinned Electron and ffmpeg (`--full`, checked against the zip's sha256), builds in demo mode, packs the NSIS installer, checks the server folder and Electron's fuses, writes `SHA256SUMS.txt` and smoke-tests the server.
+   - **build** (Windows): installs with `--ignore-scripts`, fetches the pinned Electron and ffmpeg (`--full`, checked against the zip's sha256), stages the shell, packs the NSIS installer, checks the speech and media folders, that no server folder shipped, and Electron's fuses, and writes `SHA256SUMS.txt`.
    - **draft release:** checks every file against `SHA256SUMS.txt`, checks that the tag matches `package.json`, and makes a **draft** release. Its notes are that version's `CHANGELOG.md` section.
 5. Open the draft on GitHub (Releases), check the files and edit the notes if you want.
 6. Click **Publish release**. Nothing publishes by itself.
@@ -31,7 +31,7 @@ Don't rename the files.
 
 ## What's in the installer
 
-The web app inside is built with every env name empty (`scripts/stage.ts`), and `scripts/verify.ts` refuses a server folder with any `.env` file in it. No secret is baked into the installer. On first run the app asks for a `.env` file or offers demo mode (see [README.md](README.md)).
+The Electron shell, the speech process with sherpa-onnx, and the pinned ffmpeg. There is no web app and no server inside: the app loads the hosted Wanheda, whose address is baked in when it is bundled (`WANHEDA_APP_URL`, production by default; [ADR-0016](../docs/adr/0016-desktop-loads-hosted-app.md)). No secret is in the installer, and the app asks for none: you sign in through your browser (see [README.md](README.md)).
 
 ## Not done yet
 

@@ -30,8 +30,6 @@ export const CHANNELS = {
   desktopState: "wanheda:desktop-state",
   /** page ⇄ main (invoke): Settings → Desktop changes one thing (`DesktopChange`). */
   desktopSet: "wanheda:desktop-set",
-  /** page ⇄ main (invoke): import a `.env` file again, or forget the keys (demo mode). */
-  secrets: "wanheda:secrets",
   /** main → page: the desktop state changed (`DesktopState`). */
   desktopChanged: "wanheda:desktop-changed",
   /** capture window ⇄ main (invoke): save this text as a note. */
@@ -151,12 +149,6 @@ export function parseAudible(payload: unknown): boolean | null {
   return typeof payload === "boolean" ? payload : null;
 }
 
-export type SecretsAction = "import" | "demo";
-
-export function parseSecretsAction(payload: unknown): SecretsAction | null {
-  return payload === "import" || payload === "demo" ? payload : null;
-}
-
 export type DesktopChange = { keepRunning: boolean } | { island: boolean } | { shortcut: ShortcutId; accelerator: string | null };
 
 /** One change from Settings → Desktop, or null. A shortcut is a valid accelerator, or null to turn it off. */
@@ -174,14 +166,12 @@ export function parseDesktopChange(payload: unknown): DesktopChange | null {
 
 export type ShortcutStatus = "on" | "taken" | "off";
 
-/** What Settings → Desktop shows. Never a key's value: only how many there are. */
+/** What Settings → Desktop shows. */
 export type DesktopState = {
   keepRunning: boolean;
   /** The floating island while Wanheda is in the background (V70). */
   island: boolean;
   shortcuts: { id: ShortcutId; accelerator: string | null; status: ShortcutStatus }[];
-  /** The imported `.env` keys: `desktop:dev` only. Null where the shell loads the hosted app (ADR-0016). */
-  secrets: { mode: "own" | "demo"; names: number } | null;
 };
 
 /** A Settings → Desktop change's answer: `ok` false when another shortcut already uses those keys. */

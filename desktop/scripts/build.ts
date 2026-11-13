@@ -1,20 +1,21 @@
 /*
  * bun run desktop:build
  *
- * Builds the web app, stages it, makes the Windows installer (NSIS, x64,
- * per-user) with electron-builder run by Node, then checks what got packaged
- * (server folder, Electron fuses) and writes SHA256SUMS.txt next to it.
+ * Stages the app, makes the Windows installer (NSIS, x64, per-user) with
+ * electron-builder run by Node, then checks what got packaged (speech, media,
+ * no server folder, Electron fuses) and writes SHA256SUMS.txt next to it. The
+ * app loads the hosted Wanheda (ADR-0016), so there is no web build here.
  *
  * Unsigned for now (SPEC V75). Installers for the owner come from CI (T81).
  */
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { buildAndStage } from "./stage";
+import { stage } from "./stage";
 import { FFMPEG_PIN } from "../ffmpeg-pin";
 import { inPlace } from "./fetch-ffmpeg";
-import { verifyMediaDir, verifyServerDir, verifySpeechDir } from "./verify";
+import { verifyMediaDir, verifySpeechDir } from "./verify";
 
 if (process.platform !== "win32") {
   console.error("desktop:build makes the Windows installer, on Windows.");
@@ -33,7 +34,7 @@ for (const name of Object.keys(process.env)) {
   }
 }
 
-await buildAndStage(root);
+await stage(root);
 
 const builder = join(desktop, "node_modules", "electron-builder", "cli.js");
 const env: Record<string, string | undefined> = { ...process.env };
@@ -47,7 +48,8 @@ const packed = spawnSync(process.env.WANHEDA_NODE || "node", [builder, "--config
 if (packed.status !== 0) throw new Error("electron-builder failed");
 
 const unpacked = join(out, "win-unpacked");
-verifyServerDir(join(unpacked, "resources", "server"));
+// The installer ships no Next server (ADR-0016): a stale folder in .stage must not sneak one in.
+if (existsSync(join(unpacked, "resources", "server"))) throw new Error("the packaged app has a server folder; it must not (ADR-0016)");
 verifySpeechDir(join(unpacked, "resources", "speech"));
 const packedMedia = join(unpacked, "resources", "media");
 verifyMediaDir(packedMedia);

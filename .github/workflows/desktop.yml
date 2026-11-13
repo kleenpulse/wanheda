@@ -12,8 +12,6 @@ on:
   pull_request:
     paths:
       - "desktop/**"
-      - "lib/security/**"
-      - "next.config.ts"
       - "package.json"
       - "bun.lock"
       - ".github/workflows/desktop.yml"
@@ -53,7 +51,7 @@ jobs:
         with:
           bun-version: 1.4.4
 
-      # next build and electron-builder run on Node (desktop/scripts/build.ts).
+      # electron-builder runs on Node (desktop/scripts/build.ts).
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
@@ -69,13 +67,11 @@ jobs:
       - name: Fetch ffmpeg
         run: bun desktop/scripts/fetch-ffmpeg.ts --full
 
-      # Builds in demo mode (every env name empty), stages, packs the NSIS
-      # installer, checks the server folder and the fuses, writes SHA256SUMS.txt.
+      # Stages the shell (it loads the hosted app, ADR-0016: no web build, no
+      # server), packs the NSIS installer, checks speech, media and the fuses,
+      # writes SHA256SUMS.txt.
       - name: Build the installer
         run: bun desktop/scripts/build.ts
-
-      - name: Smoke-test the server
-        run: bun desktop/scripts/smoke.ts
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:

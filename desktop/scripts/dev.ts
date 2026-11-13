@@ -1,6 +1,6 @@
 /*
- * bun run desktop:dev      Electron on `next dev` (HMR, no guard, no CSP)
- * bun run desktop:preview  Electron on the production server, built and staged here
+ * bun run desktop:dev      Electron on `next dev` (HMR, the repo's own .env files)
+ * bun run desktop:preview  the staged app on the hosted Wanheda (WANHEDA_APP_URL, else production)
  *
  * WANHEDA_DEBUG_PORT=9222 opens the Chrome DevTools Protocol on that port (unpackaged only).
  */
@@ -8,7 +8,7 @@ import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { bundleMain, bundleSpeech } from "./bundle";
-import { buildAndStage, stage } from "./stage";
+import { stage } from "./stage";
 
 const root = resolve(import.meta.dirname, "../..");
 const preview = process.argv.includes("--preview");
@@ -21,7 +21,7 @@ if (!existsSync(electron)) {
 
 let entry: string;
 if (preview) {
-  entry = (process.argv.includes("--no-build") ? await stage(root) : await buildAndStage(root)).app;
+  entry = (await stage(root)).app;
 } else {
   entry = join(root, "desktop", ".dev");
   await bundleMain(root, entry);

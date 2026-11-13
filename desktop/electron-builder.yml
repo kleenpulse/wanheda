@@ -20,18 +20,13 @@ asar: true
 npmRebuild: false
 nodeGypRebuild: false
 
+# The app loads the hosted Wanheda (ADR-0016): no server ships.
 extraResources:
-  - from: .stage/server
-    to: server
-    filter: ["**/*"]
-  # electron-builder drops a node_modules folder at the root of `from`, so it gets its own entry.
-  - from: .stage/server/node_modules
-    to: server/node_modules
-    filter: ["**/*"]
-  # Native Piper (V73): the speech process and sherpa-onnx, outside the asar like the server.
+  # Native Piper (V73): the speech process and sherpa-onnx, outside the asar.
   - from: .stage/speech
     to: speech
     filter: ["**/*"]
+  # electron-builder drops a node_modules folder at the root of `from`, so it gets its own entry.
   - from: .stage/speech/node_modules
     to: speech/node_modules
     filter: ["**/*"]

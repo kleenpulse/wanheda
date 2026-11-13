@@ -1,13 +1,17 @@
-import { utilityProcess } from "electron";
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { join } from "node:path";
 import type { Log } from "./log";
-import { LISTEN_HOST, originFor, TOKEN_HEADER } from "./shared";
+import { LISTEN_HOST, originFor } from "./shared";
+
+/*
+ * `desktop:dev` only: `next dev` from the repo, for HMR (ADR-0016). Preview and
+ * packaged builds load the hosted app and run no server of their own.
+ */
 
 export type ServerHandle = {
   readonly port: number;
   readonly origin: string;
-  /** Graceful stop; resolves once the server process is gone. */
+  /** Resolves once the server process is gone. */
   stop(): Promise<void>;
   /** Called if the server exits without being asked to. */
   onExit(listener: (detail: string) => void): void;
@@ -16,65 +20,53 @@ export type ServerHandle = {
 /** A start failure with a message meant for the owner. */
 export class ServerStartError extends Error {}
 
-/* ── Packaged / preview: the standalone server in a utility process ──────── */
+/** What a Windows process needs from the shell's environment (sockets, DNS, temp files, locale). */
+const PASS = new Set([
+  "systemroot",
+  "windir",
+  "path",
+  "pathext",
+  "comspec",
+  "temp",
+  "tmp",
+  "tmpdir",
+  "home",
+  "userprofile",
+  "appdata",
+  "localappdata",
+  "programdata",
+  "lang",
+  "language",
+  "tz",
+  "http_proxy",
+  "https_proxy",
+  "no_proxy",
+]);
 
-type Report = { type: "ready"; port: number } | { type: "failed"; message: string };
-
-export async function startStandaloneServer(opts: { serverDir: string; port: number; env: Record<string, string>; log: Log }): Promise<ServerHandle> {
-  const child = utilityProcess.fork(join(opts.serverDir, "wanheda-server.cjs"), [], {
-    cwd: opts.serverDir,
-    env: opts.env,
-    stdio: "pipe",
-    serviceName: "Wanheda Server",
-  });
-  const onData = (chunk: Buffer) => { opts.log.write(chunk.toString()); };
-  child.stdout?.on("data", onData);
-  child.stderr?.on("data", onData);
-  const exited = new Promise<number>((resolve) => child.once("exit", resolve));
-
-  const report = await new Promise<Report>((resolve) => {
-    const timer = setTimeout(() => { resolve({ type: "failed", message: "timed out" }); }, 90_000);
-    child.on("message", (message: Report) => {
-      clearTimeout(timer);
-      resolve(message);
-    });
-    void exited.then((code) => {
-      clearTimeout(timer);
-      resolve({ type: "failed", message: `exited with code ${code}` });
-    });
-  });
-  if (report.type !== "ready") {
-    child.kill();
-    opts.log.info(`server failed: ${report.message}`);
-    throw new ServerStartError("Wanheda's background server didn't start.");
+/**
+ * `next dev`'s environment: a short allowlist from the shell's own, so nothing
+ * else leaks in (no NODE_OPTIONS, no DATABASE_URL from the terminal). Next
+ * fills the app's settings from the repo's `.env` files, as `bun run dev`
+ * does. Sign-in and passkeys belong to this origin, never the web deploy's.
+ */
+export function devEnv(parent: Record<string, string | undefined>, port: number): Record<string, string> {
+  const env: Record<string, string> = {};
+  for (const [key, value] of Object.entries(parent)) {
+    if (value === undefined) continue;
+    const lower = key.toLowerCase();
+    if (PASS.has(lower) || lower.startsWith("lc_")) env[key] = value;
   }
-
-  let stopping = false;
-  const listeners: ((detail: string) => void)[] = [];
-  void exited.then((code) => {
-    if (!stopping) for (const listener of listeners) listener(`server exited with code ${code}`);
-  });
-
-  return {
-    port: report.port,
-    origin: originFor(report.port),
-    onExit: (listener) => void listeners.push(listener),
-    async stop() {
-      if (stopping) return;
-      stopping = true;
-      // The server drains requests (at most 3 s) and closes Next before it exits.
-      child.postMessage({ type: "shutdown" });
-      const exitedInTime = await Promise.race([exited.then(() => true), delay(5000).then(() => false)]);
-      if (!exitedInTime) child.kill();
-    },
-  };
+  const origin = originFor(port);
+  env.NEXT_TELEMETRY_DISABLED = "1";
+  env.PORT = String(port);
+  env.BETTER_AUTH_URL = origin;
+  env.NEXT_PUBLIC_APP_URL = origin;
+  return env;
 }
 
 const DEV_LOCKED = /Another next dev server is already running/i;
 
-/* ── Dev: `next dev` from the repo, for HMR ──────────────────────────────── */
-
-export async function startDevServer(opts: { repoRoot: string; port: number; token: string; env: Record<string, string>; log: Log }): Promise<ServerHandle> {
+export async function startDevServer(opts: { repoRoot: string; port: number; env: Record<string, string>; log: Log }): Promise<ServerHandle> {
   const next = join(opts.repoRoot, "node_modules", "next", "dist", "bin", "next");
   const child = spawn(process.env.WANHEDA_NODE || "node", [next, "dev", "--hostname", LISTEN_HOST, "--port", String(opts.port)], {
     cwd: opts.repoRoot,
@@ -89,7 +81,7 @@ export async function startDevServer(opts: { repoRoot: string; port: number; tok
   const origin = originFor(opts.port);
 
   try {
-    await waitUntilServing(origin, opts.token, exited, 180_000);
+    await waitUntilServing(origin, exited, 180_000);
   } catch (err) {
     killTree(child);
     if (DEV_LOCKED.test(output())) {
@@ -119,17 +111,15 @@ export async function startDevServer(opts: { repoRoot: string; port: number; tok
   };
 }
 
-/* ── Helpers ─────────────────────────────────────────────────────────────── */
-
 /** Polls until the server answers anything at all, the process exits, or time runs out. */
-async function waitUntilServing(origin: string, token: string, exited: Promise<unknown>, timeoutMs: number): Promise<void> {
+async function waitUntilServing(origin: string, exited: Promise<unknown>, timeoutMs: number): Promise<void> {
   const state = { gone: false };
   void exited.then(() => (state.gone = true));
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     if (state.gone) throw new ServerStartError("The Wanheda server stopped while starting. See server.log for details.");
     try {
-      await fetch(`${origin}/login`, { headers: { [TOKEN_HEADER]: token }, redirect: "manual", signal: AbortSignal.timeout(60_000) });
+      await fetch(`${origin}/login`, { redirect: "manual", signal: AbortSignal.timeout(60_000) });
       return;
     } catch {
       await delay(500);
