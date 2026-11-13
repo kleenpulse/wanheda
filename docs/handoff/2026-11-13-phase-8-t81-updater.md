@@ -19,7 +19,7 @@ T81's missing half (the self-updater) is built on `phase-8/t81-updater` (off `ma
 
 ## Review (2026-11-14)
 
-Reviewer (wanheda-9e): **LGTM with nits**, no FIX. Nits 1, 2 and 4 fixed: table rows are decided after list, heading and quote marks are stripped (+ test); the dead `checkingByHand` / `announce` path removed; a failed `install()` (installer gone from the cache) relaunches on this version instead of just closing. Nit 3 left: an offline re-check during a download flips the pill to hidden until "downloaded" (recovers by itself). Committed as three commits (`fix(notes)`, `style(island)`, T81). 187 files / 1895 tests pass.
+Reviewer (wanheda-9e): **LGTM with nits**, no FIX. Nits 1, 2 and 4 fixed: table rows are decided after list, heading and quote marks are stripped (+ test); the dead `checkingByHand` / `announce` path removed; a failed `install()` (installer gone from the cache) relaunches on this version instead of just closing. Nit 3 left: an offline re-check during a download flips the pill to hidden until "downloaded" (recovers by itself). Committed as three commits (`fix(notes)` 3a27239, `style(island)` 4919c05, T81 f27db14). **Not pushed:** `git push` + `gh pr create` were denied by the session's auto-mode permission check (external write); the owner pushes or allows it. A PR body draft is in this session's transcript (summary, checks, not verified, owner's call). 187 files / 1895 tests pass.
 
 ## Decisions and open questions for the owner
 

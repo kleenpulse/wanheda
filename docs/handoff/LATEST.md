@@ -1,6 +1,6 @@
 # Latest hand-off
 
-**Newest:** [2026-11-13-phase-8-t81-updater.md](2026-11-13-phase-8-t81-updater.md). **T81 self-updater built on `phase-8/t81-updater`, uncommitted, waiting for the owner's go-ahead (or a Reviewer LGTM). Two owner decisions open: install-on-quit vs V75, and auto-download on a metered line.**
+**Newest:** [2026-11-13-phase-8-t81-updater.md](2026-11-13-phase-8-t81-updater.md). **T81 self-updater + `fix(notes)` + `style(island)` committed on `phase-8/t81-updater` (3 commits off `64a78ce`, plus this hand-off), Reviewer wanheda-9e LGTM with nits (fixed). Not pushed: the push was denied by the session's permission check (external write) while the owner slept. V75 settled strict (install only on Restart). Open: auto-download on a metered line.**
 
 **Before it:** [2026-11-13-phase-8-v0.7.5-released.md](2026-11-13-phase-8-v0.7.5-released.md). v0.7.5 merged (PR #106, `main` at `64a78ce`), tagged, published as Latest; built locally too; v0.7.4 draft deleted.
 
@@ -43,12 +43,12 @@
 
 Read the hand-off first, then verify it against the repo before trusting it (git, tripwire, typecheck, tests).
 
-### Builder prompt (T81 built, uncommitted)
+### Builder prompt (T81 committed, not pushed)
 
 ```text
 You are the BUILDER for Wanheda (D:/Vxrcel/wanheda), lean mode, no worktrees. Check the branch first: the checkout is shared.
 Read docs/handoff/LATEST.md → 2026-11-13-phase-8-t81-updater.md, and verify it (git status, tripwire, both typechecks, tests).
-T81 (electron-updater, title-bar pill, tray, build checks) is uncommitted on phase-8/t81-updater, with the two older hand-off docs.
-Get the owner's answers on install-on-quit (V75) and auto-download on a metered line, adjust, then commit, push and PR on the owner's word (or a Reviewer LGTM).
-Then T82: two published releases with the updater prove N → N+1.
+phase-8/t81-updater holds 4 commits off main 64a78ce: fix(notes), style(island), T81 self-updater, hand-off. Reviewer wanheda-9e gave LGTM with nits (fixed).
+The push was denied by the permission check; with the owner's word: forged-commit check, push, open the PR, ping the Reviewer for the tip check, and merge only on the owner's word.
+Ask the owner about the auto-download switch (metered line). Then T82: two published releases with the updater prove N → N+1.
 ```
