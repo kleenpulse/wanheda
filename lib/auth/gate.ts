@@ -6,9 +6,11 @@ import { isListed } from "./allowlist";
 
 /**
  * Reachable without a session in gated mode (FRD D3). The desktop app's
- * window is signed out when it spends its sign-in token (ADR-0016).
+ * window is signed out when it spends its sign-in token (ADR-0016). The
+ * offline worker's script holds no data, and the browser's update check for it
+ * must not be redirected while signed out (T91).
  */
-const PUBLIC_PREFIXES = ["/login", "/api/auth", "/api/webhooks", "/api/desktop/redeem"] as const;
+const PUBLIC_PREFIXES = ["/login", "/api/auth", "/api/webhooks", "/api/desktop/redeem", "/sw.js"] as const;
 
 export function isPublicPath(pathname: string): boolean {
   return PUBLIC_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
@@ -73,6 +75,8 @@ export interface SessionUser {
   id: string;
   email: string;
   name: string;
+  /** The social provider's profile photo (Google's `picture`), when there is one. */
+  image?: string | null;
 }
 
 /**

@@ -10,7 +10,7 @@ import { loadNotices } from "@/lib/notifications/store";
 import { PREFS_COOKIE, decodePrefs } from "@/lib/prefs/prefs";
 import { loadPrefs } from "@/lib/prefs/store";
 import type { ReaderPrefs } from "@/lib/reader/prefs";
-import { DEMO_ACCOUNT, type ShellAccount } from "@/lib/shell/account";
+import { DEMO_ACCOUNT, avatarUrl, type ShellAccount } from "@/lib/shell/account";
 import { RAIL_COOKIE, parseRail } from "@/lib/shell/rail";
 import type { NoticesSource } from "@/components/notifications/notifications-provider";
 import type { PrefsSource } from "@/components/prefs/prefs-provider";
@@ -32,7 +32,7 @@ async function OwnerShell({ children }: { children: React.ReactNode }) {
   const jar = await cookies();
   const account: ShellAccount =
     owner.kind === "owner"
-      ? { kind: "owner", id: owner.user.id, name: owner.user.name || owner.user.email, email: owner.user.email, admin: owner.admin }
+      ? { kind: "owner", id: owner.user.id, name: owner.user.name || owner.user.email, email: owner.user.email, image: avatarUrl(owner.user.image), admin: owner.admin }
       : DEMO_ACCOUNT;
 
   // Prefs and alerts: the owner's from the database (either read failing falls back,

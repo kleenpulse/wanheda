@@ -1,8 +1,12 @@
 # Latest hand-off
 
-**Newest:** [2026-11-13-phase-8-t90-desktop-no-server.md](2026-11-13-phase-8-t90-desktop-no-server.md). **T90 built on `phase-8/desktop-no-server`, uncommitted, waiting for the owner's go-ahead (or a Reviewer LGTM): the installer ships no server (160.2 MB, was 175.5 MB), no `.env` import or keys anywhere, dev's `next dev` reads the repo's `.env` files, old `secrets.json` deleted at start. Owner confirmed the T89 browser sign-in works in `desktop:preview`.**
+**Newest:** [2026-11-13-phase-8-t91-service-worker.md](2026-11-13-phase-8-t91-service-worker.md). **T91 (offline service worker) + the social avatar built on `phase-8/t91-service-worker`, uncommitted, waiting for the owner's go-ahead (or a Reviewer LGTM). Offline cold start checked in a real browser against a killed server.**
 
-**Before it:** [2026-11-12-phase-8-t89-merged.md](2026-11-12-phase-8-t89-merged.md). T89 merged as PR #103 (`main` at `62f165e`, deployed).
+**Before it:** [2026-11-13-phase-8-t90-merged.md](2026-11-13-phase-8-t90-merged.md). T90 merged as PR #104 (`main` at `f302c04`, deployed).
+
+**Before it:** [2026-11-13-phase-8-t90-desktop-no-server.md](2026-11-13-phase-8-t90-desktop-no-server.md). **T90 built on `phase-8/desktop-no-server`, uncommitted, waiting for the owner's go-ahead (or a Reviewer LGTM): the installer ships no server (160.2 MB, was 175.5 MB), no `.env` import or keys anywhere, dev's `next dev` reads the repo's `.env` files, old `secrets.json` deleted at start. Owner confirmed the T89 browser sign-in works in `desktop:preview`.**
+
+**Earlier:** [2026-11-12-phase-8-t89-merged.md](2026-11-12-phase-8-t89-merged.md). T89 merged as PR #103 (`main` at `62f165e`, deployed).
 
 **Earlier:** [2026-11-12-phase-8-t89-desktop-sign-in.md](2026-11-12-phase-8-t89-desktop-sign-in.md). **T89 on `phase-8/desktop-sign-in`, Reviewer LGTM with nits (fixed), PR open for the owner: "Sign in with your browser" (nonce ⇒ `/desktop/sign-in` ⇒ single-use token ⇒ `wanheda://auth` ⇒ redeem with a header main alone sends), the app gets its own session, loopback relay removed, `bridge.version` 2. Owner confirmed 2026-11-12: `OWNER_EMAILS` removed from Vercel, Google sign-in live in production. Still open: the Neon deletion test.**
 
@@ -31,21 +35,12 @@
 
 Read the hand-off first, then verify it against the repo before trusting it (git, tripwire, typecheck, tests).
 
-### Builder prompt (T90 uncommitted: commit, push, PR)
+### Builder prompt (T91 + avatar built, uncommitted)
 
 ```text
-You are the BUILDER for Wanheda (D:Vxrcelwanheda), lean mode, no worktrees. Check the branch first: the checkout is shared.
-Read docs/handoff/LATEST.md → 2026-11-13-phase-8-t90-desktop-no-server.md, and verify it (git status, tripwire, typecheck, tests).
-T90 sits uncommitted on phase-8/desktop-no-server (off main 62f165e). Fetch + incoming-commit check first.
-With the owner's word (or a Reviewer LGTM): stage the listed files explicitly (hand-off docs included), commit, push, open the PR; check the Desktop workflow's installer build passes.
-Then stop: after the merge, a new session (T91 or the owner's pick).
-```
-
-### Reviewer prompt (T90 diff)
-
-```text
-You are the REVIEWER for Wanheda (D:Vxrcelwanheda). Never write to the repo. Use the diff-reviewer skill.
-Read docs/handoff/2026-11-13-phase-8-t90-desktop-no-server.md, then review the uncommitted diff on phase-8/desktop-no-server against main 62f165e.
-Focus: desktop/main.ts (removeOldKeys, dev start path), desktop/dev-server.ts, scripts/stage.ts + build.ts, electron-builder.yml, desktop.yml. Bugs + edge cases only.
-Send your verdict (LGTM / LGTM with nits / FIX) to the Builder.
+You are the BUILDER for Wanheda (D:/Vxrcel/wanheda), lean mode, no worktrees. Check the branch first: the checkout is shared.
+Read docs/handoff/LATEST.md → 2026-11-13-phase-8-t91-service-worker.md and verify it (git status, tripwire, typecheck, tests).
+Branch phase-8/t91-service-worker holds T91 (offline service worker) + the social avatar, uncommitted, with the T90 hand-off docs.
+Commit (stage files explicitly), push and open the PR only on the owner's word (or a Reviewer LGTM); the owner merges.
+After the deploy, walk the owner through the offline check in the hand-off's Next steps.
 ```

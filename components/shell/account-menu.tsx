@@ -47,12 +47,13 @@ export function AccountMenu({
         <span
           className={cn(
             circle,
-            "bg-sheet font-display text-sm font-semibold text-foreground ring-1 ring-border group-hover:bg-card",
+            "relative overflow-hidden bg-sheet font-display text-sm font-semibold text-foreground ring-1 ring-border group-hover:bg-card",
             "dark:bg-signal-soft dark:text-signal dark:ring-glass-border",
             className,
           )}
         >
           {account.kind === "owner" ? initials(account.name) : <UserRound strokeWidth={1.75} />}
+          {account.kind === "owner" && account.image ? <Avatar key={account.image} src={account.image} /> : null}
         </span>
         {withLabel && (
           <span className={cn("min-w-0 flex-1 leading-tight transition-opacity duration-200", labelClass)}>
@@ -85,5 +86,33 @@ export function AccountMenu({
         )}
       </MenuContent>
     </Menu>
+  );
+}
+
+/**
+ * The social profile photo, laid over the initials: they show while it loads
+ * and come back if it fails. No referrer, as Google's photo host refuses some.
+ */
+function Avatar({ src }: { src: string }) {
+  const [state, setState] = React.useState<"loading" | "shown" | "failed">("loading");
+  if (state === "failed") return null;
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={src}
+      alt=""
+      draggable={false}
+      referrerPolicy="no-referrer"
+      // A cached photo can finish before hydration, so onLoad never fires.
+      ref={(img) => {
+        if (img?.complete && state === "loading") setState(img.naturalWidth > 0 ? "shown" : "failed");
+      }}
+      onLoad={() => setState("shown")}
+      onError={() => setState("failed")}
+      className={cn(
+        "absolute inset-0 size-full object-cover transition-opacity duration-200 motion-reduce:transition-none",
+        state === "shown" ? "opacity-100" : "opacity-0",
+      )}
+    />
   );
 }

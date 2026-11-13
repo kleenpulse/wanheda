@@ -3,6 +3,7 @@
 import * as React from "react";
 import { watchAccount } from "@/lib/device/account-channel";
 import { scopeFor, setDeviceScope } from "@/lib/device/scope";
+import { tellWorkerAccount } from "@/lib/sw/client";
 import type { ShellAccount } from "@/lib/shell/account";
 
 const AccountContext = React.createContext<ShellAccount | null>(null);
@@ -23,6 +24,10 @@ export function AccountProvider({ account, children }: { account: ShellAccount; 
       }),
     [scope.id],
   );
+  // The offline worker keeps only this account's pages (T91).
+  React.useEffect(() => {
+    tellWorkerAccount(scope.id);
+  }, [scope.id]);
   return <AccountContext.Provider value={account}>{children}</AccountContext.Provider>;
 }
 

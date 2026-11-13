@@ -34,7 +34,15 @@ const nextConfig: NextConfig = {
 	// which needs eval and its hot-reload websocket.
 	headers() {
 		const dev = process.env.NODE_ENV === "development";
-		return Promise.resolve(dev ? [] : [{ source: "/:path*", headers: [{ key: CSP_HEADER, value: contentSecurityPolicy() }] }]);
+		return Promise.resolve(
+			dev
+				? []
+				: [
+						{ source: "/:path*", headers: [{ key: CSP_HEADER, value: contentSecurityPolicy() }] },
+						// The offline worker (T91): always revalidated, so a deploy's new worker is seen on the next load.
+						{ source: "/sw.js", headers: [{ key: "Cache-Control", value: "no-cache" }] },
+					],
+		);
 	},
 };
 

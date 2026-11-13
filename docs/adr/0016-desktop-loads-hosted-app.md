@@ -54,6 +54,15 @@ Built as decided, with three changes in the details:
 - **A click, not a redirect.** Signed in, `/desktop/sign-in` shows the account and an "Open the Wanheda app" link; the token is minted only then (`/api/desktop/handoff`), and "Use another account" is next to it. It's a link because the CSP's `form-action 'self'` blocks a form's redirect to `wanheda:`.
 - **The redeem route needs a header only main sends** (`x-wanheda-redeem`). Without it a stranger could send their token to someone's web browser and sign it into their account.
 
+## Amendment, 2026-11-13 (T91)
+
+The offline cold start is a service worker on the hosted origin, so the web gets it too:
+
+- **Pages are network first, not cache first.** A saved page carries its build's script names and that moment's data, so it's used only when the network fails, answers 5xx, or takes over 3 seconds (then the network keeps going and refreshes the copy). A page never opened before falls back to the saved home page. Build files under `/_next/static/` are content-hashed, so they're cache first. Writes, RSC fetches, APIs, sign-in and the desktop handoff always go to the network.
+- **Saved pages belong to one account.** The shell tells the worker its account; sign-out, account deletion and the login page tell it "signed out", which deletes the saved pages, and so does one account replacing another. Pages saved while signed out are adopted by the next account, since only that session could have fetched them.
+- **No tracked JavaScript.** The worker is TypeScript (`lib/sw/`), bundled by `bun run build` into an ignored `public/sw.js`.
+- **Kill switch.** If the worker ever misbehaves, ship one whose install unregisters itself and deletes the `wanheda-*` caches. A 404 for `/sw.js` does not remove a worker that's already installed.
+
 ## Tasks
 
 | Task | What |
@@ -61,4 +70,4 @@ Built as decided, with three changes in the details:
 | T88 | Shell on the hosted origin: `WANHEDA_APP_URL` (build-time, `https:`, exact origin), `policy.ts` and `bridge.ts` on `https:`, no server start in packaged builds, the "can't reach" page with Retry, `bridge.version`, and the page feature-detecting it. |
 | T89 | Sign-in handoff: the `one-time-token` plugin, `/desktop/sign-in` and `/api/desktop/redeem`, the `wanheda://auth` link with its nonce check in main, and "Sign in with your browser" on the login page. Remove the loopback OAuth relay. |
 | T90 | Drop the server from the installer: stage, bundle, verify, smoke, the `.env` import and secrets UI, and the Settings → Desktop rows; update `desktop.yml` and `RELEASING.md`. |
-| T91 | Service worker for an offline cold start (later). |
+| T91 | Service worker for an offline cold start (built 2026-11-13; see the amendment above). |
