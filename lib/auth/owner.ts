@@ -26,7 +26,7 @@ export const getOwner = cache(async (): Promise<OwnerDecision> => {
   const auth = getAuth();
   if (!auth) return { kind: "locked" };
   const session = await auth.api.getSession({ headers: await headers() });
-  const user = session ? { id: session.user.id, email: session.user.email, name: session.user.name } : null;
+  const user = session ? { id: session.user.id, email: session.user.email, name: session.user.name, image: session.user.image ?? null } : null;
   const decision = decideOwner({ mode, user, admins: adminEmails() });
   // The admin page's active-user counts. After the reply, so it never slows a read.
   if (decision.kind === "owner") {

@@ -63,6 +63,8 @@ describe("isPublicPath", () => {
     expect(isPublicPath("/api/desktop/redeem")).toBe(true);
     expect(isPublicPath("/api/desktop/handoff")).toBe(false);
     expect(isPublicPath("/desktop/sign-in")).toBe(false);
+    expect(isPublicPath("/sw.js")).toBe(true);
+    expect(isPublicPath("/sw.json")).toBe(false);
   });
 });
 

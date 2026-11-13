@@ -8,12 +8,24 @@ export interface ShellAccount {
   id: string | null;
   name: string;
   email: string | null;
+  /** The social profile photo (https only), or null for the initials. */
+  image: string | null;
   /** Shows the Admin page in the rail. Only a hint: /admin checks on the server. */
   admin: boolean;
 }
 
 /** The demo account: no database and no auth, so nobody is signed in. */
-export const DEMO_ACCOUNT: ShellAccount = { kind: "demo", id: null, name: "Demo", email: null, admin: false };
+export const DEMO_ACCOUNT: ShellAccount = { kind: "demo", id: null, name: "Demo", email: null, image: null, admin: false };
+
+/** A profile photo is only shown from https (the CSP's img-src), never a data: or http URL. */
+export function avatarUrl(image: string | null | undefined): string | null {
+  if (!image) return null;
+  try {
+    return new URL(image).protocol === "https:" ? image : null;
+  } catch {
+    return null;
+  }
+}
 
 /** "Isaac Gideon" → "IG", "octocat" → "O", "" → "?". Punctuation is not a word boundary. */
 export function initials(name: string): string {

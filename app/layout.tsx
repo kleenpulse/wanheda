@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Figtree, Geist, Geist_Mono, JetBrains_Mono, Poppins } from "next/font/google";
 import { MotionProvider } from "@/components/providers/motion-provider";
+import { ServiceWorker } from "@/components/providers/service-worker";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import { TitleBar } from "@/components/shell/title-bar";
 import { privacyBootScript } from "@/lib/money/privacy";
@@ -56,6 +57,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <ThemeProvider>
           <TitleBar />
           <MotionProvider>{children}</MotionProvider>
+          <ServiceWorker />
         </ThemeProvider>
       </body>
     </html>

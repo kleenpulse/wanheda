@@ -14,6 +14,8 @@ next-env.d.ts
 
 # build
 /build
+# the offline service worker, bundled from lib/sw/worker.ts by scripts/build-sw.ts
+/public/sw.js
 /dist
 *.tsbuildinfo
 

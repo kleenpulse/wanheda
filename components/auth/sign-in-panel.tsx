@@ -10,6 +10,7 @@ import { pickFromDom, resolveWord, wordDelay } from "@/lib/auth/auth-word";
 import { authClient } from "@/lib/auth/client";
 import { parseLastMethod, type SignInMethod } from "@/lib/auth/last-method";
 import { browserSignIn, isDesktop } from "@/lib/platform/desktop";
+import { tellWorkerAccount } from "@/lib/sw/client";
 
 type Provider = "github" | "google";
 type Pending = Provider | "passkey" | null;
@@ -47,6 +48,11 @@ export function SignInPanel({
   const panel = useRef<HTMLDivElement>(null);
   const setWord = useAuthWord()?.setWord;
   const word = resolveWord({ pending, inBrowser, hovered, focused });
+
+  // Whoever signs in next must not find the last account's saved pages offline (T91).
+  useEffect(() => {
+    tellWorkerAccount(null);
+  }, []);
 
   useEffect(() => {
     if (!setWord) return;

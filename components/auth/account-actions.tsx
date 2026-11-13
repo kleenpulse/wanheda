@@ -8,6 +8,7 @@ import { authClient } from "@/lib/auth/client";
 import { announceAccount } from "@/lib/device/account-channel";
 import { forgetAccountStores } from "@/lib/device/dexie";
 import { deviceScope } from "@/lib/device/scope";
+import { tellWorkerAccount } from "@/lib/sw/client";
 import { WINDOWS_STORAGE_KEY } from "@/lib/windows/store";
 
 /** Ends the session. False on an error response or a network failure, so callers can recover. */
@@ -47,6 +48,7 @@ export async function leaveAfterDelete(): Promise<void> {
 
 function clearTab(): void {
   announceAccount(null);
+  tellWorkerAccount(null);
   try {
     localStorage.removeItem(ACTIVITY_STORAGE_KEY);
     localStorage.removeItem(WINDOWS_STORAGE_KEY);
