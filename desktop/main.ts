@@ -1,10 +1,8 @@
 import { app, BrowserWindow, dialog, globalShortcut, ipcMain, protocol, type IpcMainEvent, type IpcMainInvokeEvent, Menu, type MessageBoxOptions, type MessageBoxReturnValue, nativeTheme, Notification, screen, session, shell, type MenuItemConstructorOptions, type Session, type WebContents } from "electron";
-import { randomBytes } from "node:crypto";
-import { readFileSync, statSync } from "node:fs";
+import { readdirSync, rmSync } from "node:fs";
 import { basename, join } from "node:path";
-import { CAPTURE_PATH, canTakeCommand, CHANNELS, needsLoad, openPath, parseAudible, parseMenuAnchor, parseRootKind, parseTitleBarColors, parseTtsInstall, parseCaptureText, parseDesktopChange, parseNotice, parseSecretsAction, trustedSender, type Command, type DesktopNotice, type DesktopSetResult, type DesktopState, type ShortcutStatus, type TitleBarColors } from "./bridge";
-import { MAX_ENV_FILE, parseEnvFile, type Imported } from "./env-file";
-import { serverEnv } from "./env";
+import { CAPTURE_PATH, canTakeCommand, CHANNELS, needsLoad, openPath, parseAudible, parseMenuAnchor, parseRootKind, parseTitleBarColors, parseTtsInstall, parseCaptureText, parseDesktopChange, parseNotice, trustedSender, type Command, type DesktopNotice, type DesktopSetResult, type DesktopState, type ShortcutStatus, type TitleBarColors } from "./bridge";
+import { delay, devEnv, ServerStartError, startDevServer, type ServerHandle } from "./dev-server";
 import { hasTray, onAllWindowsClosed, onWindowClose, showTrayHint, type Lifecycle } from "./lifecycle";
 import { linkArg, linkPath, WANHEDA_SCHEME } from "./links";
 import { FILE_SCHEME, isRootId, MAX_ROOTS, newRootId, type Root } from "./files";
@@ -21,11 +19,7 @@ import type { Provider } from "./oauth";
 import { parseAppOrigin, unreachablePage, unreachableRetry } from "./origin";
 import { classifyAuthUrl, classifyUrl, navigationStep, permissionAllowed } from "./policy";
 import { freePort, isPortFree, savePort, savedPort } from "./ports";
-import { electronSealer } from "./sealer";
-import { fileStore, loadSecrets, NoKeychainError, saveSecrets, type Sealer, type SecretStore } from "./secrets";
-import { delay, ServerStartError, startDevServer, startStandaloneServer, type ServerHandle } from "./server-process";
 import { loadSettings, saveSettings, type DesktopSettings } from "./settings";
-import { TOKEN_HEADER } from "./shared";
 import { MEDIA_KEYS, SHORTCUT_IDS, type ShortcutId } from "./shortcuts";
 import { createTray, KEEP_RUNNING_LABEL, type WanhedaTray } from "./tray";
 import { loadWindowState, MIN_SIZE, placeWindow, saveWindowState, type Rect } from "./window-state";
@@ -34,8 +28,8 @@ import { loadWindowState, MIN_SIZE, placeWindow, saveWindowState, type Rect } fr
  * Wanheda's desktop shell (Phase 8, ported from Raven's desktop/). Preview and
  * packaged builds load the hosted app (ADR-0016): its address is baked in at
  * bundle time (`WANHEDA_APP_URL`), and nothing secret lives on the device but
- * the session cookie. `desktop:dev` runs `next dev` on http://localhost:<port>
- * with the sealed `.env` values, as before. This main process owns the windows,
+ * the session cookie. `desktop:dev` runs `next dev` on http://localhost:<port>,
+ * which reads the repo's own `.env` files. This main process owns the windows,
  * the session and the native features (desktop/README.md).
  */
 
@@ -79,13 +73,10 @@ function boot(): void {
   const userData = app.getPath("userData");
   const logs = join(userData, "logs");
   const log = createLog(logs, "main.log", !app.isPackaged);
-  const token = randomBytes(32).toString("base64url");
   const inFlight = new Set<number>();
-  const secretStore = fileStore(join(userData, "secrets.json"));
 
+  /** `desktop:dev`'s `next dev`; preview and packaged builds have none. */
   let server: ServerHandle | null = null;
-  let secrets: Imported = {};
-  let sealer: Sealer | null = null;
   let appOrigin: string | null = null;
   let mainWindow: BrowserWindow | null = null;
   /** Quick capture (V71): created hidden once the server is up, shown over any app by its shortcut. */
@@ -129,12 +120,11 @@ function boot(): void {
   let sessionEnding = false;
   let settings: DesktopSettings = loadSettings(userData);
   let tray: WanhedaTray | null = null;
-  // A link's path that came before the server was up (it started Wanheda, say); the newest wins.
+  // A link's path that came before the app's address was known (it started Wanheda, say); the newest wins.
   let pendingLink: string | null = null;
-  // An import or "use demo mode" is restarting the server.
-  let restarting = false;
 
   log.info(`starting (${mode}, Electron ${process.versions.electron})`);
+  removeOldKeys(userData, log);
   registerLinks();
   openLink(linkArg(process.argv));
 
@@ -259,14 +249,6 @@ function boot(): void {
     pushState();
     return { ok: true, state: desktopState() };
   });
-  ipcMain.handle(CHANNELS.secrets, async (event, payload: unknown): Promise<DesktopState> => {
-    if (!fromWindow(event, mainWindow)) throw new Error("Not allowed.");
-    const action = parseSecretsAction(payload);
-    if (!action) throw new Error("Not a secrets action.");
-    if (action === "import") await reimport();
-    else await useDemo();
-    return desktopState();
-  });
   ipcMain.handle(CHANNELS.capture, (event, payload: unknown): boolean => {
     if (!fromWindow(event, captureWindow)) throw new Error("Not allowed.");
     const text = parseCaptureText(payload);
@@ -384,7 +366,7 @@ function boot(): void {
     .catch((err: unknown) => fail(err));
 
   async function start(): Promise<void> {
-    Menu.setApplicationMenu(buildMenu(settings.keepRunning, menuActions, !hosted));
+    Menu.setApplicationMenu(buildMenu(settings.keepRunning, setKeepRunning));
     if (hasTray(process.platform)) {
       tray = createTray({
         open: showWindow,
@@ -405,14 +387,7 @@ function boot(): void {
       appOrigin = origin;
       log.info(`loading ${origin}`);
     } else {
-      const win = createWindow();
-      // The first-run question attaches to the splash window, so wait for it to show.
-      await new Promise<void>((resolve) => {
-        if (win.isVisible()) { resolve(); return; }
-        win.once("show", () => { resolve(); });
-        setTimeout(resolve, 3000);
-      });
-      secrets = await loadOrAskSecrets();
+      createWindow();
       server = await startServer();
       attach(server);
     }
@@ -458,30 +433,13 @@ function boot(): void {
     if (!ok) log.info("couldn't register wanheda:// links");
   }
 
-  const menuActions: MenuActions = {
-    setKeepRunning: (on) => { setKeepRunning(on); },
-    importEnv: () => void reimport().catch((err: unknown) => { log.info(`import: ${errText(err)}`); }),
-    useDemo: () => void useDemo().catch((err: unknown) => { log.info(`demo mode: ${errText(err)}`); }),
-  };
-
+  /** `desktop:dev` only: `next dev` from the repo, on the saved port. */
   async function startServer(): Promise<ServerHandle> {
+    const repoRoot = process.env.WANHEDA_REPO_ROOT;
+    if (!repoRoot) throw new ServerStartError("Start dev mode with `bun run desktop:dev`.");
     const port = await pickPort();
     const serverLog = createLog(logs, "server.log", !app.isPackaged);
-    if (mode === "dev") {
-      const repoRoot = process.env.WANHEDA_REPO_ROOT;
-      if (!repoRoot) throw new ServerStartError("Start dev mode with `bun run desktop:dev`.");
-      const env = serverEnv(process.env, { mode: "dev", port, token, secrets });
-      return startDevServer({ repoRoot, port, token, env, log: serverLog });
-    }
-    // Packaged: resources/server. Preview: desktop/.stage/server next to the staged app.
-    const serverDir = app.isPackaged ? join(process.resourcesPath, "server") : join(app.getAppPath(), "..", "server");
-    const env = serverEnv(process.env, { mode: "prod", port, token, secrets });
-    const handle = await startStandaloneServer({ serverDir, port, env, log: serverLog });
-    if (handle.port !== port) {
-      log.info(`port ${port} was taken; the server moved to ${handle.port}. Data the window keeps per origin starts fresh.`);
-      savePort(userData, handle.port);
-    }
-    return handle;
+    return startDevServer({ repoRoot, port, env: devEnv(process.env, port), log: serverLog });
   }
 
   /** The main window while it can be seen: dialogs attach to it, so they never open behind it. */
@@ -492,150 +450,6 @@ function boot(): void {
   function showBox(options: MessageBoxOptions): Promise<MessageBoxReturnValue> {
     const parent = shownWindow();
     return parent ? dialog.showMessageBox(parent, options) : dialog.showMessageBox(options);
-  }
-
-  /* ── Sealed .env values (SPEC V69) ────────────────────────────────────── */
-
-  async function getSealer(): Promise<Sealer> {
-    sealer ??= await electronSealer();
-    return sealer;
-  }
-
-  /** The sealed values; on first run asks for a `.env` file or demo mode. */
-  async function loadOrAskSecrets(): Promise<Imported> {
-    const result = await loadSecrets(secretStore, await getSealer());
-    if (result.kind === "ok") return result.values;
-    if (result.kind === "none") return firstRun();
-    const why =
-      result.kind === "keychain-changed"
-        ? `They were locked with "${result.was}", and this system now uses "${result.now}".`
-        : result.kind === "keychain-unavailable"
-          ? "They're locked with your system's keychain, and it isn't available right now. Quit and try again once it's back."
-          : "The file that holds them can't be read.";
-    log.info(`saved keys unreadable: ${result.kind}`);
-    const { response } = await showBox({
-      type: "warning",
-      title: "Wanheda",
-      message: "Wanheda can't open its saved keys.",
-      detail: `${why} Starting fresh keeps the old file next to the new one, and asks for your .env file again.`,
-      buttons: ["Quit", "Start fresh"],
-      defaultId: 0,
-      cancelId: 0,
-    });
-    if (response !== 1) {
-      quitting = "done";
-      tray?.destroy();
-      app.exit(0);
-      return new Promise<never>(() => {});
-    }
-    secretStore.keepBroken();
-    return firstRun();
-  }
-
-  async function firstRun(): Promise<Imported> {
-    // A cancelled picker or an unusable file asks again: only "Start in demo
-    // mode" records demo mode.
-    for (;;) {
-      const { response } = await showBox({
-        type: "question",
-        title: "Wanheda",
-        message: "Run Wanheda on your own data?",
-        detail:
-          "Choose your .env file: Wanheda takes the settings it knows, seals them with your system's keychain, and doesn't keep the file. Or start in demo mode with sample data. You can import a file later from the File menu.",
-        buttons: ["Choose .env file…", "Start in demo mode"],
-        defaultId: 0,
-        cancelId: 1,
-      });
-      if (response !== 0) break;
-      const values = await importEnvFile();
-      if (values) return values;
-    }
-    await persist(secretStore, {});
-    log.info("demo mode chosen");
-    return {};
-  }
-
-  /** Asks for a `.env` file, seals what it knows from it. Null when cancelled or empty. */
-  async function importEnvFile(): Promise<Imported | null> {
-    const parent = shownWindow();
-    const options = { title: "Choose your .env file", properties: ["openFile", "showHiddenFiles", "dontAddToRecent"] as ("openFile" | "showHiddenFiles" | "dontAddToRecent")[] };
-    const picked = parent ? await dialog.showOpenDialog(parent, options) : await dialog.showOpenDialog(options);
-    const file = picked.filePaths[0];
-    if (picked.canceled || !file) return null;
-    let text: string;
-    try {
-      if (statSync(file).size > MAX_ENV_FILE) throw new Error("too large");
-      text = readFileSync(file, "utf8");
-    } catch {
-      await showBox({ type: "warning", title: "Wanheda", message: "That file can't be read as a .env file.", buttons: ["OK"] });
-      return null;
-    }
-    const { values, taken, ignored } = parseEnvFile(text);
-    if (taken === 0) {
-      await showBox({ type: "warning", title: "Wanheda", message: "That file has no Wanheda settings.", detail: "Wanheda looks for the names in .env.example, such as DATABASE_URL.", buttons: ["OK"] });
-      return null;
-    }
-    await persist(secretStore, values);
-    log.info(`imported ${taken} settings (${ignored} other names left out)`);
-    return values;
-  }
-
-  /** Seals and saves; with no keychain, the values last for this run only. */
-  async function persist(store: SecretStore, values: Imported): Promise<void> {
-    try {
-      await saveSecrets(store, await getSealer(), values);
-    } catch (err) {
-      if (!(err instanceof NoKeychainError)) throw err;
-      log.info(`not saved: ${err.message}`);
-      await showBox({
-        type: "warning",
-        title: "Wanheda",
-        message: "Wanheda can't save your keys.",
-        detail: "Your system's keychain isn't available, and Wanheda never saves them unencrypted. They last until you quit.",
-        buttons: ["OK"],
-      });
-    }
-  }
-
-  async function reimport(): Promise<void> {
-    if (restarting || !server) return;
-    const values = await importEnvFile();
-    if (!values) return;
-    secrets = values;
-    await restartServer();
-  }
-
-  async function useDemo(): Promise<void> {
-    if (restarting || !server) return;
-    const { response } = await showBox({
-      type: "question",
-      title: "Wanheda",
-      message: "Forget your imported keys and use demo mode?",
-      detail: "Wanheda deletes its sealed copy and restarts on sample data. Your data stays where it is; import your .env file again to get back to it.",
-      buttons: ["Cancel", "Use demo mode"],
-      defaultId: 0,
-      cancelId: 0,
-    });
-    if (response !== 1) return;
-    secrets = {};
-    await persist(secretStore, {});
-    await restartServer();
-  }
-
-  /** Stops the server and starts it again with the current values, on the same port. */
-  async function restartServer(): Promise<void> {
-    restarting = true;
-    try {
-      await server?.stop();
-      server = await startServer();
-      attach(server);
-      const win = mainWindow;
-      if (win && !win.isDestroyed()) await win.loadURL(`${server.origin}${START_PATH}`);
-    } catch (err) {
-      await fail(err);
-    } finally {
-      restarting = false;
-    }
   }
 
   /** The saved port, unless something else holds it for more than ~2 s. */
@@ -655,7 +469,7 @@ function boot(): void {
 
   function attach(handle: ServerHandle): void {
     appOrigin = handle.origin;
-    routeToken(session.defaultSession, handle.origin);
+    trackRequests(session.defaultSession, handle.origin);
     if (captureWindow && !captureWindow.isDestroyed()) void captureWindow.loadURL(`${handle.origin}${CAPTURE_PATH}`);
     if (islandWindow && !islandWindow.isDestroyed()) void islandWindow.loadURL(`${handle.origin}${ISLAND_PATH}`);
     handle.onExit((detail) => void serverDied(handle, detail));
@@ -722,7 +536,7 @@ function boot(): void {
 
   function setKeepRunning(on: boolean): void {
     updateSettings({ keepRunning: on });
-    Menu.setApplicationMenu(buildMenu(on, menuActions, !hosted));
+    Menu.setApplicationMenu(buildMenu(on, setKeepRunning));
     tray?.refresh();
     // A hidden window keeps music, timers and speech at full pace.
     if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.setBackgroundThrottling(!on);
@@ -809,13 +623,10 @@ function boot(): void {
   }
 
   function desktopState(): DesktopState {
-    const names = Object.keys(secrets).length;
     return {
       keepRunning: settings.keepRunning,
       island: settings.island,
       shortcuts: SHORTCUT_IDS.map((id) => ({ id, accelerator: settings.shortcuts[id], status: shortcutStatus.get(id) ?? "off" })),
-      // The hosted app has no keys on the device (ADR-0016).
-      secrets: hosted ? null : { mode: names > 0 ? "own" : "demo", names },
     };
   }
 
@@ -1410,18 +1221,12 @@ function boot(): void {
   }
 
   /**
-   * Adds the token to requests for the server only (never to other sites, and
-   * page script never sees it) and tracks them. The CSP comes from the server
-   * itself (next.config.ts). Each call replaces the listeners, so a moved port re-routes.
+   * Tracks requests to `desktop:dev`'s server, so quitting lets them land
+   * before it stops `next dev`. Each call replaces the listeners, so a moved port re-routes.
    */
-  function routeToken(ses: Session, origin: string): void {
+  function trackRequests(ses: Session, origin: string): void {
     const filter = { urls: [`${origin}/*`] };
     const ours = (url: string) => new URL(url).origin === origin;
-    ses.webRequest.onBeforeSendHeaders(filter, (details, callback) => {
-      const requestHeaders = details.requestHeaders;
-      if (ours(details.url)) requestHeaders[TOKEN_HEADER] = token;
-      callback({ requestHeaders });
-    });
     ses.webRequest.onSendHeaders(filter, (details) => {
       if (ours(details.url)) inFlight.add(details.id);
     });
@@ -1500,6 +1305,28 @@ function ffmpegPath(): string {
   return join(process.env.WANHEDA_REPO_ROOT ?? join(app.getAppPath(), "..", ".."), "desktop", ".ffmpeg", "ffmpeg.exe");
 }
 
+/**
+ * Builds up to 0.7.4 sealed the owner's `.env` values into `secrets.json` (and kept unreadable
+ * copies as `secrets.json.broken-<time>`). Nothing reads them now (ADR-0016): the only secret
+ * left on the device is the session cookie, so an upgrade deletes them.
+ */
+function removeOldKeys(userData: string, log: { info(line: string): void }): void {
+  let names: string[];
+  try {
+    names = readdirSync(userData).filter((name) => name === "secrets.json" || name.startsWith("secrets.json.broken-"));
+  } catch {
+    return;
+  }
+  for (const name of names) {
+    try {
+      rmSync(join(userData, name), { force: true });
+      log.info(`removed ${name}: the app keeps no keys now`);
+    } catch (err) {
+      log.info(`couldn't remove ${name}: ${errText(err)}`);
+    }
+  }
+}
+
 /** Every display's work area, primary first. */
 function screenAreas(): Rect[] {
   const primary = screen.getPrimaryDisplay();
@@ -1532,23 +1359,12 @@ function loadErrorCode(err: unknown): string {
   return typeof code === "string" && /^ERR_[A-Z0-9_]+$/.test(code) ? code : "unknown";
 }
 
-type MenuActions = { setKeepRunning: (on: boolean) => void; importEnv: () => void; useDemo: () => void };
-
-/** `keys`: the `.env` import items, for a shell that runs its own server (dev only, ADR-0016). */
-function buildMenu(keepRunning: boolean, actions: MenuActions, keys: boolean): Menu {
-  const keyItems: MenuItemConstructorOptions[] = keys
-    ? [
-        { label: "Import .env file…", click: () => { actions.importEnv(); } },
-        { label: "Use demo mode…", click: () => { actions.useDemo(); } },
-        { type: "separator" },
-      ]
-    : [];
+function buildMenu(keepRunning: boolean, setKeepRunning: (on: boolean) => void): Menu {
   const fileMenu: MenuItemConstructorOptions = {
     label: "File",
     submenu: [
-      { label: KEEP_RUNNING_LABEL, type: "checkbox", checked: keepRunning, click: (item) => { actions.setKeepRunning(item.checked); } },
+      { label: KEEP_RUNNING_LABEL, type: "checkbox", checked: keepRunning, click: (item) => { setKeepRunning(item.checked); } },
       { type: "separator" },
-      ...keyItems,
       { role: "quit", label: "Quit Wanheda" },
     ],
   };

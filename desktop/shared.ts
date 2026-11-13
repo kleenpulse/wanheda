@@ -1,7 +1,4 @@
-/** Header that carries the per-launch token from the shell to the local server. */
-export const TOKEN_HEADER = "x-wanheda-desktop";
-
-/** The local server only ever listens here. */
+/** `desktop:dev`'s `next dev` only ever listens here. */
 export const LISTEN_HOST = "127.0.0.1";
 
 /**

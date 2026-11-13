@@ -27,8 +27,6 @@ export type DesktopState = {
   keepRunning: boolean;
   island: boolean;
   shortcuts: { id: DesktopShortcutId; accelerator: string | null; status: DesktopShortcutStatus }[];
-  /** The imported `.env` keys (`desktop:dev` only); null where the shell loads the hosted app. */
-  secrets: { mode: "own" | "demo"; names: number } | null;
 };
 
 export type DesktopRootKind = "music" | "video";
@@ -65,7 +63,6 @@ export type WanhedaDesktop = {
     get(): Promise<DesktopState>;
     /** `ok` is false when another shortcut already uses those keys. */
     set(change: DesktopChange): Promise<{ ok: boolean; state: DesktopState }>;
-    secrets(action: "import" | "demo"): Promise<DesktopState>;
     onChange(callback: (state: DesktopState) => void): () => void;
   };
   /** The floating island (V70). The main window publishes and hears whether it floats; the island window does the rest. */

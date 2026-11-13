@@ -5,12 +5,11 @@ The Windows desktop app: an Electron shell around the hosted Wanheda (`https://w
 ## The hosted app (ADR-0016)
 
 - `desktop:preview` and the installed app load the address baked into `main.js` when it is bundled: `WANHEDA_APP_URL`, or production when it's unset. It must be a bare `https:` origin (`desktop/origin.ts`); the bundle step and main both refuse anything else. Point a preview at a Vercel preview deployment with `WANHEDA_APP_URL=https://<deployment> bun desktop/scripts/dev.ts --preview`.
-- They start no server, ask for no `.env` file and keep no keys: the only secret on the device is the session cookie. The File menu's key items and Settings → Desktop's "Your keys" are gone there (`state.secrets` is null).
+- They start no server, ask for no `.env` file and keep no keys: the only secret on the device is the session cookie. The installer ships no server (T90). An upgrade from 0.7.4 or older deletes the old sealed keys (`secrets.json`) at start.
 - If the app's page can't load (offline, the deployment down), main shows its own "Can't reach Wanheda" page, with Retry.
 - The page updates with every deploy and the shell only with the installer, so the bridge has a `version` (`BRIDGE_VERSION` in `bridge.ts`). A page that uses something newer checks it, or the member it needs, first.
-- Until T89's browser handoff, GitHub sign-in uses the in-app auth window, as dev does. Google sign-in needs T89.
 - Data kept per origin (voices in OPFS, the outbox, localStorage) starts fresh once, on the move from `http://localhost:<port>`.
-- `desktop:dev` is unchanged: `next dev` on localhost, with the `.env` import. The local-server sections below describe it. T90 removes the server from staging and the installer.
+- `desktop:dev` runs `next dev` on localhost, which reads the repo's own `.env` files like `bun run dev` (see "The dev server" below).
 
 ## Scripts (run from the repo root)
 
@@ -18,10 +17,9 @@ The Windows desktop app: an Electron shell around the hosted Wanheda (`https://w
 | --- | --- |
 | `bun run desktop:setup` | Installs this folder's packages (no install scripts run), then puts the pinned Electron in place with `scripts/fetch-electron.ts` and the pinned ffmpeg with `scripts/fetch-ffmpeg.ts` (about 55 MB, once). |
 | `bun run desktop:dev` | Opens Wanheda in Electron on `next dev`, with hot reload. There's no guard and no CSP in this mode. Stop your own `next dev` first: Next.js allows only one per project. |
-| `bun run desktop:preview` | Builds the production server, stages it, and opens it in Electron. Add `--no-build` (`bun desktop/scripts/dev.ts --preview --no-build`) to reuse the last build. |
-| `bun run desktop:stage` | Builds and stages only (`desktop/.stage/`). |
-| `bun run desktop:smoke` | Boots the staged server under Node. It checks that the app's request gets 200 and the CSP, and that a missing or wrong token, a foreign `Host` or `127.0.0.1` get 403. |
-| `bun run desktop:build` | Stages, makes the NSIS installer in `desktop/.out/`, checks the server folder and Electron's fuses, and writes `SHA256SUMS.txt`. Windows only. Installers for release come only from CI (`.github/workflows/desktop.yml`); see [RELEASING.md](RELEASING.md). |
+| `bun run desktop:preview` | Stages the shell and opens it on the hosted app. There is no web build. |
+| `bun run desktop:stage` | Stages only (`desktop/.stage/`): the shell, the speech process and ffmpeg. |
+| `bun run desktop:build` | Stages, makes the NSIS installer in `desktop/.out/`, checks the speech and media folders, that no server folder shipped, and Electron's fuses, and writes `SHA256SUMS.txt`. Windows only. Installers for release come only from CI (`.github/workflows/desktop.yml`); see [RELEASING.md](RELEASING.md). |
 | `bun run desktop:typecheck` | Type-checks this folder (CI runs it). |
 
 Set `WANHEDA_DEBUG_PORT=9222` to open the Chrome DevTools Protocol on that port. It works in dev and preview only; the installed app refuses to start with a debugging port.
@@ -30,24 +28,16 @@ Terminals inside VS Code carry `ELECTRON_RUN_AS_NODE`. The scripts drop it, but 
 
 ## How it fits together
 
-- `main.ts` is the main process. It owns the window, the session, the sealed `.env` values and the server's lifetime.
-- `server/bootstrap.ts` runs Next's standalone server in an Electron utility process. It is bundled into the server folder as `wanheda-server.cjs` (`.cjs` because the root `package.json`, copied into standalone, says `"type": "module"`). It never writes into its own folder.
-- `scripts/stage.ts` builds the web app with every name in `.env.example` set to empty. Next still reads `.env.local`, but it only fills names that are unset, so the build stays in demo mode. The owner's values reach the server at runtime only. Staging then copies `.next/standalone` through Turbopack's junctions, and `scripts/verify.ts` checks the result: no links, no `.env`, no tests, and no native binary except sharp for `next/image`.
+- `main.ts` is the main process. It owns the windows, the session and the native features, and in dev the `next dev` process (`dev-server.ts`).
+- `scripts/stage.ts` bundles the main process and the preload (with `WANHEDA_APP_URL` baked in), bundles the speech process next to sherpa's two packages, and copies the pinned ffmpeg. `scripts/verify.ts` checks the speech and media folders: no links, and no native file but the pinned ones.
 - Every Bun bundle goes into an ignored folder (`.dev`, `.stage`, `.out`), so no `.js` file is ever tracked (V1).
 - **Title bar (V67), like VS Code's.** The main window has no Windows title bar (`titleBarStyle: "hidden"`); Windows draws only its caption buttons (`titleBarOverlay`, 32 px). The page draws the rest (`components/shell/title-bar.tsx`): a drag strip with a ☰ button that opens the app menu, the mark and the name. It sends its colours to main whenever the skin changes, so the buttons match. CSS gets the bar's height from `env(titlebar-area-height)` as `--tb` (0 on the web and in every other window), and anything sized to the window uses `--app-h` instead of `100svh`. Without a menu bar Electron doesn't run the menu's accelerators, so main handles the View menu's keys itself (`menu-keys.ts`).
 
-## The local server (`desktop:dev`; preview and the installer until T90)
+## The dev server (`desktop:dev`)
 
-- It listens on `127.0.0.1` only. The window loads it as `http://localhost:<port>`, because WebAuthn refuses an IP address as a passkey site (ADR-0014).
-- Every request must name it exactly (`Host: localhost:<port>`, and not `127.0.0.1:<port>`). It must also carry a token that's new on each launch. Main adds the token to the app's own requests (`session.webRequest`), and page script never sees it (V68).
+- `next dev` listens on `127.0.0.1` only. The window loads it as `http://localhost:<port>`, because WebAuthn refuses an IP address as a passkey site (ADR-0014). There is no request guard and no CSP in this mode.
 - The port is picked once and saved in `desktop.json`. It's part of the origin, and the origin owns OPFS (voices), IndexedDB (the outbox, play history), localStorage and cookies. If another program takes the port, Wanheda moves to a new one, and that local data starts fresh once.
-- Main sets `BETTER_AUTH_URL` (and `NEXT_PUBLIC_APP_URL`) to the local origin on each launch, so the passkey `rpID` is `localhost`. Passkeys made on the web don't work here: sign in once, then add a desktop passkey in Settings.
-
-## Your keys (V69)
-
-- On first run, Wanheda asks for your `.env` file, or offers demo mode. Cancelling the file picker, or picking a file it can't use, asks again; only "Start in demo mode" records demo mode. It reads only the names in `.env.example`, except the two URLs above, which the app sets itself. It seals them with Windows' keychain (`safeStorage`) into `secrets.json`. It never keeps or copies the file, never writes the values in plain text, never sends them to a page, and never logs them.
-- **File → Import .env file…** replaces them, and **File → Use demo mode…** forgets them. Both restart the server on the same port.
-- If the keychain changed or can't open the file, Wanheda asks Quit or Start fresh. The old file stays next to the new one as `secrets.json.broken-<time>`.
+- `next dev` gets only a short allowlist from the shell's environment (`dev-server.ts`), so nothing like `NODE_OPTIONS` or a terminal's `DATABASE_URL` leaks in. The app's settings come from the repo's own `.env` files, as with `bun run dev`. Main sets `BETTER_AUTH_URL` (and `NEXT_PUBLIC_APP_URL`) to the local origin, so the passkey `rpID` is `localhost`.
 
 ## Sign-in (T89, ADR-0016)
 
@@ -71,7 +61,7 @@ A page that still starts GitHub or Google in the main window (an older page, say
 - **Media keys** (`MediaPlayPause`, `MediaNextTrack`, `MediaPreviousTrack`, `MediaStop`) are registered only while the page has an audible owner (V60), paused or playing, and go to that owner through `mediaSession.command()`. A reload or any full navigation of the main window releases them until the page claims them again.
 - **Notifications**: new notification-centre rows (a timer done, money and income alerts) go to main, which shows them only while the main window is hidden, minimised or unfocused. Clicking one opens its page. The log records only the kind.
 - **Floating island** (V70, T77): a transparent window at the top centre of the main window's display, shown while the main window is hidden, minimised or unfocused and there's something live. The main window's page publishes a snapshot (music, read-aloud, transfers, alerts; `lib/island/snapshot.ts`), at most 4 times a second; timers reach the island through the shared activity store, like a second tab. Main checks the snapshot (`island.ts`) and hands it to the island window, whose buttons come back as commands (music, speech, dismiss, open). The window ignores the mouse except while main's 30 Hz cursor check finds the cursor over the island's rectangle (reported by the island page). Meanwhile the page's own island steps aside. You can drag it left or right along the top of the screen: its page follows the pointer and tells main how far it has gone (`wanheda:island-drag`), main moves the window inside the display's work area, never up or down, and keeps the place in `settings.json` (`islandOffset`, px from centre).
-- **Settings → Desktop** (desktop only): keep running, the shortcuts, and importing the `.env` file again or going back to demo mode (main's own dialogs confirm). The floating island's switch is in **Settings → Island**, under "Show the island", which turns the island off altogether on this device (web too). In an unpackaged build main writes the island's window events to `main.log` (shown, hidden, pointer over or left, drag begins and ends).
+- **Settings → Desktop** (desktop only): keep running and the shortcuts. The floating island's switch is in **Settings → Island**, under "Show the island", which turns the island off altogether on this device (web too). In an unpackaged build main writes the island's window events to `main.log` (shown, hidden, pointer over or left, drag begins and ends).
 
 ## Native folders (T78, V72)
 
@@ -109,4 +99,4 @@ A page that still starts GitHub or Google in the main window (an older page, say
 
 ## Where data lives
 
-The installed app keeps its data in `%APPDATA%\Wanheda`: `secrets.json`, `desktop.json` (the port), `settings.json`, `window-state.json`, `logs/` (`main.log`, `server.log`) and Chromium's profile. Dev and preview use `Wanheda Dev` and `Wanheda Preview`, each with its own app ID, so the taskbar icons don't mix.
+The installed app keeps its data in `%APPDATA%\Wanheda`: `settings.json`, `window-state.json`, `roots.json` (the native folders), `voices/`, `logs/main.log` and Chromium's profile. Dev also keeps `desktop.json` (its port) and `logs/server.log`. Dev and preview use `Wanheda Dev` and `Wanheda Preview`, each with its own app ID, so the taskbar icons don't mix.

@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils, type IpcRendererEvent } from "electron";
-import { BRIDGE_VERSION, CHANNELS, type Command, type DesktopChange, type DesktopNotice, type DesktopSetResult, type DesktopState, type MenuAnchor, type SecretsAction, type TitleBarColors } from "./bridge";
+import { BRIDGE_VERSION, CHANNELS, type Command, type DesktopChange, type DesktopNotice, type DesktopSetResult, type DesktopState, type MenuAnchor, type TitleBarColors } from "./bridge";
 import type { ListedFile, Root, RootKind } from "./files";
 import type { IslandCommand, IslandDrag, IslandReport, IslandSnapshot } from "./island";
 
@@ -44,7 +44,6 @@ contextBridge.exposeInMainWorld("wanheda", {
   settings: {
     get: (): Promise<DesktopState> => ipcRenderer.invoke(CHANNELS.desktopState),
     set: (change: DesktopChange): Promise<DesktopSetResult> => ipcRenderer.invoke(CHANNELS.desktopSet, change),
-    secrets: (action: SecretsAction): Promise<DesktopState> => ipcRenderer.invoke(CHANNELS.secrets, action),
     onChange: (callback: (state: DesktopState) => void) => subscribe(CHANNELS.desktopChanged, isState, callback),
   },
   island: {

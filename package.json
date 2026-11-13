@@ -19,7 +19,6 @@
     "desktop:dev": "bun desktop/scripts/dev.ts",
     "desktop:preview": "bun desktop/scripts/dev.ts --preview",
     "desktop:stage": "bun desktop/scripts/stage.ts",
-    "desktop:smoke": "bun desktop/scripts/smoke.ts",
     "desktop:build": "bun desktop/scripts/build.ts",
     "desktop:typecheck": "tsc -p desktop --noEmit",
     "prepare": "husky"

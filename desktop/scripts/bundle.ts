@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { DEFAULT_APP_URL, parseAppOrigin } from "../origin";
 
 /*
- * Bun.build bundles the main process, the preload and the server bootstrap
+ * Bun.build bundles the main process, the preload and the speech process
  * into ignored folders (.dev, .stage), so no .js file is ever tracked (SPEC V76, V1).
  */
 
@@ -41,11 +41,6 @@ export async function bundleMain(root: string, outDir: string, manifest: Record<
   await bundle(join(root, "desktop", "preload.ts"), outDir, "preload.js", ["electron"]);
   for (const icon of APP_ICONS) copyFileSync(join(root, "desktop", "build", icon), join(outDir, icon));
   writeFileSync(join(outDir, "package.json"), `${JSON.stringify({ ...manifest, main: "main.js" }, null, 2)}\n`);
-}
-
-/** The server bootstrap → `<serverDir>/wanheda-server.cjs`; it loads Next from that folder's node_modules at runtime. */
-export async function bundleServer(root: string, serverDir: string): Promise<void> {
-  await bundle(join(root, "desktop", "server", "bootstrap.ts"), serverDir, "wanheda-server.cjs", []);
 }
 
 /**
