@@ -1,6 +1,6 @@
 # Latest hand-off
 
-**Newest:** [2026-11-14-phase-8-notes-read-scroll.md](2026-11-14-phase-8-notes-read-scroll.md). **PR #107 (tip `3040b5e`) has Reviewer LGTM, waiting for the owner's merge. Notes Write → Read scroll fix `795f2fd` on `phase-8/notes-read-scroll` (stacked on #107), Reviewer LGTM, committed locally, push after #107 merges. Hosted app paused by Vercel (402 `DEPLOYMENT_DISABLED`): the owner resumes it.**
+**Newest:** [2026-11-14-phase-8-notes-read-scroll.md](2026-11-14-phase-8-notes-read-scroll.md). **PR #107 merged (`main` at `84f7f08`): T81 self-updater + auto-download switch. Notes Write → Read scroll fix `795f2fd`, Reviewer LGTM, open as PR #108; tip check pending. Hosted app paused by Vercel (402 `DEPLOYMENT_DISABLED`): the owner resumes it.**
 
 **Before it:** [2026-11-14-phase-8-t81-pr-auto-download.md](2026-11-14-phase-8-t81-pr-auto-download.md). **`phase-8/t81-updater` pushed (owner allowed it) as PR #107 (tip `1014178`). Owner chose a "Download updates automatically" switch, default off: committed as `06d56f6` after Reviewer wanheda-9e's FIX (a download kept over a quit now comes back as Restart to update), pushed; Reviewer's delta and post-push check pending. Merge only on the owner's word; then T82.**
 
@@ -47,12 +47,12 @@
 
 Read the hand-off first, then verify it against the repo before trusting it (git, tripwire, typecheck, tests).
 
-### Builder prompt (PR #107 LGTM, notes fix stacked)
+### Builder prompt (#107 merged, #108 open)
 
 ```text
 You are the BUILDER for Wanheda (D:/Vxrcel/wanheda), lean mode, no worktrees. Check the branch first: the checkout is shared.
 Read docs/handoff/LATEST.md → 2026-11-14-phase-8-notes-read-scroll.md, and verify it (git status, tripwire, both typechecks, tests).
-PR #107 (phase-8/t81-updater, 3040b5e) has Reviewer LGTM; merge only on the owner's word, then git tidy and the Reviewer's main check.
-phase-8/notes-read-scroll (795f2fd, Reviewer LGTM) sits on #107: after the merge, push it, open its PR, ask for the tip check.
+PR #107 is merged (main 84f7f08). PR #108 (phase-8/notes-read-scroll, notes Write/Read scroll fix) waits for the Reviewer's tip check.
+Merge #108 only on the owner's word, then git tidy and the Reviewer's main check.
 Ask whether Vercel is resumed (402 DEPLOYMENT_DISABLED) and about Read → Write keeping its place. Then T82.
 ```

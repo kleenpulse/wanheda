@@ -2,7 +2,7 @@
 
 ## State in one paragraph
 
-PR #107 (`phase-8/t81-updater`, tip `3040b5e`) has Reviewer wanheda-9e's **LGTM** and is waiting for the owner to merge it. The owner then reported a notes bug: switching Write → Read opened Read scrolled down. It is fixed as `795f2fd` on **`phase-8/notes-read-scroll`**, cut from `3040b5e` (stacked on #107). Reviewer LGTM; committed locally, **not pushed**, because the branch sits on #107. Push it and open its PR after #107 merges; with a merge commit, the PR then shows only this fix. Separately, the hosted app is **paused by Vercel**: `wanheda-chi.vercel.app` answers 402 `DEPLOYMENT_DISABLED`, a usage or spend limit, so the web app and the desktop app both show Vercel's "This deployment is temporarily paused". Only the owner can resume it, in the Vercel dashboard.
+PR #107 (`phase-8/t81-updater`, tip `3040b5e`) is **merged** (owner: "merge when CI passes"; check, build and rails passed; Vercel failed only on the account block) as `84f7f08` on `main`. `git tidy` is done and the Reviewer's main check is requested. The owner then reported a notes bug: switching Write → Read opened Read scrolled down. It is fixed as `795f2fd` on **`phase-8/notes-read-scroll`**, cut from `3040b5e` (stacked on #107). Reviewer LGTM. Pushed after the merge and open as **PR #108** (2 commits on `84f7f08`); the Reviewer's tip check is pending. Separately, the hosted app is **paused by Vercel**: `wanheda-chi.vercel.app` answers 402 `DEPLOYMENT_DISABLED`, a usage or spend limit, so the web app and the desktop app both show Vercel's "This deployment is temporarily paused". Only the owner can resume it, in the Vercel dashboard.
 
 ## The fix
 
@@ -12,7 +12,7 @@ PR #107 (`phase-8/t81-updater`, tip `3040b5e`) has Reviewer wanheda-9e's **LGTM*
 
 ## Open questions for the owner
 
-1. Merge PR #107.
+1. Merge PR #108 after the Reviewer's tip check.
 2. Resume the Vercel project. The limit is named in the pause banner; if they name it, find what in Wanheda uses it up.
 3. Read → Write also starts at the top now (they only reported Write → Read). Keep it, or let Write keep its place?
 4. Offered, not built: a desktop "server unreachable, Retry" screen instead of the host's raw error page.
@@ -20,5 +20,5 @@ PR #107 (`phase-8/t81-updater`, tip `3040b5e`) has Reviewer wanheda-9e's **LGTM*
 
 ## Next steps
 
-1. After #107 merges: `git tidy`, ask the Reviewer for the main check, push `phase-8/notes-read-scroll`, open its PR, and ask for the tip check.
+1. After the Reviewer's checks (main after #107, tip of #108): merge #108 only on the owner's word, then `git tidy` and the main check.
 2. T82: two published releases prove N → N+1, only on the owner's word.
