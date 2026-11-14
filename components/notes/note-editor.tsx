@@ -64,7 +64,20 @@ export function NoteEditor({
   const [historyOpen, setHistoryOpen] = React.useState(false);
   const [mode, setMode] = React.useState<Mode>(() => (fresh || !checklistProgress(note.bodyMd) ? "write" : "read"));
   const bodyRef = React.useRef<HTMLTextAreaElement>(null);
+  const scrollRef = React.useRef<HTMLDivElement>(null);
+  const articleRef = React.useRef<HTMLElement>(null);
   const progress = checklistProgress(note.bodyMd);
+
+  // Write and Read share one scroller: kept as it was, Read would open at Write's pixel offset (the cursor's
+  // spot after a long paste), somewhere unrelated in the rendered note. A switch starts at the top. Where the
+  // card isn't height-capped (the board on a narrow screen), the page scrolled instead: bring the card's top back.
+  const switchMode = (next: Mode) => {
+    if (next === mode) return;
+    scrollRef.current?.scrollTo({ top: 0, behavior: "instant" });
+    const card = articleRef.current;
+    if (card && card.getBoundingClientRect().top < 0) card.scrollIntoView({ block: "start", behavior: "instant" });
+    setMode(next);
+  };
 
   // A "New note" left empty disappears when you move on, unless another surface still shows it.
   React.useEffect(() => api.hold(note.id), [api, note.id]);
@@ -97,7 +110,7 @@ export function NoteEditor({
   );
 
   return (
-    <article aria-label="Note" className={cn("bento flex flex-col p-0", className)}>
+    <article ref={articleRef} aria-label="Note" className={cn("bento flex flex-col p-0", className)}>
       <div className="flex flex-wrap items-center gap-2 border-b border-border/70 px-4 py-3 dark:border-glass-border">
         {onBack ? (
           <button type="button" onClick={onBack} className={buttonClass("ghost", "pill-sm", "-ml-1 pl-2 @4xl:hidden")}>
@@ -112,7 +125,7 @@ export function NoteEditor({
             { value: "write", label: "Write" },
             { value: "read", label: "Read" },
           ]}
-          onChange={setMode}
+          onChange={switchMode}
         />
         <span className="readout mr-auto truncate pl-1" role="status" aria-live="polite">
           {status ? STATUS_LABEL[status] : ""}
@@ -202,7 +215,7 @@ export function NoteEditor({
       ) : null}
 
       {/* The body scrolls on its own; the tags stay put under it. */}
-      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain scroll-fade px-5 pt-4 pb-3 md:px-6">
+      <div ref={scrollRef} className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain scroll-fade px-5 pt-4 pb-3 md:px-6">
         <input
           value={note.title}
           maxLength={TITLE_MAX}

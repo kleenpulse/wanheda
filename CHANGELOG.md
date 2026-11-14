@@ -25,6 +25,7 @@ written after the fact, one per phase, and have no git tags.
 
 ### Fixed
 
+- Switching a note between Write and Read now starts at the top. Before, Read opened at the spot you'd scrolled to while writing (the end of a long paste, say), somewhere unrelated in the formatted note.
 - A note with a table no longer shows raw Markdown (pipes and dashes) in the Notes list, on the Board or in the pinned notes widget: each row reads as text, like "Status: Draft 1".
 
 ## [0.7.5] - 2026-11-13
