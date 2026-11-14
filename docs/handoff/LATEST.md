@@ -1,8 +1,10 @@
 # Latest hand-off
 
-**Newest:** [2026-11-13-phase-8-t81-updater.md](2026-11-13-phase-8-t81-updater.md). **T81 self-updater + `fix(notes)` + `style(island)` committed on `phase-8/t81-updater` (3 commits off `64a78ce`, plus this hand-off), Reviewer wanheda-9e LGTM with nits (fixed). Not pushed: the push was denied by the session's permission check (external write) while the owner slept. V75 settled strict (install only on Restart). Open: auto-download on a metered line.**
+**Newest:** [2026-11-14-phase-8-t81-pr-auto-download.md](2026-11-14-phase-8-t81-pr-auto-download.md). **`phase-8/t81-updater` pushed (owner allowed it) as PR #107 (tip `1014178`). Owner chose a "Download updates automatically" switch, default off: committed as `06d56f6` after Reviewer wanheda-9e's FIX (a download kept over a quit now comes back as Restart to update), pushed; Reviewer's delta and post-push check pending. Merge only on the owner's word; then T82.**
 
-**Before it:** [2026-11-13-phase-8-v0.7.5-released.md](2026-11-13-phase-8-v0.7.5-released.md). v0.7.5 merged (PR #106, `main` at `64a78ce`), tagged, published as Latest; built locally too; v0.7.4 draft deleted.
+**Before it:** [2026-11-13-phase-8-t81-updater.md](2026-11-13-phase-8-t81-updater.md). T81 self-updater + `fix(notes)` + `style(island)` committed (3 commits off `64a78ce`), Reviewer LGTM with nits (fixed); push was denied while the owner slept. V75 settled strict (install only on Restart).
+
+**Earlier:** [2026-11-13-phase-8-v0.7.5-released.md](2026-11-13-phase-8-v0.7.5-released.md). v0.7.5 merged (PR #106, `main` at `64a78ce`), tagged, published as Latest; built locally too; v0.7.4 draft deleted.
 
 **Earlier:** [2026-11-13-phase-8-v0.7.5-cut.md](2026-11-13-phase-8-v0.7.5-cut.md). v0.7.5 cut on `release/v0.7.5` as PR #106.
 
@@ -43,12 +45,12 @@
 
 Read the hand-off first, then verify it against the repo before trusting it (git, tripwire, typecheck, tests).
 
-### Builder prompt (T81 committed, not pushed)
+### Builder prompt (PR #107 open, auto-download switch pushed)
 
 ```text
 You are the BUILDER for Wanheda (D:/Vxrcel/wanheda), lean mode, no worktrees. Check the branch first: the checkout is shared.
-Read docs/handoff/LATEST.md → 2026-11-13-phase-8-t81-updater.md, and verify it (git status, tripwire, both typechecks, tests).
-phase-8/t81-updater holds 4 commits off main 64a78ce: fix(notes), style(island), T81 self-updater, hand-off. Reviewer wanheda-9e gave LGTM with nits (fixed).
-The push was denied by the permission check; with the owner's word: forged-commit check, push, open the PR, ping the Reviewer for the tip check, and merge only on the owner's word.
-Ask the owner about the auto-download switch (metered line). Then T82: two published releases with the updater prove N → N+1.
+Read docs/handoff/LATEST.md → 2026-11-14-phase-8-t81-pr-auto-download.md, and verify it (git status, tripwire, both typechecks, tests).
+phase-8/t81-updater is pushed as PR #107 (tip 1014178). The auto-download switch (default off) is pushed on it as 06d56f6, after the Reviewer's FIX.
+Wait for Reviewer wanheda-9e's check of the delta and the push; fix and push again if it says FIX.
+Merge only on the owner's word, then T82: two published releases prove N → N+1.
 ```
