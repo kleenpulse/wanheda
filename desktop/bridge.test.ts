@@ -84,6 +84,9 @@ describe("parseDesktopChange", () => {
     expect(parseDesktopChange({ keepRunning: true, extra: 1 })).toBeNull();
     expect(parseDesktopChange({ island: false })).toEqual({ island: false });
     expect(parseDesktopChange({ island: 0 })).toBeNull();
+    expect(parseDesktopChange({ autoDownloadUpdates: true })).toEqual({ autoDownloadUpdates: true });
+    expect(parseDesktopChange({ autoDownloadUpdates: "on" })).toBeNull();
+    expect(parseDesktopChange({ autoDownloadUpdates: false, island: true })).toBeNull();
   });
 
   test("a shortcut: a valid accelerator, written one way, or null to turn it off", () => {

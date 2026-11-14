@@ -208,6 +208,21 @@ describe("titles and excerpts", () => {
     expect(excerpt({ title: "T", bodyMd: "first\nsecond" })).toBe("first · second");
     expect(excerpt({ title: "T", bodyMd: "x".repeat(300) }, 20)).toHaveLength(20);
   });
+
+  it("reads tables and rules as text, not Markdown", () => {
+    const bodyMd = "# Spec\n\n| | |\n|---|---|\n| Status | **Draft 1**, no code |\n| Date | 2026-11-13 |\n\n---\n\nNext";
+    expect(excerpt({ title: "", bodyMd })).toBe("Status: Draft 1, no code · Date: 2026-11-13 · Next");
+    expect(excerpt({ title: "T", bodyMd: "| A | B | C |\n| :-- | :-: | --: |\n| 1 | [two](https://x.test) | 3 |" })).toBe("A · B · C · 1 · two · 3");
+    expect(excerpt({ title: "T", bodyMd: "| Pipe | a \\| b |" })).toBe("Pipe: a | b");
+    expect(excerpt({ title: "T", bodyMd: "one\n***\n___\ntwo" })).toBe("one · two");
+    expect(displayTitle({ title: "", bodyMd: "| Status | Draft |\n|---|---|" })).toBe("Status: Draft");
+  });
+
+  it("strips list, heading and quote marks before deciding a line is a table row", () => {
+    expect(excerpt({ title: "T", bodyMd: "- [ ] buy milk |" })).toBe("buy milk |");
+    expect(excerpt({ title: "T", bodyMd: "## Heading |" })).toBe("Heading |");
+    expect(excerpt({ title: "T", bodyMd: "> | a | b |" })).toBe("a: b");
+  });
 });
 
 describe("parseCapture", () => {

@@ -72,6 +72,30 @@ export function DesktopSection() {
         </SettingRow>
       </SettingsCard>
 
+      {typeof state.autoDownloadUpdates === "boolean" ? (
+        <SettingsCard title="Updates">
+          <SettingRow
+            label="Download updates automatically"
+            description="Off: when a new version is out, the title bar shows Download update and nothing downloads until you click it. Updates usually download only what changed, but can be the whole app (about 160 MB). Either way, nothing installs until you choose Restart to update."
+          >
+            {(labelId) => (
+              <Switch
+                labelId={labelId}
+                on={state.autoDownloadUpdates === true}
+                onChange={(on) => {
+                  void desktopBridge()
+                    ?.settings.set({ autoDownloadUpdates: on })
+                    .then((r) => {
+                      setState(r.state);
+                    })
+                    .catch(ignore);
+                }}
+              />
+            )}
+          </SettingRow>
+        </SettingsCard>
+      ) : null}
+
       <SettingsCard title="Shortcuts that work in any app">
         {state.shortcuts.map((s) => (
           <ShortcutRow key={s.id} shortcut={s} onState={setState} />

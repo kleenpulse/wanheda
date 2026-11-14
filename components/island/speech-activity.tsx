@@ -59,19 +59,22 @@ function SpeechCard() {
         {text ? <p className="mt-2 line-clamp-2 text-[13px] leading-snug text-island-foreground/85">{text}</p> : null}
       </div>
       <SpeechTransport tone="island" />
-      <SpeechOptions tone="island" now={now} />
-      {source.href ? (
-        <div className="flex">
-          <IslandButton
-            onClick={() => {
-              collapse();
-              if (source.href) open(source.href);
-            }}
-          >
-            Open
-          </IslandButton>
-        </div>
-      ) : null}
+      {/* Open shares the chips' row, at its end; on a narrow card the chips wrap first. */}
+      <div className="flex items-center gap-1.5">
+        <SpeechOptions tone="island" now={now} />
+        {source.href ? (
+          <div className="ml-auto shrink-0">
+            <IslandButton
+              onClick={() => {
+                collapse();
+                if (source.href) open(source.href);
+              }}
+            >
+              Open
+            </IslandButton>
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }

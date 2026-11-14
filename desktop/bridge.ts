@@ -14,8 +14,10 @@ import { isShortcutId, parseAccelerator, type MediaCommand, type ShortcutId } fr
  * the installer. Raise it when the bridge gains something a page must detect.
  * 1 = T88 (the hosted app; `settings.secrets` gone when `state.secrets` is null).
  * 2 = T89 (`auth.signInWithBrowser`).
+ * 3 = T81 (`update`: the self-update's state, "Download update" and "Restart to update";
+ *     `state.autoDownloadUpdates`).
  */
-export const BRIDGE_VERSION = 2;
+export const BRIDGE_VERSION = 3;
 
 export const CHANNELS = {
   /** main → page: show this path in the app (a `wanheda://` link was opened). */
@@ -82,7 +84,25 @@ export const CHANNELS = {
   titleBarMenu: "wanheda:title-bar-menu",
   /** main window page ⇄ main (invoke): start a sign-in in the system browser (desktop/handoff.ts); false when this build can't. */
   signInBrowser: "wanheda:sign-in-browser",
+  /** main → main window page: where the self-update stands (`UpdateState`). */
+  updateState: "wanheda:update-state",
+  /** main window page ⇄ main (invoke): where it stands now, for a page that just loaded. */
+  updateStateGet: "wanheda:update-state-get",
+  /** main window page → main: "Restart to update" was clicked. Ignored unless an update is ready. */
+  updateRestart: "wanheda:update-restart",
+  /** main window page → main: "Download update" was clicked. Ignored unless an update is available. */
+  updateDownload: "wanheda:update-download",
 } as const;
+
+/**
+ * Where the self-update stands (T81), for the title bar's pill. "available": found, not downloading
+ * (automatic downloads are off), waiting for "Download update".
+ */
+export type UpdateState =
+  | { kind: "none" }
+  | { kind: "available"; version: string }
+  | { kind: "downloading"; version: string; percent: number }
+  | { kind: "ready"; version: string };
 
 /** The quick-capture page. */
 export const CAPTURE_PATH = "/capture";
@@ -149,7 +169,11 @@ export function parseAudible(payload: unknown): boolean | null {
   return typeof payload === "boolean" ? payload : null;
 }
 
-export type DesktopChange = { keepRunning: boolean } | { island: boolean } | { shortcut: ShortcutId; accelerator: string | null };
+export type DesktopChange =
+  | { keepRunning: boolean }
+  | { island: boolean }
+  | { autoDownloadUpdates: boolean }
+  | { shortcut: ShortcutId; accelerator: string | null };
 
 /** One change from Settings → Desktop, or null. A shortcut is a valid accelerator, or null to turn it off. */
 export function parseDesktopChange(payload: unknown): DesktopChange | null {
@@ -158,6 +182,7 @@ export function parseDesktopChange(payload: unknown): DesktopChange | null {
   const keys = Object.keys(record);
   if (keys.length === 1 && typeof record.keepRunning === "boolean") return { keepRunning: record.keepRunning };
   if (keys.length === 1 && typeof record.island === "boolean") return { island: record.island };
+  if (keys.length === 1 && typeof record.autoDownloadUpdates === "boolean") return { autoDownloadUpdates: record.autoDownloadUpdates };
   if (keys.length !== 2 || !isShortcutId(record.shortcut) || !("accelerator" in record)) return null;
   if (record.accelerator === null) return { shortcut: record.shortcut, accelerator: null };
   const accelerator = parseAccelerator(record.accelerator);
@@ -172,6 +197,8 @@ export type DesktopState = {
   /** The floating island while Wanheda is in the background (V70). */
   island: boolean;
   shortcuts: { id: ShortcutId; accelerator: string | null; status: ShortcutStatus }[];
+  /** Null in builds that don't update themselves (dev, preview). */
+  autoDownloadUpdates: boolean | null;
 };
 
 /** A Settings → Desktop change's answer: `ok` false when another shortcut already uses those keys. */

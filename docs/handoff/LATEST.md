@@ -1,8 +1,14 @@
 # Latest hand-off
 
-**Newest:** [2026-11-13-phase-8-v0.7.5-cut.md](2026-11-13-phase-8-v0.7.5-cut.md). **v0.7.5 cut on `release/v0.7.5`, PR #106, waiting for the owner's merge. After the merge: `bun run bump --tag` on `main`, push the tag, and CI drafts the release with the installer.**
+**Newest:** [2026-11-14-phase-8-t81-pr-auto-download.md](2026-11-14-phase-8-t81-pr-auto-download.md). **`phase-8/t81-updater` pushed (owner allowed it) as PR #107 (tip `1014178`). Owner chose a "Download updates automatically" switch, default off: committed as `06d56f6` after Reviewer wanheda-9e's FIX (a download kept over a quit now comes back as Restart to update), pushed; Reviewer's delta and post-push check pending. Merge only on the owner's word; then T82.**
 
-**Before it:** [2026-11-13-phase-8-t91-merged.md](2026-11-13-phase-8-t91-merged.md). T91 (offline service worker) + the social avatar merged as PR #105 (`main` at `e4d830b`, deployed; prod serves `/sw.js`).
+**Before it:** [2026-11-13-phase-8-t81-updater.md](2026-11-13-phase-8-t81-updater.md). T81 self-updater + `fix(notes)` + `style(island)` committed (3 commits off `64a78ce`), Reviewer LGTM with nits (fixed); push was denied while the owner slept. V75 settled strict (install only on Restart).
+
+**Earlier:** [2026-11-13-phase-8-v0.7.5-released.md](2026-11-13-phase-8-v0.7.5-released.md). v0.7.5 merged (PR #106, `main` at `64a78ce`), tagged, published as Latest; built locally too; v0.7.4 draft deleted.
+
+**Earlier:** [2026-11-13-phase-8-v0.7.5-cut.md](2026-11-13-phase-8-v0.7.5-cut.md). v0.7.5 cut on `release/v0.7.5` as PR #106.
+
+**Earlier:** [2026-11-13-phase-8-t91-merged.md](2026-11-13-phase-8-t91-merged.md). T91 (offline service worker) + the social avatar merged as PR #105 (`main` at `e4d830b`, deployed; prod serves `/sw.js`).
 
 **Earlier:** [2026-11-13-phase-8-t91-service-worker.md](2026-11-13-phase-8-t91-service-worker.md). T91 + avatar built on `phase-8/t91-service-worker`; offline cold start checked in a real browser against a killed server.
 
@@ -39,13 +45,12 @@
 
 Read the hand-off first, then verify it against the repo before trusting it (git, tripwire, typecheck, tests).
 
-### Builder prompt (after v0.7.5 is merged)
+### Builder prompt (PR #107 open, auto-download switch pushed)
 
 ```text
 You are the BUILDER for Wanheda (D:/Vxrcel/wanheda), lean mode, no worktrees. Check the branch first: the checkout is shared.
-Read docs/handoff/LATEST.md → 2026-11-13-phase-8-v0.7.5-cut.md, and verify it (git status, tripwire, typecheck, tests).
-The owner merged release PR #106: switch to main, fetch + incoming-commit check, pull, git tidy.
-Tag it: bun run bump --tag, then git push origin v0.7.5; check that CI's draft release has the installer.
-Then ask the owner about the T91 offline + avatar checks and what's next (Phase 8 has no open SPEC row).
-Commit, push and PR only on the owner's word (or a Reviewer LGTM).
+Read docs/handoff/LATEST.md → 2026-11-14-phase-8-t81-pr-auto-download.md, and verify it (git status, tripwire, both typechecks, tests).
+phase-8/t81-updater is pushed as PR #107 (tip 1014178). The auto-download switch (default off) is pushed on it as 06d56f6, after the Reviewer's FIX.
+Wait for Reviewer wanheda-9e's check of the delta and the push; fix and push again if it says FIX.
+Merge only on the owner's word, then T82: two published releases prove N → N+1.
 ```
