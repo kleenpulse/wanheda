@@ -12,7 +12,7 @@ How a new version of the Windows installer gets onto GitHub Releases. The instal
    - **build** (Windows): installs with `--ignore-scripts`, fetches the pinned Electron and ffmpeg (`--full`, checked against the zip's sha256), stages the shell, packs the NSIS installer, checks the speech and media folders, that no server folder shipped, Electron's fuses, that the packaged `app-update.yml` points at this repo's releases and nothing else, and that `latest.yml` names this version and this installer's sha512, and writes `SHA256SUMS.txt`.
    - **draft release:** checks every file against `SHA256SUMS.txt`, checks that the tag matches `package.json`, and makes a **draft** release. Its notes are that version's `CHANGELOG.md` section.
 5. Open the draft on GitHub (Releases), check the files and edit the notes if you want.
-6. Click **Publish release**. Nothing publishes by itself. Publishing is what reaches the installed apps: at their next check (start, every 6 hours, or **Check for updates…**) they download it and offer **Restart to update**.
+6. Click **Publish release**. Nothing publishes by itself. Publishing is what reaches the installed apps: at their next check (start, every 6 hours, or **Check for updates…**) they offer **Download update** (or download it by themselves, if that's turned on), then **Restart to update**.
 
 If the release job fails or you want to build again, delete the draft first. The job stops if a release for the tag already exists, so it never makes two.
 
@@ -35,7 +35,7 @@ The Electron shell, the speech process with sherpa-onnx, and the pinned ffmpeg. 
 
 ## Updates
 
-The installed app updates itself from this repo's **published** releases (SPEC T81, V75); drafts and prereleases are invisible to it. It checks 30 seconds after it starts, every 6 hours, and from **Check for updates…** (File in the title bar's menu, or the tray). A new version downloads in the background; the title bar shows its progress, then **Restart to update** (also in the tray, and as a notification while the window is hidden). Nothing installs until you choose it (V75): a plain quit keeps the download, and the button is back at the next start. It never installs while Windows logs off or shuts down.
+The installed app updates itself from this repo's **published** releases (SPEC T81, V75); drafts and prereleases are invisible to it. It checks 30 seconds after it starts, every 6 hours, and from **Check for updates…** (File in the title bar's menu, or the tray). A new version shows **Download update** in the title bar and the tray (and as a notification while the window is hidden), and downloads when you click it; with **Settings → Desktop → Download updates automatically** on (off by default, for metered connections) it downloads in the background by itself. While it downloads, the title bar shows its progress, then **Restart to update** (also in the tray, and as a notification while the window is hidden). Nothing installs until you choose it (V75): a plain quit keeps the download, and the button is back at the next start. It never installs while Windows logs off or shuts down.
 
 After the first updating version, an update downloads only the parts that changed: the installer keeps a copy of itself in `%LOCALAPPDATA%\wanheda-updater\` to compare against. Versions up to 0.7.5 can't update themselves: install the first updating version by hand.
 

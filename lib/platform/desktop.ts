@@ -27,16 +27,26 @@ export type DesktopState = {
   keepRunning: boolean;
   island: boolean;
   shortcuts: { id: DesktopShortcutId; accelerator: string | null; status: DesktopShortcutStatus }[];
+  /** Bridge version 3. Null in builds that don't update themselves; missing in older shells. */
+  autoDownloadUpdates?: boolean | null;
 };
 
 export type DesktopRootKind = "music" | "video";
 export type DesktopRoot = { id: string; kind: DesktopRootKind; path: string; name: string };
 export type DesktopListedFile = { path: string; size: number; mtimeMs: number };
 
-export type DesktopChange = { keepRunning: boolean } | { island: boolean } | { shortcut: DesktopShortcutId; accelerator: string | null };
+export type DesktopChange =
+  | { keepRunning: boolean }
+  | { island: boolean }
+  | { autoDownloadUpdates: boolean }
+  | { shortcut: DesktopShortcutId; accelerator: string | null };
 
 /** Where the shell's self-update stands (desktop/bridge.ts `UpdateState`). */
-export type DesktopUpdateState = { kind: "none" } | { kind: "downloading"; version: string; percent: number } | { kind: "ready"; version: string };
+export type DesktopUpdateState =
+  | { kind: "none" }
+  | { kind: "available"; version: string }
+  | { kind: "downloading"; version: string; percent: number }
+  | { kind: "ready"; version: string };
 
 export type WanhedaDesktop = {
   readonly desktop: true;
@@ -54,13 +64,16 @@ export type WanhedaDesktop = {
   readonly auth?: { signInWithBrowser(): Promise<boolean> };
   /**
    * The shell's self-update, from bridge version 3 (main window only). The shell downloads a new
-   * version by itself; the page shows how far it got, then offers "Restart to update".
+   * version by itself (or, with automatic downloads off, offers "Download update"); the page shows
+   * how far it got, then offers "Restart to update".
    */
   readonly update?: {
     state(): Promise<DesktopUpdateState>;
     onState(callback: (state: DesktopUpdateState) => void): () => void;
     /** Ignored by the shell unless an update is ready. */
     restart(): void;
+    /** Ignored by the shell unless an update is available. */
+    download(): void;
   };
   /** Paths in this app the shell wants shown (a `wanheda://` link was opened). Returns an unsubscribe. */
   onOpen(callback: (path: string) => void): () => void;
@@ -156,7 +169,12 @@ export function browserSignIn(): (() => Promise<boolean>) | null {
 /** The shell's self-update, or null (the web, or a shell older than bridge version 3). */
 export function desktopUpdate(): NonNullable<WanhedaDesktop["update"]> | null {
   const update = desktopBridge()?.update;
-  return typeof update?.state === "function" && typeof update.onState === "function" && typeof update.restart === "function" ? update : null;
+  return typeof update?.state === "function" &&
+    typeof update.onState === "function" &&
+    typeof update.restart === "function" &&
+    typeof update.download === "function"
+    ? update
+    : null;
 }
 
 const VERSION = /^\d{1,4}\.\d{1,4}\.\d{1,4}$/;
@@ -167,6 +185,7 @@ export function parseUpdateState(value: unknown): DesktopUpdateState {
   const s = value as Record<string, unknown>;
   if (typeof s.version !== "string" || !VERSION.test(s.version)) return { kind: "none" };
   if (s.kind === "ready") return { kind: "ready", version: s.version };
+  if (s.kind === "available") return { kind: "available", version: s.version };
   if (s.kind === "downloading" && typeof s.percent === "number" && Number.isFinite(s.percent)) {
     return { kind: "downloading", version: s.version, percent: Math.min(100, Math.max(0, Math.floor(s.percent))) };
   }

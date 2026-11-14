@@ -113,6 +113,9 @@ contextBridge.exposeInMainWorld("wanheda", {
     restart(): void {
       ipcRenderer.send(CHANNELS.updateRestart);
     },
+    download(): void {
+      ipcRenderer.send(CHANNELS.updateDownload);
+    },
   },
   titleBar: {
     colors(colors: TitleBarColors): void {

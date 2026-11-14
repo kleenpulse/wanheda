@@ -100,23 +100,27 @@ describe("desktopUpdate", () => {
     expect(desktopUpdate()).toBeNull();
   });
 
-  test("the shell's update when it has all three members", () => {
-    const update = { state: () => Promise.resolve({ kind: "none" }), onState: () => () => {}, restart: () => {} };
+  test("the shell's update when it has all four members", () => {
+    const update = { state: () => Promise.resolve({ kind: "none" }), onState: () => () => {}, restart: () => {}, download: () => {} };
     vi.stubGlobal("window", { wanheda: { desktop: true, version: 3, update } });
     expect(desktopUpdate()).toBe(update);
+    const noDownload = { state: update.state, onState: update.onState, restart: update.restart };
+    vi.stubGlobal("window", { wanheda: { desktop: true, version: 3, update: noDownload } });
+    expect(desktopUpdate()).toBeNull();
   });
 });
 
 describe("parseUpdateState", () => {
-  test("takes the shell's three shapes", () => {
+  test("takes the shell's four shapes", () => {
     expect(parseUpdateState({ kind: "none" })).toEqual({ kind: "none" });
+    expect(parseUpdateState({ kind: "available", version: "0.8.0" })).toEqual({ kind: "available", version: "0.8.0" });
     expect(parseUpdateState({ kind: "ready", version: "0.8.0" })).toEqual({ kind: "ready", version: "0.8.0" });
     expect(parseUpdateState({ kind: "downloading", version: "0.8.0", percent: 41.6 })).toEqual({ kind: "downloading", version: "0.8.0", percent: 41 });
     expect(parseUpdateState({ kind: "downloading", version: "0.8.0", percent: 300 })).toEqual({ kind: "downloading", version: "0.8.0", percent: 100 });
   });
 
   test("anything else hides the pill", () => {
-    for (const bad of [null, undefined, "ready", 1, [], { kind: "ready" }, { kind: "ready", version: "<img>" }, { kind: "ready", version: "1.2" }, { kind: "downloading", version: "0.8.0" }, { kind: "downloading", version: "0.8.0", percent: Number.NaN }, { kind: "available", version: "0.8.0" }]) {
+    for (const bad of [null, undefined, "ready", 1, [], { kind: "ready" }, { kind: "ready", version: "<img>" }, { kind: "ready", version: "1.2" }, { kind: "downloading", version: "0.8.0" }, { kind: "downloading", version: "0.8.0", percent: Number.NaN }, { kind: "available" }, { kind: "offered", version: "0.8.0" }]) {
       expect(parseUpdateState(bad)).toEqual({ kind: "none" });
     }
   });

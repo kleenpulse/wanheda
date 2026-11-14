@@ -4,7 +4,7 @@ import { CHECK_FOR_UPDATES_LABEL } from "./update-state";
 
 /*
  * The tray icon. Clicking it shows the window; its menu opens Wanheda, offers
- * a downloaded update, turns "keep running" on or off, checks for updates,
+ * an update (to download, or to restart into), turns "keep running" on or off, checks for updates,
  * and quits.
  */
 
@@ -14,7 +14,7 @@ export type TrayActions = {
   setKeepRunning: (on: boolean) => void;
   /** Only in builds that update themselves (not dev or preview). */
   checkForUpdates?: () => void;
-  /** "Restart to update to x.y.z", once an update is ready. */
+  /** "Download Wanheda x.y.z" while one is offered, "Restart to update to x.y.z" once it's ready. */
   update?: () => { label: string; click: () => void } | null;
   quit: () => void;
 };

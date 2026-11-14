@@ -1,6 +1,6 @@
 "use client";
 
-import { RotateCw } from "lucide-react";
+import { ArrowDownToLine, RotateCw } from "lucide-react";
 import * as React from "react";
 import { desktopUpdate, parseUpdateState, type DesktopUpdateState } from "@/lib/platform/desktop";
 import { Tip } from "@/components/ui/tooltip";
@@ -60,11 +60,35 @@ function ProgressRing({ percent }: { percent: number }) {
 
 /**
  * The title bar's update pill, desktop app only (T81), the way VS Code shows
- * one: progress while a new version downloads, then "Restart to update".
+ * one: "Download update" when automatic downloads are off, progress while a new
+ * version downloads, then "Restart to update".
  */
 export function UpdatePill({ className }: { className?: string }) {
   const state = useDesktopUpdate();
   if (state.kind === "none") return null;
+
+  if (state.kind === "available") {
+    return (
+      <Tip
+        label={`Wanheda ${state.version} is available`}
+        render={
+          <button
+            type="button"
+            onClick={() => desktopUpdate()?.download()}
+            aria-label={`Download Wanheda ${state.version}`}
+            className={cn(
+              PILL,
+              "group/update bg-foreground/6 text-foreground transition-[background-color,transform] hover:bg-foreground/10 focus-visible:bg-foreground/12 active:scale-[0.97]",
+              className,
+            )}
+          />
+        }
+      >
+        <ArrowDownToLine aria-hidden className="size-3.5 transition-transform duration-300 group-hover/update:translate-y-px" />
+        <span>Download update</span>
+      </Tip>
+    );
+  }
 
   if (state.kind === "downloading") {
     return (

@@ -51,13 +51,33 @@ describe("tray", () => {
 });
 
 describe("settings", () => {
-  test("defaults: keep running, no hint yet", () => {
+  test("defaults: keep running, no hint yet, updates download only when asked", () => {
     expect(parseSettings(null)).toEqual(DEFAULT_SETTINGS);
-    expect(DEFAULT_SETTINGS).toEqual({ keepRunning: true, trayHintShown: false, island: true, islandOffset: 0, shortcuts: { capture: "Ctrl+Shift+Space", palette: "Alt+Space" } });
+    expect(DEFAULT_SETTINGS).toEqual({
+      keepRunning: true,
+      trayHintShown: false,
+      island: true,
+      islandOffset: 0,
+      shortcuts: { capture: "Ctrl+Shift+Space", palette: "Alt+Space" },
+      autoDownloadUpdates: false,
+      downloadedUpdate: null,
+    });
   });
 
   test("keeps known keys of the right type, ignores the rest", () => {
-    expect(parseSettings('{"keepRunning":false,"trayHintShown":true,"extra":1}')).toEqual({ keepRunning: false, trayHintShown: true, island: true, islandOffset: 0, shortcuts: { capture: "Ctrl+Shift+Space", palette: "Alt+Space" } });
+    expect(parseSettings('{"keepRunning":false,"trayHintShown":true,"extra":1}')).toEqual({
+      keepRunning: false,
+      trayHintShown: true,
+      island: true,
+      islandOffset: 0,
+      shortcuts: { capture: "Ctrl+Shift+Space", palette: "Alt+Space" },
+      autoDownloadUpdates: false,
+      downloadedUpdate: null,
+    });
+    expect(parseSettings('{"autoDownloadUpdates":true}').autoDownloadUpdates).toBe(true);
+    expect(parseSettings('{"autoDownloadUpdates":"yes"}').autoDownloadUpdates).toBe(false);
+    expect(parseSettings('{"downloadedUpdate":"0.8.1"}').downloadedUpdate).toBe("0.8.1");
+    for (const bad of ['"0.8"', '"../x"', "8", "true"]) expect(parseSettings(`{"downloadedUpdate":${bad}}`).downloadedUpdate).toBeNull();
     expect(parseSettings('{"islandOffset":-312.6}').islandOffset).toBe(-313);
     for (const bad of ['"4"', "null", "1e9", "[]"]) expect(parseSettings(`{"islandOffset":${bad}}`).islandOffset).toBe(0);
     expect(parseSettings('{"keepRunning":"no"}')).toEqual(DEFAULT_SETTINGS);
@@ -76,7 +96,7 @@ describe("settings", () => {
     const dir = mkdtempSync(join(tmpdir(), "wanheda-settings-"));
     try {
       expect(loadSettings(dir)).toEqual(DEFAULT_SETTINGS);
-      const saved = { keepRunning: false, trayHintShown: true, island: false, islandOffset: -240, shortcuts: { capture: "Ctrl+Alt+N", palette: null } };
+      const saved = { keepRunning: false, trayHintShown: true, island: false, islandOffset: -240, shortcuts: { capture: "Ctrl+Alt+N", palette: null }, autoDownloadUpdates: true, downloadedUpdate: "0.8.0" };
       saveSettings(dir, saved);
       expect(loadSettings(dir)).toEqual(saved);
       expect(JSON.parse(readFileSync(join(dir, "settings.json"), "utf8"))).toEqual(saved);

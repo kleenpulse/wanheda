@@ -2,14 +2,16 @@ import type { MessageBoxOptions, MessageBoxReturnValue } from "electron";
 import { autoUpdater, NsisUpdater, type UpdateInfo } from "electron-updater";
 import type { UpdateState } from "./bridge";
 import { CHECK_EVERY_MS, FIRST_CHECK_DELAY_MS, type UpdateMode } from "./update-policy";
-import { NO_UPDATE, nextUpdateState, type UpdateEvent } from "./update-state";
+import { downloadsNow, NO_UPDATE, nextUpdateState, type UpdateEvent } from "./update-state";
 
 /*
  * Self-update (SPEC T81, V75). Checks this repo's published GitHub Releases
  * 30 s after start, every 6 hours, and from "Check for updates…". A new
- * version downloads in the background (only the changed blocks once an
- * updating version is installed: the installer keeps a copy of itself for
- * that). Then the title bar's pill, the tray or a notification offers to
+ * version downloads in the background when automatic downloads are on
+ * (Settings → Desktop, off by default for a metered line); otherwise the pill
+ * and the tray offer "Download update". Downloads are only the changed blocks
+ * once an updating version is installed (the installer keeps a copy of itself
+ * for that). Then the title bar's pill, the tray or a notification offers to
  * restart. Nothing installs silently (V75): the installer starts only after
  * the owner chose "Restart now" / "Restart to update", once the windows closed
  * and the cookies were flushed. A plain quit leaves the download cached and the
@@ -21,7 +23,10 @@ export type UpdaterHooks = {
   /** A message box, on top of the main window when it's showing. */
   showBox(options: MessageBoxOptions): Promise<MessageBoxReturnValue>;
   /** Every change the pill shows. */
-  onState(state: UpdateState): void;
+  onState(state: UpdateState, previous: UpdateState): void;
+  /** The last version downloaded (settings.json), so it isn't offered again as a download after a quit. */
+  downloaded(): string | null;
+  rememberDownloaded(version: string): void;
   /** Quit, then install and start the new version. */
   restartToUpdate(): void;
   /** Start Wanheda again once it exits (the update couldn't start). */
@@ -37,6 +42,10 @@ export type Updater = {
   state(): UpdateState;
   /** "Restart to update": ignored unless an update is ready. */
   restart(): void;
+  /** "Download update": ignored unless an update is available. */
+  download(): void;
+  /** Settings → Desktop's switch. Turning it on starts an offered download; turning it off lets one under way finish. */
+  setAutoDownload(on: boolean): void;
   /**
    * The last step of quitting. Starts the downloaded update's installer only
    * when the owner asked to restart into it, and says how long to wait before
@@ -53,9 +62,9 @@ export type Updater = {
  */
 const NO_UPDATE_FEED = new Set(["ERR_UPDATER_CHANNEL_FILE_NOT_FOUND", "ERR_UPDATER_NO_PUBLISHED_VERSIONS"]);
 
-export function createUpdater(mode: UpdateMode, hooks: UpdaterHooks): Updater {
+export function createUpdater(mode: UpdateMode, autoDownload: boolean, hooks: UpdaterHooks): Updater {
   const { log, showBox } = hooks;
-  if (mode === "off") return { mode, start() {}, checkNow() {}, state: () => NO_UPDATE, restart() {}, installOnQuit: () => 0 };
+  if (mode === "off") return { mode, start() {}, checkNow() {}, state: () => NO_UPDATE, restart() {}, download() {}, setAutoDownload() {}, installOnQuit: () => 0 };
 
   // One truth for the pill, the menu and quitting: electron-updater deletes a ready installer once a newer one starts downloading.
   let state = NO_UPDATE;
@@ -68,7 +77,7 @@ export function createUpdater(mode: UpdateMode, hooks: UpdaterHooks): Updater {
     warn: (m: unknown) => { log.info(`updater warning: ${String(m)}`); },
     error: (m: unknown) => { log.info(`updater error: ${String(m)}`); },
   };
-  autoUpdater.autoDownload = true;
+  autoUpdater.autoDownload = autoDownload;
   // installOnQuit starts the installer itself, once the windows are closed.
   autoUpdater.autoInstallOnAppQuit = false;
   autoUpdater.allowPrerelease = false;
@@ -79,8 +88,9 @@ export function createUpdater(mode: UpdateMode, hooks: UpdaterHooks): Updater {
   function emit(event: UpdateEvent): void {
     const next = nextUpdateState(state, event);
     if (next === state) return;
+    const previous = state;
     state = next;
-    hooks.onState(state);
+    hooks.onState(state, previous);
   }
 
   // Without a listener, an "error" event would throw. Failed checks are logged, and a failed download hides the pill.
@@ -88,9 +98,19 @@ export function createUpdater(mode: UpdateMode, hooks: UpdaterHooks): Updater {
     log.info(`update failed: ${err.message.split("\n")[0] ?? ""}`);
     emit({ type: "error" });
   });
-  autoUpdater.on("update-available", (info: UpdateInfo) => { emit({ type: "available", version: info.version }); });
+  // Emitted before checkForUpdates starts the download, so autoDownload still says whether it will.
+  autoUpdater.on("update-available", (info: UpdateInfo) => {
+    const now = downloadsNow(info.version, autoUpdater.autoDownload, hooks.downloaded());
+    emit({ type: "available", version: info.version, downloading: now });
+    // Downloaded before a quit: electron-updater only finds its cached installer by downloading, which then ends at once.
+    // (Not when it's ready already: a re-check every 6 hours would only check the cached file again.)
+    if (now && !autoUpdater.autoDownload && state.kind === "downloading") autoUpdater.downloadUpdate().catch(() => {});
+  });
   autoUpdater.on("download-progress", (progress: { percent: number }) => { emit({ type: "progress", percent: progress.percent }); });
-  autoUpdater.on("update-downloaded", (info: UpdateInfo) => { emit({ type: "downloaded", version: info.version }); });
+  autoUpdater.on("update-downloaded", (info: UpdateInfo) => {
+    if (hooks.downloaded() !== info.version) hooks.rememberDownloaded(info.version);
+    emit({ type: "downloaded", version: info.version });
+  });
 
   async function askToRestart(version: string): Promise<void> {
     const { response } = await showBox({
@@ -110,6 +130,16 @@ export function createUpdater(mode: UpdateMode, hooks: UpdaterHooks): Updater {
     autoUpdater.checkForUpdates().catch(() => {
       // Already logged by the "error" listener.
     });
+  }
+
+  function download(): void {
+    if (state.kind !== "available") {
+      log.info(`ignored "download update" (${state.kind})`);
+      return;
+    }
+    emit({ type: "download" });
+    // Joins a download already under way. A failure is logged by the "error" listener, which offers the version again.
+    autoUpdater.downloadUpdate().catch(() => {});
   }
 
   async function checkNow(): Promise<void> {
@@ -138,7 +168,22 @@ export function createUpdater(mode: UpdateMode, hooks: UpdaterHooks): Updater {
     // A download that finished during the check: offer the restart now.
     const nowReady = ready();
     if (nowReady) return askToRestart(nowReady);
+    if (state.kind === "available") return askToDownload(state.version);
     await showBox({ type: "info", title: "Wanheda", message: `Wanheda ${found.version} is downloading.`, detail: "Wanheda tells you when it's ready.", buttons: ["OK"] });
+  }
+
+  async function askToDownload(version: string): Promise<void> {
+    const { response } = await showBox({
+      type: "info",
+      title: "Wanheda",
+      message: `Wanheda ${version} is available.`,
+      detail: "Download it now? Updates usually download only what changed. If you choose Later, the Download update button stays in the title bar.",
+      buttons: ["Download", "Later"],
+      defaultId: 0,
+      cancelId: 1,
+    });
+    // The state may have moved on while the box was open (the switch turned on, a newer version found).
+    if (response === 0 && state.kind === "available" && state.version === version) download();
   }
 
   return {
@@ -154,6 +199,11 @@ export function createUpdater(mode: UpdateMode, hooks: UpdaterHooks): Updater {
     restart() {
       if (ready()) hooks.restartToUpdate();
       else log.info(`ignored "restart to update" (${state.kind})`);
+    },
+    download,
+    setAutoDownload(on) {
+      autoUpdater.autoDownload = on;
+      if (on && state.kind === "available") download();
     },
     installOnQuit(restart) {
       clearTimeout(firstCheck);

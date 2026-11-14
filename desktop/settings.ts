@@ -19,9 +19,26 @@ export type DesktopSettings = {
   islandOffset: number;
   /** Global shortcuts (V71): an accelerator, or null when turned off. */
   shortcuts: Record<ShortcutId, string | null>;
+  /** A new version downloads as soon as it's found. Off: Wanheda offers it and downloads on the owner's click (a metered line). */
+  autoDownloadUpdates: boolean;
+  /**
+   * The last version the updater downloaded. Found again after a quit, it downloads by itself even with
+   * automatic downloads off: the cached installer answers at once, so "Restart to update" comes back.
+   */
+  downloadedUpdate: string | null;
 };
 
-export const DEFAULT_SETTINGS: DesktopSettings = { keepRunning: true, trayHintShown: false, island: true, islandOffset: 0, shortcuts: { ...DEFAULT_SHORTCUTS } };
+const VERSION = /^\d{1,4}\.\d{1,4}\.\d{1,4}$/;
+
+export const DEFAULT_SETTINGS: DesktopSettings = {
+  keepRunning: true,
+  trayHintShown: false,
+  island: true,
+  islandOffset: 0,
+  shortcuts: { ...DEFAULT_SHORTCUTS },
+  autoDownloadUpdates: false,
+  downloadedUpdate: null,
+};
 
 /** Known keys with the right type win; anything else falls back to the default. */
 export function parseSettings(text: string | null): DesktopSettings {
@@ -33,7 +50,7 @@ export function parseSettings(text: string | null): DesktopSettings {
     return defaults();
   }
   const record = raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {};
-  const flag = (key: "keepRunning" | "trayHintShown" | "island") => (typeof record[key] === "boolean" ? record[key] : DEFAULT_SETTINGS[key]);
+  const flag = (key: "keepRunning" | "trayHintShown" | "island" | "autoDownloadUpdates") =>(typeof record[key] === "boolean" ? record[key] : DEFAULT_SETTINGS[key]);
   const offset = record.islandOffset;
   return {
     keepRunning: flag("keepRunning"),
@@ -42,6 +59,8 @@ export function parseSettings(text: string | null): DesktopSettings {
     // Clamped to the display when it is used; here only a sane number.
     islandOffset: typeof offset === "number" && Number.isFinite(offset) && Math.abs(offset) <= MAX_ISLAND_OFFSET ? Math.round(offset) : DEFAULT_SETTINGS.islandOffset,
     shortcuts: parseShortcuts(record.shortcuts),
+    autoDownloadUpdates: flag("autoDownloadUpdates"),
+    downloadedUpdate: typeof record.downloadedUpdate === "string" && VERSION.test(record.downloadedUpdate) ? record.downloadedUpdate : null,
   };
 }
 

@@ -128,10 +128,12 @@ function boot(): void {
   // "Restart now" on a downloaded update: the installer starts Wanheda again once it's done.
   let restartForUpdate = false;
   /** Self-update (T81, V75): packaged Windows builds only. */
-  const updater = createUpdater(updateMode({ packaged: app.isPackaged, platform: process.platform }), {
+  const updater = createUpdater(updateMode({ packaged: app.isPackaged, platform: process.platform }), settings.autoDownloadUpdates, {
     log,
     showBox,
     onState: showUpdateState,
+    downloaded: () => settings.downloadedUpdate,
+    rememberDownloaded: (version) => { updateSettings({ downloadedUpdate: version }); },
     restartToUpdate: () => {
       restartForUpdate = true;
       app.quit();
@@ -168,6 +170,9 @@ function boot(): void {
   });
   ipcMain.on(CHANNELS.updateRestart, (event) => {
     if (fromWindow(event, mainWindow)) updater.restart();
+  });
+  ipcMain.on(CHANNELS.updateDownload, (event) => {
+    if (fromWindow(event, mainWindow)) updater.download();
   });
   ipcMain.handle(CHANNELS.mediaTranscodable, (event): Promise<string[]> => {
     if (!fromWindow(event, mainWindow)) throw new Error("Not allowed.");
@@ -262,6 +267,12 @@ function boot(): void {
     if ("island" in change) {
       updateSettings({ island: change.island });
       updateIsland();
+      pushState();
+      return { ok: true, state: desktopState() };
+    }
+    if ("autoDownloadUpdates" in change) {
+      updateSettings({ autoDownloadUpdates: change.autoDownloadUpdates });
+      updater.setAutoDownload(change.autoDownloadUpdates);
       pushState();
       return { ok: true, state: desktopState() };
     }
@@ -403,8 +414,10 @@ function boot(): void {
         setKeepRunning,
         ...(checkForUpdates ? { checkForUpdates } : {}),
         update: () => {
-          const label = updateMenuLabel(updater.state());
-          return label ? { label, click: () => { updater.restart(); } } : null;
+          const state = updater.state();
+          const label = updateMenuLabel(state);
+          if (!label) return null;
+          return { label, click: state.kind === "available" ? () => { updater.download(); } : () => { updater.restart(); } };
         },
         quit: () => { app.quit(); },
       });
@@ -636,18 +649,18 @@ function boot(): void {
 
   /**
    * The title bar's pill shows the update. While the window is hidden or
-   * minimised it can't be seen, so a ready update also gets a notification.
+   * minimised it can't be seen, so an offered or ready update also gets a notification.
    */
-  function showUpdateState(state: UpdateState): void {
+  function showUpdateState(state: UpdateState, previous: UpdateState): void {
     // Progress moves the pill, not the tray's item.
     if (state.kind !== "downloading" || state.percent === 0) tray?.refresh();
     const win = mainWindow;
     // A page that misses this (still loading, say) asks for the state when its title bar mounts.
     if (win && !win.isDestroyed()) win.webContents.send(CHANNELS.updateState, state);
-    const notice = updateNotice(state);
+    const notice = updateNotice(state, previous);
     const shown = Boolean(win && !win.isDestroyed() && win.isVisible() && !win.isMinimized());
     if (!notice || shown) return;
-    notify(notice.title, notice.body, () => { updater.restart(); });
+    notify(notice.title, notice.body, state.kind === "available" ? () => { updater.download(); } : () => { updater.restart(); });
   }
 
   /** Whether an IPC message came from `win`'s own top frame on the app's origin. */
@@ -678,6 +691,7 @@ function boot(): void {
       keepRunning: settings.keepRunning,
       island: settings.island,
       shortcuts: SHORTCUT_IDS.map((id) => ({ id, accelerator: settings.shortcuts[id], status: shortcutStatus.get(id) ?? "off" })),
+      autoDownloadUpdates: updater.mode === "off" ? null : settings.autoDownloadUpdates,
     };
   }
 

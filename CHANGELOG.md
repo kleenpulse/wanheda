@@ -17,7 +17,7 @@ written after the fact, one per phase, and have no git tags.
 
 ### Added
 
-- The desktop app now updates itself. When a new version is out, it downloads in the background and the title bar shows its progress, then a Restart to update button (also in the tray, and as a notification while the window is hidden). If you'd rather not restart now, the button waits for you, even after you quit and open Wanheda again. Updates download only the parts that changed, so they stay small. Install this version by hand once; after that, the app keeps itself up to date. You can also check yourself: File → Check for updates…, or the tray.
+- The desktop app now updates itself. When a new version is out, the title bar shows a Download update button (the tray offers it too, and a notification tells you while the window is hidden), so nothing big downloads on a metered connection without your say. To have updates download in the background instead, turn on Settings → Desktop → Download updates automatically. While it downloads, the title bar shows its progress, then a Restart to update button (also in the tray, and as a notification while the window is hidden). If you'd rather not restart now, the button waits for you, even after you quit and open Wanheda again. Updates download only the parts that changed, so they stay small. Install this version by hand once; after that, the app keeps itself up to date. You can also check yourself: File → Check for updates…, or the tray.
 
 ### Changed
 
